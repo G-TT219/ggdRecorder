@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getRecordings: () => ipcRenderer.invoke('get-recordings'),
   deleteRecording: (filename) => ipcRenderer.invoke('delete-recording', filename),
   readRecording: (filePath) => ipcRenderer.invoke('read-recording', filePath),
+  getRecordingsDir: () => ipcRenderer.invoke('get-recordings-dir'),
+  setRecordingsDir: (dirPath) => ipcRenderer.invoke('set-recordings-dir', dirPath),
+  selectRecordingsDir: () => ipcRenderer.invoke('select-recordings-dir'),
   onSourceIdSelected: (callback) => ipcRenderer.on('source-id-selected', callback),
   onStopRecording: (callback) => ipcRenderer.on('stop-recording', callback),
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)

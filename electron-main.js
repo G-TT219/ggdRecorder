@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, desktopCapturer } = require('electron');
+const { app, BrowserWindow, ipcMain, desktopCapturer, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -6,6 +6,23 @@ const fs = require('fs').promises;
 if (require('electron-squirrel-startup')) {
   app.quit();
 }
+
+// Get recordings directory path
+const getRecordingsDir = () => {
+  return path.join(app.getPath('videos'), 'GameRecorder');
+};
+
+// Create recordings directory if it doesn't exist
+const createRecordingsDir = async () => {
+  const recordingsDir = getRecordingsDir();
+  try {
+    await fs.access(recordingsDir);
+  } catch (error) {
+    // Directory doesn't exist, create it
+    await fs.mkdir(recordingsDir, { recursive: true });
+  }
+  return recordingsDir;
+};
 
 const createWindow = () => {
   // Create the browser window.
@@ -26,12 +43,16 @@ const createWindow = () => {
   const isDev = process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL;
   console.log('isDev:', isDev);
   console.log('VITE_DEV_SERVER_URL:', process.env.VITE_DEV_SERVER_URL);
+  console.log('NODE_ENV:', process.env.NODE_ENV);
   if (isDev) {
     const url = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
     console.log('Loading URL:', url);
     mainWindow.loadURL(url);
   } else {
-    mainWindow.loadFile(path.join(__dirname, 'dist/index.html'));
+    // 生产环境中正确加载打包后的文件
+    const indexPath = path.join(__dirname, 'dist', 'index.html');
+    console.log('Loading file:', indexPath);
+    mainWindow.loadFile(indexPath);
   }
 
   // Open the DevTools.
@@ -151,27 +172,18 @@ ipcMain.handle('stop-recording', async (event) => {
   }
 });
 
-// Get recordings directory path
-const getRecordingsDir = () => {
-  return path.join(app.getPath('videos'), 'GameRecorder');
-};
-
-// Create recordings directory if it doesn't exist
-const createRecordingsDir = async () => {
-  const recordingsDir = getRecordingsDir();
-  try {
-    await fs.access(recordingsDir);
-  } catch (error) {
-    // Directory doesn't exist, create it
-    await fs.mkdir(recordingsDir, { recursive: true });
-  }
-  return recordingsDir;
-};
-
 // Save recording to file
 ipcMain.handle('save-recording', async (event, buffer, filename) => {
   try {
-    const recordingsDir = await createRecordingsDir();
+    // Get the custom recordings directory or use default
+    let recordingsDir;
+    try {
+      const config = await getAppConfig();
+      recordingsDir = config.recordingsDir || await createRecordingsDir();
+    } catch (error) {
+      recordingsDir = await createRecordingsDir();
+    }
+    
     const filePath = path.join(recordingsDir, filename);
     // Convert ArrayBuffer to Buffer
     const bufferData = Buffer.from(buffer);
@@ -186,7 +198,15 @@ ipcMain.handle('save-recording', async (event, buffer, filename) => {
 // Get list of recordings
 ipcMain.handle('get-recordings', async () => {
   try {
-    const recordingsDir = await createRecordingsDir();
+    // Get the custom recordings directory or use default
+    let recordingsDir;
+    try {
+      const config = await getAppConfig();
+      recordingsDir = config.recordingsDir || await createRecordingsDir();
+    } catch (error) {
+      recordingsDir = await createRecordingsDir();
+    }
+    
     const files = await fs.readdir(recordingsDir);
     const recordings = [];
     
@@ -216,7 +236,15 @@ ipcMain.handle('get-recordings', async () => {
 // Delete recording
 ipcMain.handle('delete-recording', async (event, filename) => {
   try {
-    const recordingsDir = getRecordingsDir();
+    // Get the custom recordings directory or use default
+    let recordingsDir;
+    try {
+      const config = await getAppConfig();
+      recordingsDir = config.recordingsDir || await createRecordingsDir();
+    } catch (error) {
+      recordingsDir = await createRecordingsDir();
+    }
+    
     const filePath = path.join(recordingsDir, filename);
     await fs.unlink(filePath);
     return { success: true };
@@ -234,6 +262,103 @@ ipcMain.handle('read-recording', async (event, filePath) => {
     return { success: true, data: base64Data };
   } catch (error) {
     console.error('Error reading recording:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Get app configuration
+const getAppConfigPath = () => {
+  return path.join(app.getPath('userData'), 'config.json');
+};
+
+const getAppConfig = async () => {
+  try {
+    const configPath = getAppConfigPath();
+    const data = await fs.readFile(configPath, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    // Return default config if file doesn't exist or is invalid
+    return { recordingsDir: null };
+  }
+};
+
+const saveAppConfig = async (config) => {
+  try {
+    const configPath = getAppConfigPath();
+    await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+    return { success: true };
+  } catch (error) {
+    console.error('Error saving app config:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// IPC handler to get current recordings directory
+ipcMain.handle('get-recordings-dir', async () => {
+  try {
+    const config = await getAppConfig();
+    return {
+      success: true,
+      recordingsDir: config.recordingsDir || await createRecordingsDir()
+    };
+  } catch (error) {
+    const defaultDir = await createRecordingsDir();
+    return { success: true, recordingsDir: defaultDir };
+  }
+});
+
+// IPC handler to set recordings directory
+ipcMain.handle('set-recordings-dir', async (event, dirPath) => {
+  try {
+    // Verify the directory exists or can be created
+    try {
+      await fs.access(dirPath);
+    } catch (error) {
+      // Directory doesn't exist, try to create it
+      await fs.mkdir(dirPath, { recursive: true });
+    }
+    
+    // Save the new directory in config
+    const config = await getAppConfig();
+    config.recordingsDir = dirPath;
+    const result = await saveAppConfig(config);
+    
+    if (result.success) {
+      return { success: true, recordingsDir: dirPath };
+    } else {
+      return { success: false, error: result.error };
+    }
+  } catch (error) {
+    console.error('Error setting recordings directory:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// IPC handler to open directory selection dialog
+ipcMain.handle('select-recordings-dir', async (event) => {
+  try {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory']
+    });
+    
+    if (!result.canceled && result.filePaths.length > 0) {
+      const dirPath = result.filePaths[0];
+      
+      // Save the new directory in config
+      const config = await getAppConfig();
+      config.recordingsDir = dirPath;
+      const saveResult = await saveAppConfig(config);
+      
+      if (saveResult.success) {
+        return { success: true, recordingsDir: dirPath };
+      } else {
+        return { success: false, error: saveResult.error };
+      }
+    } else {
+      return { success: false, canceled: true };
+    }
+  } catch (error) {
+    console.error('Error selecting recordings directory:', error);
     return { success: false, error: error.message };
   }
 });

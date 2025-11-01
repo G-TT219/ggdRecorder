@@ -3,6 +3,8 @@
   background-color: #1e1e1e;
   color: white;
   font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-header {
@@ -10,6 +12,7 @@
   padding: 1rem;
   text-align: center;
   border-bottom: 1px solid #333;
+  flex-shrink: 0;
 }
 
 .app-header h1 {
@@ -73,14 +76,18 @@
 }
 
 .app-main {
-  max-width: 1200px;
-  margin: 0 auto;
+  flex: 1;
+  width: 100%;
+  margin: 0;
   padding: 1rem;
+  overflow: auto;
+  box-sizing: border-box;
 }
 
 .game-selection h2,
 .recording-controls h2,
-.recordings-section h2 {
+.recordings-section h2,
+.settings-section h2 {
   color: #4fc3f7;
   border-bottom: 1px solid #333;
   padding-bottom: 0.5rem;
@@ -91,16 +98,20 @@
   flex-wrap: wrap;
   gap: 1rem;
   margin-top: 1rem;
+  justify-content: flex-start;
 }
 
 .process-item {
   background-color: #2d2d2d;
   border: 1px solid #444;
   border-radius: 4px;
-  padding: 1rem;
+  padding: 1.5rem;
   cursor: pointer;
   width: calc(33.333% - 1rem);
   transition: all 0.2s ease;
+  min-width: 250px;
+  flex-grow: 1;
+  box-sizing: border-box;
 }
 
 .process-item:hover {
@@ -117,12 +128,14 @@
 .process-item h3 {
   margin: 0 0 0.5rem;
   color: #4fc3f7;
+  font-size: 1.2rem;
 }
 
 .process-item p {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   color: #aaa;
+  word-break: break-all;
 }
 
 .recording-controls {
@@ -133,27 +146,34 @@
   background-color: #2d2d2d;
   border: 1px solid #444;
   border-radius: 4px;
-  padding: 1rem;
+  padding: 2rem;
+  max-width: 800px;
+  margin: 2rem auto;
+  text-align: center;
 }
 
 .selected-game h3 {
   margin-top: 0;
   color: #4fc3f7;
+  font-size: 1.5rem;
 }
 
 .controls {
-  margin-top: 1rem;
+  margin-top: 1.5rem;
+  text-align: center;
 }
 
 .record-button, .stop-button {
   background-color: #f44336;
   color: white;
   border: none;
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
+  padding: 1rem 2rem;
+  font-size: 1.2rem;
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.2s ease;
+  min-width: 200px;
+  font-weight: bold;
 }
 
 .record-button:hover, .stop-button:hover {
@@ -162,45 +182,57 @@
 
 .recordings-section {
   width: 100%;
+  height: 100%;
 }
 
 .viewer-header {
   display: flex;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  padding: 0 1rem;
 }
 
 .viewer-header button {
   background-color: #333;
   color: white;
   border: none;
-  padding: 0.5rem 1rem;
+  padding: 0.75rem 1.5rem;
   margin-right: 1rem;
   cursor: pointer;
   border-radius: 4px;
+  font-size: 1rem;
 }
 
 .viewer-header h3 {
   margin: 0;
   color: #4fc3f7;
+  flex-grow: 1;
+  text-align: center;
+  font-size: 1.5rem;
 }
 
 .video-container {
   width: 100%;
   text-align: center;
+  margin: 1rem 0;
+  display: flex;
+  justify-content: center;
 }
 
 .video-container video {
-  max-width: 100%;
+  max-width: 90%;
   max-height: 70vh;
   background-color: #000;
+  border: 1px solid #333;
 }
 
 .recordings-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 2rem;
   margin-top: 1rem;
+  padding: 0 1rem;
 }
 
 .recording-item {
@@ -209,11 +241,13 @@
   border-radius: 4px;
   overflow: hidden;
   display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .recording-thumbnail {
-  width: 120px;
-  height: 90px;
+  width: 100%;
+  height: 220px;
   background-color: #000;
   display: flex;
   align-items: center;
@@ -222,38 +256,43 @@
 }
 
 .play-icon {
-  font-size: 2rem;
+  font-size: 4rem;
   color: rgba(255, 255, 255, 0.7);
 }
 
 .recording-info {
   flex: 1;
-  padding: 1rem;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
 }
 
 .recording-info h3 {
   margin: 0 0 0.5rem;
   color: #4fc3f7;
-  font-size: 1rem;
+  font-size: 1.3rem;
 }
 
 .recording-info p {
-  margin: 0 0 1rem;
+  margin: 0 0 1.5rem;
   color: #aaa;
-  font-size: 0.9rem;
+  font-size: 1rem;
+  flex-grow: 1;
 }
 
 .recording-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 1rem;
 }
 
 .play-button, .delete-button {
   flex: 1;
-  padding: 0.5rem;
+  padding: 0.8rem;
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  font-weight: bold;
+  font-size: 1.1rem;
 }
 
 .play-button {
@@ -274,13 +313,142 @@
   background-color: #d32f2f;
 }
 
-@media (max-width: 768px) {
+/* Settings section styles */
+.settings-section {
+  width: 100%;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.settings-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.setting-item {
+  background-color: #2d2d2d;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.setting-item label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+  color: #4fc3f7;
+  font-size: 1.1rem;
+}
+
+.setting-input {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.setting-input input {
+  flex: 1;
+  padding: 0.75rem;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background-color: #1e1e1e;
+  color: white;
+  font-size: 1rem;
+}
+
+.setting-input button {
+  background-color: #4fc3f7;
+  color: #000;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+.setting-input button:hover {
+  background-color: #29b6f6;
+}
+
+.setting-description {
+  color: #aaa;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+/* 大屏幕适配 */
+@media (min-width: 1800px) {
   .process-item {
-    width: calc(50% - 0.5rem);
+    width: calc(20% - 1rem);
+  }
+  
+  .recordings-list {
+    grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+  }
+  
+  .recording-thumbnail {
+    height: 250px;
+  }
+}
+
+@media (min-width: 1400px) and (max-width: 1799px) {
+  .process-item {
+    width: calc(25% - 1rem);
+  }
+  
+  .recordings-list {
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  }
+}
+
+@media (min-width: 1200px) and (max-width: 1399px) {
+  .process-item {
+    width: calc(33.333% - 1rem);
+  }
+  
+  .recordings-list {
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  }
+}
+
+/* 中等屏幕适配 */
+@media (min-width: 769px) and (max-width: 1199px) {
+  .process-item {
+    width: calc(50% - 1rem);
+  }
+  
+  .recordings-list {
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  }
+  
+  .recording-thumbnail {
+    height: 180px;
+  }
+  
+  .app-main {
+    padding: 0.75rem;
+  }
+}
+
+/* 小屏幕适配 */
+@media (max-width: 768px) {
+  .app-main {
+    padding: 0.5rem;
+  }
+  
+  .process-item {
+    width: 100%;
+    min-width: auto;
   }
   
   .recordings-list {
     grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 0;
   }
   
   .recording-item {
@@ -289,6 +457,85 @@
   
   .recording-thumbnail {
     width: 100%;
-    height: 160px;
+    height: 200px;
+  }
+  
+  .viewer-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .viewer-header button {
+    margin-bottom: 0.5rem;
+    margin-right: 0;
+  }
+  
+  .selected-game {
+    padding: 1rem;
+  }
+  
+  .record-button, .stop-button {
+    padding: 0.8rem 1.5rem;
+    min-width: 150px;
+    font-size: 1rem;
+  }
+  
+  .process-item {
+    padding: 1rem;
+  }
+  
+  .recording-info {
+    padding: 1rem;
+  }
+  
+  .setting-input {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .setting-input button {
+    width: 100%;
+  }
+}
+
+/* 超小屏幕适配 */
+@media (max-width: 480px) {
+  .app-header h1 {
+    font-size: 1.5rem;
+  }
+  
+  .tabs button {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.9rem;
+    margin: 0 0.1rem;
+  }
+  
+  .process-item {
+    padding: 0.75rem;
+  }
+  
+  .process-item h3 {
+    font-size: 1.1rem;
+  }
+  
+  .recording-thumbnail {
+    height: 150px;
+  }
+  
+  .play-icon {
+    font-size: 3rem;
+  }
+  
+  .recording-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .play-button, .delete-button {
+    width: 100%;
+  }
+  
+  .setting-item {
+    padding: 1rem;
   }
 }

@@ -6,9 +6,10 @@ function App() {
   const [selectedGame, setSelectedGame] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordings, setRecordings] = useState([]);
-  const [activeTab, setActiveTab] = useState('games'); // 'games' or 'recordings'
+  const [activeTab, setActiveTab] = useState('games'); // 'games', 'recordings', or 'settings'
   const [selectedRecording, setSelectedRecording] = useState(null);
   const [recordingData, setRecordingData] = useState(null);
+  const [recordingsDir, setRecordingsDir] = useState('');
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
 
@@ -16,6 +17,7 @@ function App() {
     // Load game processes
     loadGameProcesses();
     loadRecordings();
+    loadRecordingsDir();
 
     // Set up event listeners for recording
     window.electronAPI.onSourceIdSelected((event, sourceId, sourceName) => {
@@ -39,19 +41,29 @@ function App() {
   const loadGameProcesses = async () => {
     try {
       const processes = await window.electronAPI.getGameProcesses();
-      console.log('Game processes:', processes);
       setGameProcesses(processes);
     } catch (error) {
-      console.error('Failed to load game processes:', error);
+      console.error('Error loading game processes:', error);
     }
   };
 
   const loadRecordings = async () => {
     try {
-      const recordings = await window.electronAPI.getRecordings();
-      setRecordings(recordings);
+      const recordingsList = await window.electronAPI.getRecordings();
+      setRecordings(recordingsList);
     } catch (error) {
-      console.error('Failed to load recordings:', error);
+      console.error('Error loading recordings:', error);
+    }
+  };
+
+  const loadRecordingsDir = async () => {
+    try {
+      const result = await window.electronAPI.getRecordingsDir();
+      if (result.success) {
+        setRecordingsDir(result.recordingsDir);
+      }
+    } catch (error) {
+      console.error('Error loading recordings directory:', error);
     }
   };
 
@@ -59,145 +71,136 @@ function App() {
     try {
       const result = await window.electronAPI.readRecording(filePath);
       if (result.success) {
-        setRecordingData(result.data);
-      } else {
-        console.error('Failed to load recording data:', result.error);
+        setRecordingData(`data:video/webm;base64,${result.data}`);
       }
     } catch (error) {
-      console.error('Failed to load recording data:', error);
+      console.error('Error loading recording data:', error);
+    }
+  };
+
+  const startRecording = async () => {
+    if (!selectedGame) return;
+    
+    try {
+      const result = await window.electronAPI.startRecording({
+        gameName: selectedGame.name
+      });
+      
+      if (!result.success) {
+        console.error('Failed to start recording:', result.message);
+      }
+    } catch (error) {
+      console.error('Error starting recording:', error);
     }
   };
 
   const startMediaRecording = async (sourceId, sourceName) => {
     try {
-      // Get the stream for the selected source
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          mandatory: {
-            chromeMediaSource: 'desktop'
-          }
-        },
+        audio: false,
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',
             chromeMediaSourceId: sourceId,
-            minWidth: 1280,
-            maxWidth: 1920,
-            minHeight: 720,
-            maxHeight: 1080
           }
         }
       });
 
-      // Create MediaRecorder instance
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'video/webm;codecs=vp9'
-      });
-
-      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorderRef.current = new MediaRecorder(stream);
       recordedChunksRef.current = [];
 
-      // Handle data availability
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          recordedChunksRef.current.push(e.data);
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
         }
       };
 
-      // Handle recording stop
-      mediaRecorder.onstop = async () => {
-        // Create a blob from the recorded chunks
-        const blob = new Blob(recordedChunksRef.current, {
-          type: 'video/webm;codecs=vp9'
-        });
-
-        // Save the recording to file
-        // const filename = `recording-${new Date().toISOString().replace(/:/g, '-')}.webm`;
-        const filename = `recording-${new Date().toLocaleString('zh-CN').replace(/[/:]/g, '-').replace(/\s/g, '_')}.webm`; const arrayBuffer = await blob.arrayBuffer();
-        const result = await window.electronAPI.saveRecording(arrayBuffer, filename);
-
+      mediaRecorderRef.current.onstop = async () => {
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        const buffer = await blob.arrayBuffer();
+        
+        // Generate filename with timestamp in China timezone
+        const now = new Date();
+        const chinaTime = new Intl.DateTimeFormat('zh-CN', {
+          timeZone: 'Asia/Shanghai',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        }).format(now);
+        
+        const filename = `${sourceName}_${chinaTime.replace(/[/: ]/g, '-')}.webm`;
+        
+        const result = await window.electronAPI.saveRecording(buffer, filename);
         if (result.success) {
           console.log('Recording saved successfully');
+          loadRecordings(); // Refresh recordings list
         } else {
           console.error('Failed to save recording:', result.error);
         }
 
-        // Clean up the stream tracks
+        // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
-
-        // Update UI
-        setIsRecording(false);
-
-        // Refresh recordings list
-        loadRecordings();
       };
 
-      // Start recording
-      mediaRecorder.start();
+      mediaRecorderRef.current.start();
       setIsRecording(true);
     } catch (error) {
       console.error('Error starting media recording:', error);
-      alert('Failed to start recording: ' + error.message);
-    }
-  };
-
-  const startRecording = async () => {
-    if (!selectedGame) {
-      alert('Please select a game to record');
-      return;
-    }
-
-    try {
-      const result = await window.electronAPI.startRecording({
-        gameId: selectedGame.pid,
-        gameName: selectedGame.name
-      });
-
-      if (!result.success) {
-        alert('Failed to start recording: ' + result.message);
-      }
-    } catch (error) {
-      console.error('Failed to start recording:', error);
-      alert('Failed to start recording');
     }
   };
 
   const stopRecording = async () => {
     try {
       const result = await window.electronAPI.stopRecording();
-
-      if (!result.success) {
-        alert('Failed to stop recording: ' + result.message);
+      if (result.success) {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+        setIsRecording(false);
+      } else {
+        console.error('Failed to stop recording:', result.message);
       }
     } catch (error) {
-      console.error('Failed to stop recording:', error);
-      alert('Failed to stop recording');
+      console.error('Error stopping recording:', error);
     }
   };
 
   const deleteRecording = async (recording) => {
-    if (window.confirm(`Are you sure you want to delete "${recording.name}"?`)) {
-      try {
-        const result = await window.electronAPI.deleteRecording(recording.id);
-        if (result.success) {
-          // Refresh recordings list
-          loadRecordings();
-          // If we were viewing this recording, close the viewer
-          if (selectedRecording && selectedRecording.id === recording.id) {
-            setSelectedRecording(null);
-            setRecordingData(null);
-          }
-        } else {
-          alert('Failed to delete recording: ' + result.error);
+    try {
+      const result = await window.electronAPI.deleteRecording(recording.id);
+      if (result.success) {
+        console.log('Recording deleted successfully');
+        loadRecordings(); // Refresh recordings list
+        if (selectedRecording && selectedRecording.id === recording.id) {
+          setSelectedRecording(null);
+          setRecordingData(null);
         }
-      } catch (error) {
-        console.error('Failed to delete recording:', error);
-        alert('Failed to delete recording');
+      } else {
+        console.error('Failed to delete recording:', result.error);
       }
+    } catch (error) {
+      console.error('Error deleting recording:', error);
     }
   };
 
-  // When a recording is selected, load its data
+  const selectRecordingsDir = async () => {
+    try {
+      const result = await window.electronAPI.selectRecordingsDir();
+      if (result.success) {
+        setRecordingsDir(result.recordingsDir);
+        loadRecordings(); // Refresh recordings list
+      } else if (!result.canceled) {
+        console.error('Failed to select recordings directory:', result.error);
+      }
+    } catch (error) {
+      console.error('Error selecting recordings directory:', error);
+    }
+  };
+
   useEffect(() => {
     if (selectedRecording) {
       loadRecordingData(selectedRecording.filePath);
@@ -209,13 +212,13 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Game Recorder</h1>
+        <h1>游戏录制助手</h1>
         <div className="tabs">
           <button
             className={activeTab === 'games' ? 'active' : ''}
             onClick={() => setActiveTab('games')}
           >
-            Games
+            游戏录制
           </button>
           <button
             className={activeTab === 'recordings' ? 'active' : ''}
@@ -224,13 +227,19 @@ function App() {
               loadRecordings();
             }}
           >
-            Recordings ({recordings.length})
+            录像回放 ({recordings.length})
+          </button>
+          <button
+            className={activeTab === 'settings' ? 'active' : ''}
+            onClick={() => setActiveTab('settings')}
+          >
+            设置
           </button>
         </div>
         {isRecording && (
           <div className="recording-indicator">
             <span className="recording-dot"></span>
-            <span>Recording in progress...</span>
+            <span>正在录制中...</span>
           </div>
         )}
       </header>
@@ -239,9 +248,9 @@ function App() {
         {activeTab === 'games' ? (
           <>
             <section className="game-selection">
-              <h2>Running Games ({gameProcesses.length})</h2>
+              <h2>正在运行的游戏程序 ({gameProcesses.length})</h2>
               {gameProcesses.length === 0 ? (
-                <p>No game processes found. Make sure your games are running.</p>
+                <p>没有检测到正在运行的游戏程序，请确保游戏已经启动</p>
               ) : (
                 <div className="process-list">
                   {gameProcesses.map(process => (
@@ -259,55 +268,56 @@ function App() {
             </section>
 
             <section className="recording-controls">
-              <h2>Recording Controls</h2>
+              <h2>录制控制</h2>
               {selectedGame ? (
                 <div className="selected-game">
-                  <h3>Selected: {selectedGame.name}</h3>
+                  <h3>已选择游戏: {selectedGame.name}</h3>
                   <div className="controls">
                     {!isRecording ? (
                       <button className="record-button" onClick={startRecording}>
-                        Start Recording
+                        开始录制
                       </button>
                     ) : (
                       <button className="stop-button" onClick={stopRecording}>
-                        Stop Recording
+                        停止录制
                       </button>
                     )}
                   </div>
                 </div>
               ) : (
-                <p>Please select a game to record</p>
+                <p>请从上方列表中选择一个游戏程序开始录制</p>
               )}
             </section>
           </>
-        ) : (
+        ) : activeTab === 'recordings' ? (
           <section className="recordings-section">
-            <h2>Recordings</h2>
             {selectedRecording ? (
-              <div className="recording-viewer">
+              <div className="viewer">
                 <div className="viewer-header">
                   <button onClick={() => {
                     setSelectedRecording(null);
                     setRecordingData(null);
-                  }}>&larr; Back to recordings</button>
+                  }}>
+                    ← 返回列表
+                  </button>
                   <h3>{selectedRecording.name}</h3>
                 </div>
                 <div className="video-container">
                   {recordingData ? (
-                    <video
-                      src={`data:video/webm;base64,${recordingData}`}
-                      controls
-                      autoPlay
-                    />
+                    <video controls autoPlay>
+                      <source src={recordingData} type="video/webm" />
+                      您的浏览器不支持视频播放。
+                    </video>
                   ) : (
-                    <p>Loading video...</p>
+                    <p>正在加载录像...</p>
                   )}
                 </div>
               </div>
             ) : (
               <div className="recordings-list">
+                <h2>录像列表</h2>
                 {recordings.length === 0 ? (
-                  <p>No recordings found.</p>
+                  <p>暂无录像文件</p>
                 ) : (
                   recordings.map(recording => (
                     <div key={recording.id} className="recording-item">
@@ -316,19 +326,19 @@ function App() {
                       </div>
                       <div className="recording-info">
                         <h3>{recording.name}</h3>
-                        <p>{new Date(recording.date).toLocaleString()}</p>
+                        <p>{new Date(recording.date).toLocaleString('zh-CN')}</p>
                         <div className="recording-actions">
                           <button
                             className="play-button"
                             onClick={() => setSelectedRecording(recording)}
                           >
-                            Play
+                            播放
                           </button>
                           <button
                             className="delete-button"
                             onClick={() => deleteRecording(recording)}
                           >
-                            Delete
+                            删除
                           </button>
                         </div>
                       </div>
@@ -337,6 +347,27 @@ function App() {
                 )}
               </div>
             )}
+          </section>
+        ) : (
+          <section className="settings-section">
+            <h2>设置</h2>
+            <div className="settings-container">
+              <div className="setting-item">
+                <label htmlFor="recordings-dir">录像保存路径:</label>
+                <div className="setting-input">
+                  <input
+                    type="text"
+                    id="recordings-dir"
+                    value={recordingsDir}
+                    readOnly
+                  />
+                  <button onClick={selectRecordingsDir}>选择路径</button>
+                </div>
+                <p className="setting-description">
+                  选择录像文件保存的位置。当前保存路径: {recordingsDir || '默认路径'}
+                </p>
+              </div>
+            </div>
           </section>
         )}
       </main>

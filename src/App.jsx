@@ -96,8 +96,13 @@ function App() {
 
   const startMediaRecording = async (sourceId, sourceName) => {
     try {
+      // 获取用户媒体权限，包括音频和视频
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
+        audio: {
+          mandatory: {
+            chromeMediaSource: 'desktop'
+          }
+        },
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',

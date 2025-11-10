@@ -39,6 +39,9 @@ const createWindow = () => {
     },
   });
 
+  // Remove default menu bar
+  mainWindow.setMenu(null);
+
   // and load the index.html of the app.
   const isDev = process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL;
   console.log('isDev:', isDev);
@@ -399,9 +402,7 @@ ipcMain.handle('get-game-processes', async () => {
     
     // Filter for common game processes
     const gameProcessNames = [
-      'minecraft', 'fortnite', 'valorant', 'overwatch', 'csgo', 'dota2',
-      'lol', 'leagueclient', 'origin', 'uplay', 'epicgameslauncher',
-      'genshin', 'among us', 'apex', 'warzone', 'pubg', 'rocket league','duck'
+      'duck'
     ];
     
     const gameProcesses = processes.filter(process => 

@@ -6,12 +6,28 @@ function App() {
   const [selectedGame, setSelectedGame] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordings, setRecordings] = useState([]);
-  const [activeTab, setActiveTab] = useState('games'); // 'games', 'recordings', or 'settings'
+  const [activeTab, setActiveTab] = useState('games'); // 'games', 'recordings', 'settings', or 'entertainment'
   const [selectedRecording, setSelectedRecording] = useState(null);
   const [recordingData, setRecordingData] = useState(null);
   const [recordingsDir, setRecordingsDir] = useState('');
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [entertainmentUrl, setEntertainmentUrl] = useState('https://www.bilibili.com');
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
+  const recordingStartTimeRef = useRef(null);
+  const timerIntervalRef = useRef(null);
+
+  // Format time for display (seconds to HH:mm:ss)
+  const formatTime = (seconds) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return [
+      h.toString().padStart(2, '0'),
+      m.toString().padStart(2, '0'),
+      s.toString().padStart(2, '0')
+    ].join(':');
+  };
 
   useEffect(() => {
     // Load game processes
@@ -153,6 +169,12 @@ function App() {
 
       mediaRecorderRef.current.start();
       setIsRecording(true);
+      // Start the timer
+      recordingStartTimeRef.current = Date.now();
+      timerIntervalRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - recordingStartTimeRef.current) / 1000);
+        setRecordingTime(elapsed);
+      }, 1000);
     } catch (error) {
       console.error('Error starting media recording:', error);
     }
@@ -166,6 +188,12 @@ function App() {
           mediaRecorderRef.current.stop();
         }
         setIsRecording(false);
+        // Clear the timer
+        if (timerIntervalRef.current) {
+          clearInterval(timerIntervalRef.current);
+          timerIntervalRef.current = null;
+        }
+        setRecordingTime(0);
       } else {
         console.error('Failed to stop recording:', result.message);
       }
@@ -240,11 +268,17 @@ function App() {
           >
             设置
           </button>
+          <button
+            className={activeTab === 'entertainment' ? 'active' : ''}
+            onClick={() => setActiveTab('entertainment')}
+          >
+            娱乐
+          </button>
         </div>
         {isRecording && (
           <div className="recording-indicator">
             <span className="recording-dot"></span>
-            <span>正在录制中...</span>
+            <span>正在录制中...({formatTime(recordingTime)})</span>
           </div>
         )}
       </header>
@@ -254,6 +288,9 @@ function App() {
           <>
             <section className="game-selection">
               <h2>正在运行的游戏程序 ({gameProcesses.length})</h2>
+              <button onClick={loadGameProcesses}>
+                刷新
+              </button>
               {gameProcesses.length === 0 ? (
                 <p>没有检测到正在运行的游戏程序，请确保游戏已经启动</p>
               ) : (
@@ -352,6 +389,43 @@ function App() {
                 )}
               </div>
             )}
+          </section>
+        ) : activeTab === 'entertainment' ? (
+          <section className="entertainment-section">
+            <h2>娱乐浏览</h2>
+            <div className="browser-container">
+              <div className="browser-controls">
+                <input
+                  type="text"
+                  value={entertainmentUrl}
+                  onChange={(e) => setEntertainmentUrl(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      // Reload the iframe with new URL
+                      const iframe = document.getElementById('entertainment-browser');
+                      if (iframe) {
+                        iframe.src = entertainmentUrl;
+                      }
+                    }
+                  }}
+                  placeholder="输入网址后按回车访问"
+                />
+                <button onClick={() => {
+                  const iframe = document.getElementById('entertainment-browser');
+                  if (iframe) {
+                    iframe.src = entertainmentUrl;
+                  }
+                }}>
+                  访问
+                </button>
+              </div>
+              <iframe
+                id="entertainment-browser"
+                src={entertainmentUrl}
+                title="娱乐浏览器"
+                allowFullScreen
+              />
+            </div>
           </section>
         ) : (
           <section className="settings-section">

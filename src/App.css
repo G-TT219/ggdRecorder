@@ -1,5 +1,6 @@
 .app {
   min-height: 100vh;
+  width: 100%;
   background-color: #1e1e1e;
   color: white;
   font-family: Arial, sans-serif;
@@ -84,58 +85,103 @@
   box-sizing: border-box;
 }
 
-.game-selection h2,
-.recording-controls h2,
-.recordings-section h2,
-.settings-section h2 {
-  color: #4fc3f7;
-  border-bottom: 1px solid #333;
-  padding-bottom: 0.5rem;
+.recordings-section {
+  width: 100%;
+  height: 100%;
 }
 
-.process-list {
+.recordings-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+  padding: 0;
+}
+
+.recording-item {
   display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-top: 1rem;
-  justify-content: flex-start;
-}
-
-.process-item {
   background-color: #2d2d2d;
   border: 1px solid #444;
   border-radius: 4px;
-  padding: 1.5rem;
-  cursor: pointer;
-  width: calc(33.333% - 1rem);
+  overflow: hidden;
   transition: all 0.2s ease;
-  min-width: 250px;
-  flex-grow: 1;
-  box-sizing: border-box;
 }
 
-.process-item:hover {
-  background-color: #3d3d3d;
-  border-color: #4fc3f7;
-}
-
-.process-item.selected {
-  background-color: #1c2a3a;
+.recording-item:hover {
   border-color: #4fc3f7;
   box-shadow: 0 0 8px rgba(79, 195, 247, 0.5);
 }
 
-.process-item h3 {
-  margin: 0 0 0.5rem;
-  color: #4fc3f7;
-  font-size: 1.2rem;
+.recording-thumbnail {
+  width: 150px;
+  height: 120px;
+  background-color: #1e1e1e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
 }
 
-.process-item p {
-  margin: 0;
-  font-size: 0.9rem;
+.play-icon {
+  font-size: 3rem;
+  color: #4fc3f7;
+  opacity: 0.8;
+}
+
+.recording-info {
+  flex: 1;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.recording-info h3 {
+  margin: 0 0 0.5rem;
+  color: #4fc3f7;
+  font-size: 1.1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recording-info p {
+  margin: 0 0 1rem;
   color: #aaa;
-  word-break: break-all;
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+.recording-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.play-button, .delete-button {
+  flex: 1;
+  padding: 0.8rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.play-button {
+  background-color: #4caf50;
+  color: white;
+}
+
+.delete-button {
+  background-color: #f44336;
+  color: white;
+}
+
+.play-button:hover {
+  background-color: #43a047;
+}
+
+.delete-button:hover {
+  background-color: #d32f2f;
 }
 
 .recording-controls {
@@ -180,137 +226,75 @@
   background-color: #d32f2f;
 }
 
-.recordings-section {
+/* Entertainment section styles */
+.entertainment-section {
   width: 100%;
-  height: 100%;
-}
-
-.viewer-header {
+  height: 85vh;
   display: flex;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-  padding: 0 1rem;
+  flex-direction: column;
+  flex: 1;
 }
 
-.viewer-header button {
-  background-color: #333;
-  color: white;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  margin-right: 1rem;
-  cursor: pointer;
-  border-radius: 4px;
-  font-size: 1rem;
-}
-
-.viewer-header h3 {
-  margin: 0;
+.entertainment-section h2 {
   color: #4fc3f7;
-  flex-grow: 1;
-  text-align: center;
-  font-size: 1.5rem;
+  border-bottom: 1px solid #333;
+  padding-bottom: 0.5rem;
+  margin-top: 0;
 }
 
-.video-container {
-  width: 100%;
-  text-align: center;
-  margin: 1rem 0;
+.browser-container {
+  flex: 1;
   display: flex;
-  justify-content: center;
-}
-
-.video-container video {
-  max-width: 90%;
-  max-height: 70vh;
-  background-color: #000;
-  border: 1px solid #333;
-}
-
-.recordings-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  gap: 2rem;
-  margin-top: 1rem;
-  padding: 0 1rem;
-}
-
-.recording-item {
+  flex-direction: column;
   background-color: #2d2d2d;
   border: 1px solid #444;
   border-radius: 4px;
   overflow: hidden;
+  height: 95vh;
+}
+
+.browser-controls {
   display: flex;
-  flex-direction: column;
-  height: 100%;
+  padding: 1rem;
+  background-color: #1e1e1e;
+  border-bottom: 1px solid #444;
+  gap: 0.5rem;
 }
 
-.recording-thumbnail {
-  width: 100%;
-  height: 220px;
-  background-color: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-}
-
-.play-icon {
-  font-size: 4rem;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.recording-info {
+.browser-controls input {
   flex: 1;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-}
-
-.recording-info h3 {
-  margin: 0 0 0.5rem;
-  color: #4fc3f7;
-  font-size: 1.3rem;
-}
-
-.recording-info p {
-  margin: 0 0 1.5rem;
-  color: #aaa;
+  padding: 0.75rem;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background-color: #2d2d2d;
+  color: white;
   font-size: 1rem;
-  flex-grow: 1;
 }
 
-.recording-actions {
-  display: flex;
-  gap: 1rem;
+.browser-controls input:focus {
+  outline: none;
+  border-color: #4fc3f7;
 }
 
-.play-button, .delete-button {
-  flex: 1;
-  padding: 0.8rem;
+.browser-controls button {
+  background-color: #4fc3f7;
+  color: #000;
   border: none;
+  padding: 0.75rem 1.5rem;
   border-radius: 4px;
   cursor: pointer;
   font-weight: bold;
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
-.play-button {
-  background-color: #4caf50;
-  color: white;
+.browser-controls button:hover {
+  background-color: #29b6f6;
 }
 
-.delete-button {
-  background-color: #f44336;
-  color: white;
-}
-
-.play-button:hover {
-  background-color: #43a047;
-}
-
-.delete-button:hover {
-  background-color: #d32f2f;
+#entertainment-browser {
+  flex: 1;
+  width: 100%;
+  height: 90vh;
 }
 
 /* Settings section styles */
@@ -538,4 +522,25 @@
   .setting-item {
     padding: 1rem;
   }
+}
+
+/* 视频播放器样式 */
+.video-container {
+  width: 100%;
+  text-align: center;
+  margin: 1rem auto;
+  display: flex;
+  justify-content: center;
+  max-width: 1200px;
+  padding: 0 1rem;
+  box-sizing: border-box;
+}
+
+.video-container video {
+  max-width: 100%;
+  max-height: 60vh;
+  border: 1px solid #444;
+  border-radius: 4px;
+  width: auto;
+  height: auto;
 }

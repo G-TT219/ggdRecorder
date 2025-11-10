@@ -11,6 +11,7 @@ function App() {
   const [recordingData, setRecordingData] = useState(null);
   const [recordingsDir, setRecordingsDir] = useState('');
   const [recordingTime, setRecordingTime] = useState(0);
+  const [gamePath,setGamePath] = useState('');
   const [entertainmentUrl, setEntertainmentUrl] = useState('https://www.bilibili.com');
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
@@ -34,6 +35,7 @@ function App() {
     loadGameProcesses();
     loadRecordings();
     loadRecordingsDir();
+    loadGamePath()
 
     // Set up event listeners for recording
     window.electronAPI.onSourceIdSelected((event, sourceId, sourceName) => {
@@ -91,6 +93,17 @@ function App() {
       }
     } catch (error) {
       console.error('Error loading recording data:', error);
+    }
+  };
+
+  const loadGamePath = async () => { 
+    try {
+      const result = await window.electronAPI.getGamePath();
+      if (result.success) {
+        setGamePath(result.gamePath || '');
+      }
+    } catch (error) {
+      console.error('Error loading game path:', error);
     }
   };
 
@@ -234,6 +247,30 @@ function App() {
     }
   };
 
+  const selectGamePath = async () => { 
+    try {
+      const result = await window.electronAPI.selectGamePath();
+      if (result.success) {
+        setGamePath(result.gamePath);
+      } else if (!result.canceled) {
+        console.error('Failed to select game path:', result.error);
+      }
+    } catch (error) {
+      console.error('Error selecting game path:', error);
+    }
+  };
+
+  const startGame = async () => { 
+    try {
+      const result = await window.electronAPI.startGame(gamePath);
+      if (!result.success) {
+        console.error('Failed to start game:', result.message);
+      }
+    } catch (error) {
+      console.error('Error starting game:', error);
+    }
+  };
+
   useEffect(() => {
     if (selectedRecording) {
       loadRecordingData(selectedRecording.filePath);
@@ -292,7 +329,10 @@ function App() {
                 刷新
               </button>
               {gameProcesses.length === 0 ? (
-                <p>没有检测到正在运行的游戏程序，请确保游戏已经启动</p>
+                <>
+                  <p>没有检测到正在运行的游戏程序，请确保游戏已经启动</p>
+                  <button onClick={startGame}>打开游戏</button>
+                </>
               ) : (
                 <div className="process-list">
                   {gameProcesses.map(process => (
@@ -445,6 +485,18 @@ function App() {
                 <p className="setting-description">
                   选择录像文件保存的位置。当前保存路径: {recordingsDir || '默认路径'}
                 </p>
+              </div>
+              <div className="setting-item"> 
+                <label htmlFor="game-path">游戏程序路径:</label>
+                <div className="setting-input">
+                  <input
+                    type="text"
+                    id="game-path"
+                    value={gamePath}
+                    readOnly
+                  />
+                  <button onClick={selectGamePath}>选择路径</button>
+                </div>
               </div>
             </div>
           </section>

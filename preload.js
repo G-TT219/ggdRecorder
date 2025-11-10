@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getRecordingsDir: () => ipcRenderer.invoke('get-recordings-dir'),
   setRecordingsDir: (dirPath) => ipcRenderer.invoke('set-recordings-dir', dirPath),
   selectRecordingsDir: () => ipcRenderer.invoke('select-recordings-dir'),
+  getGamePath: () => ipcRenderer.invoke('get-game-path'),
+  selectGamePath: () => ipcRenderer.invoke('select-game-path'),
+  startGame: (gamePath) => ipcRenderer.invoke('start-game', gamePath),
   onSourceIdSelected: (callback) => ipcRenderer.on('source-id-selected', callback),
   onStopRecording: (callback) => ipcRenderer.on('stop-recording', callback),
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)

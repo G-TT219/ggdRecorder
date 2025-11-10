@@ -1,3 +1,4 @@
+const { spawn } = require('child_process');
 const { app, BrowserWindow, ipcMain, desktopCapturer, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
@@ -365,6 +366,52 @@ ipcMain.handle('select-recordings-dir', async (event) => {
     return { success: false, error: error.message };
   }
 });
+
+ipcMain.handle('get-game-path', async () => { 
+  try { 
+    const config = await getAppConfig();
+    return { success: true, gamePath: config.gamePath } 
+  } catch (error) { 
+    console.error('Error getting game paths:', error);
+    return { success: false, error: error.message };
+  }
+})
+
+ipcMain.handle('select-game-path',async (event, gamePath) => { 
+  try{
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'Executable Files', extensions: ['exe'] }]
+    });
+    if (!result.canceled && result.filePaths.length > 0) { 
+      const gamePath = result.filePaths[0]; 
+      // Save the new game path in config 
+      const config = await getAppConfig(); 
+      config.gamePath = gamePath;
+      const saveResult = await saveAppConfig(config); 
+      if (saveResult.success) { 
+        return { success: true, gamePath: gamePath } 
+      } else { 
+        return { success: false, error: saveResult.error } 
+      }
+    } else {
+      return { success: false, canceled: true };
+    }
+  }
+  catch (error) { 
+    console.error('Error selecting game path:', error);
+    return { success: false, error: error.message };
+  }
+})
+
+ipcMain.handle('start-game',(event,gamePath) => { 
+  try { 
+    console.log('Starting game...'); 
+    spawn(gamePath, { detached: true }); 
+  } catch (error) { 
+    console.error('Error starting game:', error); 
+  }
+})
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and import them here.

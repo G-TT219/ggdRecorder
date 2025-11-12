@@ -1,7 +1,8 @@
 const { spawn } = require('child_process');
-const { app, BrowserWindow, ipcMain, desktopCapturer, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, shell, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
+
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -25,11 +26,43 @@ const createRecordingsDir = async () => {
   return recordingsDir;
 };
 
+// Compress video using ffmpeg
+const compressVideo = async (inputPath, outputPath) => {
+  return new Promise((resolve, reject) => {
+    // Check if ffmpeg is available
+    const ffmpegPath = 'ffmpeg'; // You might need to specify the full path to ffmpeg
+
+    const args = [
+      '-i', inputPath,
+      '-vcodec', 'libx264',
+      '-crf', '28', // Compression quality (18-30, higher = more compression)
+      '-preset', 'fast', // Encoding speed preset
+      '-y', // Overwrite output files
+      outputPath
+    ];
+
+    const ffmpegProcess = spawn(ffmpegPath, args);
+
+    ffmpegProcess.on('close', (code) => {
+      if (code === 0) {
+        resolve(outputPath);
+      } else {
+        reject(new Error(`FFmpeg exited with code ${code}`));
+      }
+    });
+
+    ffmpegProcess.on('error', (error) => {
+      reject(new Error(`Failed to start FFmpeg: ${error.message}`));
+    });
+  });
+};
+
 const createWindow = () => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    icon: path.join(__dirname, 'recorder.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -61,17 +94,28 @@ const createWindow = () => {
 
   // Open the DevTools.
   mainWindow.webContents.openDevTools();
+  
+  // Register shortcut to toggle dev tools
+  globalShortcut.register('CommandOrControl+Shift+I', () => {
+    mainWindow.webContents.toggleDevTools();
+  });
+  
+  globalShortcut.register('F12', () => {
+    mainWindow.webContents.toggleDevTools();
+  });
+
+  return mainWindow;
 };
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  createWindow();
-  
+  const mainWindow = createWindow();
+
   // Initialize game monitoring
   initializeGameMonitoring();
-  
+
   app.on('activate', () => {
     // On OS X it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
@@ -79,7 +123,13 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
+  
+  // Unregister all shortcuts when the app is closing
+  app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
+  });
 });
+
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
@@ -109,7 +159,7 @@ ipcMain.handle('start-recording', async (event, options) => {
   try {
 
     // Get available sources
-    const sources = await desktopCapturer.getSources({ 
+    const sources = await desktopCapturer.getSources({
       types: ['window', 'screen'],
       thumbnailSize: { width: 150, height: 150 }
     });
@@ -118,40 +168,40 @@ ipcMain.handle('start-recording', async (event, options) => {
     let source;
     if (options.gameName) {
       // Look for a window source that matches the game name
-      source = sources.find(src => 
+      source = sources.find(src =>
         src.name.toLowerCase().includes(options.gameName.toLowerCase())
       );
-      
+
       // If we didn't find a specific window, try to find any game-like window
       if (!source) {
         const gameIndicators = ['game', 'minecraft', 'fortnite', 'valorant', 'overwatch', 'csgo', 'dota'];
-        source = sources.find(src => 
-          src.type === 'window' && 
-          gameIndicators.some(indicator => 
+        source = sources.find(src =>
+          src.type === 'window' &&
+          gameIndicators.some(indicator =>
             src.name.toLowerCase().includes(indicator.toLowerCase())
           )
         );
       }
     }
-    
+
     // Fallback to entire screen if no specific window found
     if (!source) {
       source = sources.find(src => src.name === 'Entire Screen' || src.name === 'Screen 1');
       if (!source) source = sources.find(src => src.type === 'screen');
     }
-    
+
     // Final fallback to first source
     if (!source) source = sources[0];
-    
+
     if (!source) {
       throw new Error('No suitable source found for recording');
     }
     // Send the source ID back to the renderer process to get the stream
     event.sender.send('source-id-selected', source.id, source.name);
-    
-    return { 
-      success: true, 
-      message: 'Recording started', 
+
+    return {
+      success: true,
+      message: 'Recording started',
       sourceId: source.id,
       sourceName: source.name
     };
@@ -165,10 +215,10 @@ ipcMain.handle('stop-recording', async (event) => {
   try {
     // Logic to stop recording
     console.log('Stopping recording');
-    
+
     // Notify renderer to stop recording
     event.sender.send('stop-recording');
-    
+
     return { success: true, message: 'Recording stopped' };
   } catch (error) {
     console.error('Error stopping recording:', error);
@@ -177,7 +227,7 @@ ipcMain.handle('stop-recording', async (event) => {
 });
 
 // Save recording to file
-ipcMain.handle('save-recording', async (event, buffer, filename) => {
+ipcMain.handle('save-recording', async (event, buffer, filename, shouldCompress = false) => {
   try {
     // Get the custom recordings directory or use default
     let recordingsDir;
@@ -187,12 +237,37 @@ ipcMain.handle('save-recording', async (event, buffer, filename) => {
     } catch (error) {
       recordingsDir = await createRecordingsDir();
     }
-    
+
     const filePath = path.join(recordingsDir, filename);
     // Convert ArrayBuffer to Buffer
     const bufferData = Buffer.from(buffer);
-    await fs.writeFile(filePath, bufferData);
-    return { success: true, filePath };
+
+    if (shouldCompress) {
+      // Save original file first
+      const tempPath = path.join(recordingsDir, `temp_${Date.now()}_${filename}`);
+      await fs.writeFile(tempPath, bufferData);
+
+      try {
+        // Compress the video
+        const compressedPath = path.join(recordingsDir, filename.replace('.webm', '_compressed.mp4'));
+        await compressVideo(tempPath, compressedPath);
+
+        // Remove the temporary file
+        await fs.unlink(tempPath);
+
+        // Return the compressed file path
+        return { success: true, filePath: compressedPath };
+      } catch (compressError) {
+        console.error('Error compressing video:', compressError);
+        // If compression fails, keep the original file
+        await fs.unlink(tempPath);
+        await fs.writeFile(filePath, bufferData);
+        return { success: true, filePath, warning: 'Compression failed, saved original file' };
+      }
+    } else {
+      await fs.writeFile(filePath, bufferData);
+      return { success: true, filePath };
+    }
   } catch (error) {
     console.error('Error saving recording:', error);
     return { success: false, error: error.message };
@@ -210,24 +285,25 @@ ipcMain.handle('get-recordings', async () => {
     } catch (error) {
       recordingsDir = await createRecordingsDir();
     }
-    
+
     const files = await fs.readdir(recordingsDir);
     const recordings = [];
-    
+
     for (const file of files) {
-      if (file.endsWith('.webm')) {
+      // Check for both webm and mp4 files
+      if (file.endsWith('.webm') || file.endsWith('.mp4')) {
         const filePath = path.join(recordingsDir, file);
         const stats = await fs.stat(filePath);
         recordings.push({
           id: file,
-          name: file.replace('.webm', ''),
+          name: file.replace('.webm', '').replace('_compressed.mp4', ''),
           date: stats.birthtime,
           filePath: filePath,
           size: stats.size
         });
       }
     }
-    
+
     // Sort by date, newest first
     recordings.sort((a, b) => b.date - a.date);
     return recordings;
@@ -248,7 +324,7 @@ ipcMain.handle('delete-recording', async (event, filename) => {
     } catch (error) {
       recordingsDir = await createRecordingsDir();
     }
-    
+
     const filePath = path.join(recordingsDir, filename);
     await fs.unlink(filePath);
     return { success: true };
@@ -321,12 +397,12 @@ ipcMain.handle('set-recordings-dir', async (event, dirPath) => {
       // Directory doesn't exist, try to create it
       await fs.mkdir(dirPath, { recursive: true });
     }
-    
+
     // Save the new directory in config
     const config = await getAppConfig();
     config.recordingsDir = dirPath;
     const result = await saveAppConfig(config);
-    
+
     if (result.success) {
       return { success: true, recordingsDir: dirPath };
     } else {
@@ -344,15 +420,15 @@ ipcMain.handle('select-recordings-dir', async (event) => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory']
     });
-    
+
     if (!result.canceled && result.filePaths.length > 0) {
       const dirPath = result.filePaths[0];
-      
+
       // Save the new directory in config
       const config = await getAppConfig();
       config.recordingsDir = dirPath;
       const saveResult = await saveAppConfig(config);
-      
+
       if (saveResult.success) {
         return { success: true, recordingsDir: dirPath };
       } else {
@@ -367,49 +443,59 @@ ipcMain.handle('select-recordings-dir', async (event) => {
   }
 });
 
-ipcMain.handle('get-game-path', async () => { 
-  try { 
+ipcMain.handle('open-dir', async (event, path) => {
+  try {
+    shell.openPath(path);
+    return { success: true };
+  } catch (error) {
+    console.error('Error opening recordings directory:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('get-game-path', async () => {
+  try {
     const config = await getAppConfig();
-    return { success: true, gamePath: config.gamePath } 
-  } catch (error) { 
+    return { success: true, gamePath: config.gamePath }
+  } catch (error) {
     console.error('Error getting game paths:', error);
     return { success: false, error: error.message };
   }
 })
 
-ipcMain.handle('select-game-path',async (event, gamePath) => { 
-  try{
+ipcMain.handle('select-game-path', async (event, gamePath) => {
+  try {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [{ name: 'Executable Files', extensions: ['exe'] }]
     });
-    if (!result.canceled && result.filePaths.length > 0) { 
-      const gamePath = result.filePaths[0]; 
+    if (!result.canceled && result.filePaths.length > 0) {
+      const gamePath = result.filePaths[0];
       // Save the new game path in config 
-      const config = await getAppConfig(); 
+      const config = await getAppConfig();
       config.gamePath = gamePath;
-      const saveResult = await saveAppConfig(config); 
-      if (saveResult.success) { 
-        return { success: true, gamePath: gamePath } 
-      } else { 
-        return { success: false, error: saveResult.error } 
+      const saveResult = await saveAppConfig(config);
+      if (saveResult.success) {
+        return { success: true, gamePath: gamePath }
+      } else {
+        return { success: false, error: saveResult.error }
       }
     } else {
       return { success: false, canceled: true };
     }
   }
-  catch (error) { 
+  catch (error) {
     console.error('Error selecting game path:', error);
     return { success: false, error: error.message };
   }
 })
 
-ipcMain.handle('start-game',(event,gamePath) => { 
-  try { 
-    console.log('Starting game...'); 
-    spawn(gamePath, { detached: true }); 
-  } catch (error) { 
-    console.error('Error starting game:', error); 
+ipcMain.handle('start-game', (event, gamePath) => {
+  try {
+    const result = spawn(gamePath, { detached: true });
+    if (result) return { success: true };
+  } catch (error) {
+    console.error('Error starting game:', error);
   }
 })
 
@@ -443,21 +529,21 @@ ipcMain.handle('get-game-processes', async () => {
       { pid: 9012, name: 'Valorant', path: 'C:\\Riot Games\\Valorant\\Valorant.exe' }
     ];
   }
-  
+
   try {
     const processes = await psList.default();
-    
+
     // Filter for common game processes
     const gameProcessNames = [
       'duck'
     ];
-    
-    const gameProcesses = processes.filter(process => 
-      gameProcessNames.some(gameName => 
+
+    const gameProcesses = processes.filter(process =>
+      gameProcessNames.some(gameName =>
         process.name.toLowerCase().includes(gameName.toLowerCase())
       )
     );
-        
+
     return gameProcesses.map(process => ({
       pid: process.pid,
       name: process.name.replace(/\.exe$/i, ''), // Remove .exe suffix

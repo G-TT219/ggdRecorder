@@ -11,12 +11,19 @@ function App() {
   const [recordingData, setRecordingData] = useState(null);
   const [recordingsDir, setRecordingsDir] = useState('');
   const [recordingTime, setRecordingTime] = useState(0);
-  const [gamePath,setGamePath] = useState('');
+  const [gamePath, setGamePath] = useState('');
   const [entertainmentUrl, setEntertainmentUrl] = useState('https://www.bilibili.com');
+  const [compressVideos, setCompressVideos] = useState(false);
+  const compressVideosRef = useRef(compressVideos);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
   const recordingStartTimeRef = useRef(null);
   const timerIntervalRef = useRef(null);
+
+  // Update the ref whenever the state changes
+  useEffect(() => {
+    compressVideosRef.current = compressVideos;
+  }, [compressVideos]);
 
   // Format time for display (seconds to HH:mm:ss)
   const formatTime = (seconds) => {
@@ -96,7 +103,7 @@ function App() {
     }
   };
 
-  const loadGamePath = async () => { 
+  const loadGamePath = async () => {
     try {
       const result = await window.electronAPI.getGamePath();
       if (result.success) {
@@ -109,12 +116,12 @@ function App() {
 
   const startRecording = async () => {
     if (!selectedGame) return;
-    
+
     try {
       const result = await window.electronAPI.startRecording({
         gameName: selectedGame.name
       });
-      
+
       if (!result.success) {
         console.error('Failed to start recording:', result.message);
       }
@@ -168,9 +175,17 @@ function App() {
         
         const filename = `${sourceName}_${chinaTime.replace(/[/: ]/g, '-')}.webm`;
         
-        const result = await window.electronAPI.saveRecording(buffer, filename);
+        // Check if compression is enabled in settings
+        // We need to get the current value of compressVideos from the ref
+        // since this function was created with a closure around the initial value
+        const shouldCompress = compressVideosRef.current;
+        
+        const result = await window.electronAPI.saveRecording(buffer, filename, shouldCompress);
         if (result.success) {
           console.log('Recording saved successfully');
+          if (result.warning) {
+            console.warn(result.warning);
+          }
           loadRecordings(); // Refresh recordings list
         } else {
           console.error('Failed to save recording:', result.error);
@@ -191,6 +206,12 @@ function App() {
     } catch (error) {
       console.error('Error starting media recording:', error);
     }
+  };
+
+  const saveRecording = async (buffer, filename) => {
+    //check if the file need compress
+    const result = window.electronAPI.saveRecording(buffer, filename, compressVideosRef.current);
+    return result;
   };
 
   const stopRecording = async () => {
@@ -247,7 +268,7 @@ function App() {
     }
   };
 
-  const selectGamePath = async () => { 
+  const selectGamePath = async () => {
     try {
       const result = await window.electronAPI.selectGamePath();
       if (result.success) {
@@ -260,7 +281,7 @@ function App() {
     }
   };
 
-  const startGame = async () => { 
+  const startGame = async () => {
     try {
       const result = await window.electronAPI.startGame(gamePath);
       if (!result.success) {
@@ -269,6 +290,26 @@ function App() {
     } catch (error) {
       console.error('Error starting game:', error);
     }
+  };
+
+  const openDir = async (path) => {
+    try {
+      const result = await window.electronAPI.openDir(path);
+      if (!result.success) {
+        console.error('Error opening directory:', result.error);
+      }
+    } catch (error) {
+      console.error('Error opening directory:', error);
+    }
+  };
+
+  const getDirname = (path) => {
+    const lastSlashIndex = path.lastIndexOf('\\') || path.lastIndexOf('/)');
+    return lastSlashIndex !== -1 ? path.substring(0, lastSlashIndex) : '';
+  };
+
+  const changeCompressVideos = (event) => {
+    setCompressVideos(event.target.checked);
   };
 
   useEffect(() => {
@@ -480,13 +521,27 @@ function App() {
                     value={recordingsDir}
                     readOnly
                   />
+                  <button onClick={() => { openDir(recordingsDir) }}>打开文件位置</button>
                   <button onClick={selectRecordingsDir}>选择路径</button>
                 </div>
                 <p className="setting-description">
                   选择录像文件保存的位置。当前保存路径: {recordingsDir || '默认路径'}
                 </p>
               </div>
-              <div className="setting-item"> 
+              <div className="setting-item">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={compressVideos}
+                    onChange={(e) => {setCompressVideos(e.target.checked)}}
+                  />
+                  启用视频压缩
+                </label>
+                <p className="setting-description">
+                  压缩视频可以减小文件大小，但会增加处理时间。当前状态: {compressVideos ? '已启用' : '已禁用'}
+                </p>
+              </div>
+              <div className="setting-item">
                 <label htmlFor="game-path">游戏程序路径:</label>
                 <div className="setting-input">
                   <input
@@ -495,6 +550,7 @@ function App() {
                     value={gamePath}
                     readOnly
                   />
+                  <button onClick={() => { openDir(getDirname(gamePath)) }}>打开文件位置</button>
                   <button onClick={selectGamePath}>选择路径</button>
                 </div>
               </div>

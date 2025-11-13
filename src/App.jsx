@@ -14,6 +14,7 @@ function App() {
   const [gamePath, setGamePath] = useState('');
   const [entertainmentUrl, setEntertainmentUrl] = useState('https://www.bilibili.com');
   const [compressVideos, setCompressVideos] = useState(false);
+  const [source, setSource] = useState(null)
   const compressVideosRef = useRef(compressVideos);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
@@ -43,12 +44,6 @@ function App() {
     loadRecordings();
     loadRecordingsDir();
     loadGamePath()
-
-    // Set up event listeners for recording
-    window.electronAPI.onSourceIdSelected((event, sourceId, sourceName) => {
-      console.log('Source selected:', sourceId, sourceName);
-      startMediaRecording(sourceId, sourceName);
-    });
 
     window.electronAPI.onStopRecording(() => {
       if (mediaRecorderRef.current) {
@@ -146,7 +141,6 @@ function App() {
           }
         }
       });
-
       mediaRecorderRef.current = new MediaRecorder(stream);
       recordedChunksRef.current = [];
 
@@ -159,7 +153,7 @@ function App() {
       mediaRecorderRef.current.onstop = async () => {
         const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
         const buffer = await blob.arrayBuffer();
-        
+
         // Generate filename with timestamp in China timezone
         const now = new Date();
         const chinaTime = new Intl.DateTimeFormat('zh-CN', {
@@ -172,17 +166,16 @@ function App() {
           second: '2-digit',
           hour12: false
         }).format(now);
-        
+
         const filename = `${sourceName}_${chinaTime.replace(/[/: ]/g, '-')}.webm`;
-        
+
         // Check if compression is enabled in settings
         // We need to get the current value of compressVideos from the ref
         // since this function was created with a closure around the initial value
         const shouldCompress = compressVideosRef.current;
-        
+
         const result = await window.electronAPI.saveRecording(buffer, filename, shouldCompress);
         if (result.success) {
-          console.log('Recording saved successfully');
           if (result.warning) {
             console.warn(result.warning);
           }
@@ -208,11 +201,6 @@ function App() {
     }
   };
 
-  const saveRecording = async (buffer, filename) => {
-    //check if the file need compress
-    const result = window.electronAPI.saveRecording(buffer, filename, compressVideosRef.current);
-    return result;
-  };
 
   const stopRecording = async () => {
     try {
@@ -312,6 +300,18 @@ function App() {
     setCompressVideos(event.target.checked);
   };
 
+  //TO DO
+  const preFetchSource = async () => {
+    const result = await window.electronAPI.preFetchSource({
+      gameName: selectedGame.name
+    });
+    if (result.success) {
+      setSource(result.source);
+    } else {
+      console.error('Failed to fetch source id:', result.error);
+    }
+  };
+
   useEffect(() => {
     if (selectedRecording) {
       loadRecordingData(selectedRecording.filePath);
@@ -319,6 +319,12 @@ function App() {
       setRecordingData(null);
     }
   }, [selectedRecording]);
+
+  useEffect(() => {
+    if (selectedGame) {
+      preFetchSource(selectedGame);
+    }
+  }, [selectedGame]);
 
   return (
     <div className="app">
@@ -380,7 +386,7 @@ function App() {
                     <div
                       key={process.pid}
                       className={`process-item ${selectedGame && selectedGame.pid === process.pid ? 'selected' : ''}`}
-                      onClick={() => setSelectedGame(process)}
+                      onClick={() => { setSelectedGame(process); }}
                     >
                       <h3>{process.name}</h3>
                       <p>{process.path}</p>
@@ -397,7 +403,7 @@ function App() {
                   <h3>已选择游戏: {selectedGame.name}</h3>
                   <div className="controls">
                     {!isRecording ? (
-                      <button className="record-button" onClick={startRecording}>
+                      <button className="record-button" onClick={() => startMediaRecording(source.sourceId, source.sourceName)}>
                         开始录制
                       </button>
                     ) : (
@@ -533,7 +539,7 @@ function App() {
                   <input
                     type="checkbox"
                     checked={compressVideos}
-                    onChange={(e) => {setCompressVideos(e.target.checked)}}
+                    onChange={(e) => { setCompressVideos(e.target.checked) }}
                   />
                   启用视频压缩
                 </label>

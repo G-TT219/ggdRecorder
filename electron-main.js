@@ -94,12 +94,12 @@ const createWindow = () => {
 
   // Open the DevTools.
   mainWindow.webContents.openDevTools();
-  
+
   // Register shortcut to toggle dev tools
   globalShortcut.register('CommandOrControl+Shift+I', () => {
     mainWindow.webContents.toggleDevTools();
   });
-  
+
   globalShortcut.register('F12', () => {
     mainWindow.webContents.toggleDevTools();
   });
@@ -123,7 +123,7 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
-  
+
   // Unregister all shortcuts when the app is closing
   app.on('will-quit', () => {
     globalShortcut.unregisterAll();
@@ -155,16 +155,12 @@ ipcMain.handle('get-sources', async (event, options) => {
 let mediaRecorder;
 let recordedChunks = [];
 
-ipcMain.handle('start-recording', async (event, options) => {
+ipcMain.handle('pre-fetch-source', async (event, options) => {
   try {
-
-    // Get available sources
     const sources = await desktopCapturer.getSources({
       types: ['window', 'screen'],
       thumbnailSize: { width: 150, height: 150 }
     });
-
-    // Try to find the matching window by name
     let source;
     if (options.gameName) {
       // Look for a window source that matches the game name
@@ -196,20 +192,19 @@ ipcMain.handle('start-recording', async (event, options) => {
     if (!source) {
       throw new Error('No suitable source found for recording');
     }
-    // Send the source ID back to the renderer process to get the stream
-    event.sender.send('source-id-selected', source.id, source.name);
-
     return {
       success: true,
       message: 'Recording started',
-      sourceId: source.id,
-      sourceName: source.name
+      source: {
+        sourceId: source.id,
+        sourceName: source.name
+      }
     };
   } catch (error) {
-    console.error('Error starting recording:', error);
+    console.error('Error get source:', error);
     return { success: false, message: error.message };
   }
-});
+})
 
 ipcMain.handle('stop-recording', async (event) => {
   try {

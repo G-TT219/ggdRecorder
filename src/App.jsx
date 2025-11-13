@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
+import Logger from './utils/logger';
 
 function App() {
   const [gameProcesses, setGameProcesses] = useState([]);
@@ -62,8 +63,9 @@ function App() {
     try {
       const processes = await window.electronAPI.getGameProcesses();
       setGameProcesses(processes);
+      Logger.info(`Loaded ${processes.length} game processes`);
     } catch (error) {
-      console.error('Error loading game processes:', error);
+      Logger.error('Error loading game processes:', error);
     }
   };
 
@@ -71,8 +73,9 @@ function App() {
     try {
       const recordingsList = await window.electronAPI.getRecordings();
       setRecordings(recordingsList);
+      Logger.info(`Loaded ${recordingsList.length} recordings`);
     } catch (error) {
-      console.error('Error loading recordings:', error);
+      Logger.error('Error loading recordings:', error);
     }
   };
 
@@ -81,9 +84,10 @@ function App() {
       const result = await window.electronAPI.getRecordingsDir();
       if (result.success) {
         setRecordingsDir(result.recordingsDir);
+        Logger.info(`Recordings directory loaded: ${result.recordingsDir}`);
       }
     } catch (error) {
-      console.error('Error loading recordings directory:', error);
+      Logger.error('Error loading recordings directory:', error);
     }
   };
 
@@ -94,7 +98,7 @@ function App() {
         setRecordingData(`data:video/webm;base64,${result.data}`);
       }
     } catch (error) {
-      console.error('Error loading recording data:', error);
+      Logger.error('Error loading recording data:', error);
     }
   };
 
@@ -103,9 +107,10 @@ function App() {
       const result = await window.electronAPI.getGamePath();
       if (result.success) {
         setGamePath(result.gamePath || '');
+        Logger.info(`Game path loaded: ${result.gamePath}`);
       }
     } catch (error) {
-      console.error('Error loading game path:', error);
+      Logger.error('Error loading game path:', error);
     }
   };
 
@@ -118,16 +123,18 @@ function App() {
       });
 
       if (!result.success) {
-        console.error('Failed to start recording:', result.message);
+        Logger.error('Failed to start recording:', result.message);
+      } else {
+        Logger.info('Recording started successfully');
       }
     } catch (error) {
-      console.error('Error starting recording:', error);
+      Logger.error('Error starting recording:', error);
     }
   };
 
   const startMediaRecording = async (source) => {
     if (!source) {
-      console.error('No game selected');
+      Logger.error('No game selected');
       return;
     }
     const { sourceId, sourceName } = source
@@ -182,11 +189,12 @@ function App() {
         const result = await window.electronAPI.saveRecording(buffer, filename, shouldCompress);
         if (result.success) {
           if (result.warning) {
-            console.warn(result.warning);
+            Logger.info(result.warning);
           }
           loadRecordings(); // Refresh recordings list
+          Logger.info(`Recording saved: ${filename}`);
         } else {
-          console.error('Failed to save recording:', result.error);
+          Logger.error('Failed to save recording:', result.error);
         }
 
         // Stop all tracks
@@ -201,8 +209,9 @@ function App() {
         const elapsed = Math.floor((Date.now() - recordingStartTimeRef.current) / 1000);
         setRecordingTime(elapsed);
       }, 1000);
+      Logger.info('Media recording started');
     } catch (error) {
-      console.error('Error starting media recording:', error);
+      Logger.error('Error starting media recording:', error);
     }
   };
 
@@ -221,11 +230,12 @@ function App() {
           timerIntervalRef.current = null;
         }
         setRecordingTime(0);
+        Logger.info('Recording stopped');
       } else {
-        console.error('Failed to stop recording:', result.message);
+        Logger.error('Failed to stop recording:', result.message);
       }
     } catch (error) {
-      console.error('Error stopping recording:', error);
+      Logger.error('Error stopping recording:', error);
     }
   };
 
@@ -233,17 +243,17 @@ function App() {
     try {
       const result = await window.electronAPI.deleteRecording(recording.id);
       if (result.success) {
-        console.log('Recording deleted successfully');
+        Logger.info('Recording deleted successfully');
         loadRecordings(); // Refresh recordings list
         if (selectedRecording && selectedRecording.id === recording.id) {
           setSelectedRecording(null);
           setRecordingData(null);
         }
       } else {
-        console.error('Failed to delete recording:', result.error);
+        Logger.error('Failed to delete recording:', result.error);
       }
     } catch (error) {
-      console.error('Error deleting recording:', error);
+      Logger.error('Error deleting recording:', error);
     }
   };
 
@@ -253,11 +263,12 @@ function App() {
       if (result.success) {
         setRecordingsDir(result.recordingsDir);
         loadRecordings(); // Refresh recordings list
+        Logger.info(`Recordings directory changed to: ${result.recordingsDir}`);
       } else if (!result.canceled) {
-        console.error('Failed to select recordings directory:', result.error);
+        Logger.error('Failed to select recordings directory:', result.error);
       }
     } catch (error) {
-      console.error('Error selecting recordings directory:', error);
+      Logger.error('Error selecting recordings directory:', error);
     }
   };
 
@@ -266,11 +277,12 @@ function App() {
       const result = await window.electronAPI.selectGamePath();
       if (result.success) {
         setGamePath(result.gamePath);
+        Logger.info(`Game path selected: ${result.gamePath}`);
       } else if (!result.canceled) {
-        console.error('Failed to select game path:', result.error);
+        Logger.error('Failed to select game path:', result.error);
       }
     } catch (error) {
-      console.error('Error selecting game path:', error);
+      Logger.error('Error selecting game path:', error);
     }
   };
 
@@ -278,10 +290,12 @@ function App() {
     try {
       const result = await window.electronAPI.startGame(gamePath);
       if (!result.success) {
-        console.error('Failed to start game:', result.message);
+        Logger.error('Failed to start game:', result.message);
+      } else {
+        Logger.info('Game started successfully');
       }
     } catch (error) {
-      console.error('Error starting game:', error);
+      Logger.error('Error starting game:', error);
     }
   };
 
@@ -289,15 +303,17 @@ function App() {
     try {
       const result = await window.electronAPI.openDir(path);
       if (!result.success) {
-        console.error('Error opening directory:', result.error);
+        Logger.error('Error opening directory:', result.error);
+      } else {
+        Logger.info(`Directory opened: ${path}`);
       }
     } catch (error) {
-      console.error('Error opening directory:', error);
+      Logger.error('Error opening directory:', error);
     }
   };
 
   const getDirname = (path) => {
-    const lastSlashIndex = path.lastIndexOf('\\') || path.lastIndexOf('/)');
+    const lastSlashIndex = path.lastIndexOf('\\') || path.lastIndexOf('/');
     return lastSlashIndex !== -1 ? path.substring(0, lastSlashIndex) : '';
   };
 
@@ -305,15 +321,20 @@ function App() {
     setCompressVideos(event.target.checked);
   };
 
-  //TO DO
-  const preFetchSource = async () => {
-    const result = await window.electronAPI.preFetchSource({
-      gameName: selectedGame.name
-    });
-    if (result.success) {
-      setSource(result.source);
-    } else {
-      console.error('Failed to fetch source id:', result.error);
+  const preFetchSource = async (game) => {
+    if(!game) return;
+    try {
+      const result = await window.electronAPI.preFetchSource({
+        gameName: game.name
+      });
+      if (result.success) {
+        setSource(result.source);
+        Logger.info(`Source fetched for game: ${game.name}`);
+      } else {
+        Logger.error('Failed to fetch source id:', result.error);
+      }
+    } catch (error) {
+      Logger.error('Error fetching source:', error);
     }
   };
 

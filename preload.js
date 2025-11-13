@@ -22,4 +22,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onStopRecording: (callback) => ipcRenderer.on('stop-recording', callback),
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel),
   preFetchSource: (options) => ipcRenderer.invoke('pre-fetch-source',options),
+  logInfo: (message) => ipcRenderer.invoke('log-info', message),
+  logError: (message) => ipcRenderer.invoke('log-error', message),
 });

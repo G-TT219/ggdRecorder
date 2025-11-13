@@ -42,7 +42,9 @@
     "electron-squirrel-startup": "^1.0.1",
     "ps-list": "^9.0.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "winston": "^3.18.3",
+    "winston-daily-rotate-file": "^5.0.0"
   },
   "build": {
     "appId": "com.example.gamerecorder",

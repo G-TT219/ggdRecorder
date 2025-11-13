@@ -2,7 +2,7 @@ const { spawn } = require('child_process');
 const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, shell, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
-
+const logger = require('./logger');
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -19,7 +19,7 @@ try {
     });
   }
 } catch (err) {
-  console.log('Failed to load electron-reloader:', err);
+  logger.warn('Failed to load electron-reloader:', err);
 }
 
 // Get recordings directory path
@@ -91,17 +91,17 @@ const createWindow = () => {
 
   // and load the index.html of the app.
   const isDev = process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL;
-  console.log('isDev:', isDev);
-  console.log('VITE_DEV_SERVER_URL:', process.env.VITE_DEV_SERVER_URL);
-  console.log('NODE_ENV:', process.env.NODE_ENV);
+  logger.info('isDev:', isDev);
+  logger.info('VITE_DEV_SERVER_URL:', process.env.VITE_DEV_SERVER_URL);
+  logger.info('NODE_ENV:', process.env.NODE_ENV);
   if (isDev) {
     const url = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
-    console.log('Loading URL:', url);
+    logger.info('Loading URL:', url);
     mainWindow.loadURL(url);
   } else {
     // 生产环境中正确加载打包后的文件
     const indexPath = path.join(__dirname, 'dist', 'index.html');
-    console.log('Loading file:', indexPath);
+    logger.info('Loading file:', indexPath);
     mainWindow.loadFile(indexPath);
   }
 
@@ -159,7 +159,7 @@ ipcMain.handle('get-sources', async (event, options) => {
     const sources = await desktopCapturer.getSources(options);
     return sources;
   } catch (error) {
-    console.error('Error getting sources:', error);
+    logger.error('Error getting sources:', error);
     return [];
   }
 });
@@ -214,7 +214,7 @@ ipcMain.handle('pre-fetch-source', async (event, options) => {
       }
     };
   } catch (error) {
-    console.error('Error get source:', error);
+    logger.error('Error get source:', error);
     return { success: false, message: error.message };
   }
 })
@@ -222,14 +222,14 @@ ipcMain.handle('pre-fetch-source', async (event, options) => {
 ipcMain.handle('stop-recording', async (event) => {
   try {
     // Logic to stop recording
-    console.log('Stopping recording');
+    logger.info('Stopping recording');
 
     // Notify renderer to stop recording
     event.sender.send('stop-recording');
 
     return { success: true, message: 'Recording stopped' };
   } catch (error) {
-    console.error('Error stopping recording:', error);
+    logger.error('Error stopping recording:', error);
     return { success: false, message: error.message };
   }
 });
@@ -266,7 +266,7 @@ ipcMain.handle('save-recording', async (event, buffer, filename, shouldCompress 
         // Return the compressed file path
         return { success: true, filePath: compressedPath };
       } catch (compressError) {
-        console.error('Error compressing video:', compressError);
+        logger.error('Error compressing video:', compressError);
         // If compression fails, keep the original file
         await fs.unlink(tempPath);
         await fs.writeFile(filePath, bufferData);
@@ -277,7 +277,7 @@ ipcMain.handle('save-recording', async (event, buffer, filename, shouldCompress 
       return { success: true, filePath };
     }
   } catch (error) {
-    console.error('Error saving recording:', error);
+    logger.error('Error saving recording:', error);
     return { success: false, error: error.message };
   }
 });
@@ -316,7 +316,7 @@ ipcMain.handle('get-recordings', async () => {
     recordings.sort((a, b) => b.date - a.date);
     return recordings;
   } catch (error) {
-    console.error('Error getting recordings:', error);
+    logger.error('Error getting recordings:', error);
     return [];
   }
 });
@@ -337,7 +337,7 @@ ipcMain.handle('delete-recording', async (event, filename) => {
     await fs.unlink(filePath);
     return { success: true };
   } catch (error) {
-    console.error('Error deleting recording:', error);
+    logger.error('Error deleting recording:', error);
     return { success: false, error: error.message };
   }
 });
@@ -349,7 +349,7 @@ ipcMain.handle('read-recording', async (event, filePath) => {
     const base64Data = data.toString('base64');
     return { success: true, data: base64Data };
   } catch (error) {
-    console.error('Error reading recording:', error);
+    logger.error('Error reading recording:', error);
     return { success: false, error: error.message };
   }
 });
@@ -376,7 +376,7 @@ const saveAppConfig = async (config) => {
     await fs.writeFile(configPath, JSON.stringify(config, null, 2));
     return { success: true };
   } catch (error) {
-    console.error('Error saving app config:', error);
+    logger.error('Error saving app config:', error);
     return { success: false, error: error.message };
   }
 };
@@ -417,7 +417,7 @@ ipcMain.handle('set-recordings-dir', async (event, dirPath) => {
       return { success: false, error: result.error };
     }
   } catch (error) {
-    console.error('Error setting recordings directory:', error);
+    logger.error('Error setting recordings directory:', error);
     return { success: false, error: error.message };
   }
 });
@@ -446,7 +446,7 @@ ipcMain.handle('select-recordings-dir', async (event) => {
       return { success: false, canceled: true };
     }
   } catch (error) {
-    console.error('Error selecting recordings directory:', error);
+    logger.error('Error selecting recordings directory:', error);
     return { success: false, error: error.message };
   }
 });
@@ -456,7 +456,7 @@ ipcMain.handle('open-dir', async (event, path) => {
     shell.openPath(path);
     return { success: true };
   } catch (error) {
-    console.error('Error opening recordings directory:', error);
+    logger.error('Error opening recordings directory:', error);
     return { success: false, error: error.message };
   }
 });
@@ -466,7 +466,7 @@ ipcMain.handle('get-game-path', async () => {
     const config = await getAppConfig();
     return { success: true, gamePath: config.gamePath }
   } catch (error) {
-    console.error('Error getting game paths:', error);
+    logger.error('Error getting game paths:', error);
     return { success: false, error: error.message };
   }
 })
@@ -493,7 +493,7 @@ ipcMain.handle('select-game-path', async (event, gamePath) => {
     }
   }
   catch (error) {
-    console.error('Error selecting game path:', error);
+    logger.error('Error selecting game path:', error);
     return { success: false, error: error.message };
   }
 })
@@ -503,9 +503,17 @@ ipcMain.handle('start-game', (event, gamePath) => {
     const result = spawn(gamePath, { detached: true });
     if (result) return { success: true };
   } catch (error) {
-    console.error('Error starting game:', error);
+    logger.error('Error starting game:', error);
   }
 })
+
+ipcMain.handle('log-info', async (event, message) => {
+  logger.info(`[RENDERER] ${message}`);
+});
+
+ipcMain.handle('log-error', async (event, message) => {
+  logger.error(`[RENDERER] ${message}`);
+});
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and import them here.
@@ -513,7 +521,7 @@ ipcMain.handle('start-game', (event, gamePath) => {
 // Game monitoring functionality
 function initializeGameMonitoring() {
   // This would be where we implement game process monitoring
-  console.log('Initializing game monitoring...');
+  logger.info('Initializing game monitoring...');
 }
 
 let psList;
@@ -523,7 +531,7 @@ let psList;
   try {
     psList = await import('ps-list');
   } catch (error) {
-    console.error('Failed to load ps-list:', error);
+    logger.error('Failed to load ps-list:', error);
   }
 })();
 
@@ -543,7 +551,7 @@ ipcMain.handle('get-game-processes', async () => {
 
     // Filter for common game processes
     const gameProcessNames = [
-      'duck','lol'
+      'duck','lol','微信'
     ];
 
     const gameProcesses = processes.filter(process =>
@@ -558,7 +566,7 @@ ipcMain.handle('get-game-processes', async () => {
       path: process.cmd || 'Unknown path'
     }));
   } catch (error) {
-    console.error('Error getting processes:', error);
+    logger.error('Error getting processes:', error);
     return [];
   }
 });

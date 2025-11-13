@@ -9,6 +9,19 @@ if (require('electron-squirrel-startup')) {
   app.quit();
 }
 
+// 开发环境下启用热重载
+try {
+  if (process.env.NODE_ENV === 'development') {
+    // 使用 electron-reloader 实现热重载
+    require('electron-reloader')(module, {
+      watchRenderer: true,
+      ignore: ['node_modules', 'dist', 'logs']
+    });
+  }
+} catch (err) {
+  console.log('Failed to load electron-reloader:', err);
+}
+
 // Get recordings directory path
 const getRecordingsDir = () => {
   return path.join(app.getPath('videos'), 'GameRecorder');
@@ -530,7 +543,7 @@ ipcMain.handle('get-game-processes', async () => {
 
     // Filter for common game processes
     const gameProcessNames = [
-      'duck'
+      'duck','lol'
     ];
 
     const gameProcesses = processes.filter(process =>

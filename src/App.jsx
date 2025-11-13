@@ -125,7 +125,12 @@ function App() {
     }
   };
 
-  const startMediaRecording = async (sourceId, sourceName) => {
+  const startMediaRecording = async (source) => {
+    if (!source) {
+      console.error('No game selected');
+      return;
+    }
+    const { sourceId, sourceName } = source
     try {
       // 获取用户媒体权限，包括音频和视频
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -403,7 +408,7 @@ function App() {
                   <h3>已选择游戏: {selectedGame.name}</h3>
                   <div className="controls">
                     {!isRecording ? (
-                      <button className="record-button" onClick={() => startMediaRecording(source.sourceId, source.sourceName)}>
+                      <button className="record-button" onClick={() => startMediaRecording(source)}>
                         开始录制
                       </button>
                     ) : (

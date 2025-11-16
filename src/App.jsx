@@ -16,6 +16,7 @@ function App() {
   const [entertainmentUrl, setEntertainmentUrl] = useState('https://www.bilibili.com');
   const [compressVideos, setCompressVideos] = useState(false);
   const [source, setSource] = useState(null)
+  const [isFetchingSource, setIsFetchingSource] = useState(false);
   const compressVideosRef = useRef(compressVideos);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
@@ -317,9 +318,6 @@ function App() {
     return lastSlashIndex !== -1 ? path.substring(0, lastSlashIndex) : '';
   };
 
-  const changeCompressVideos = (event) => {
-    setCompressVideos(event.target.checked);
-  };
 
   const preFetchSource = async (game) => {
     if(!game) return;
@@ -330,6 +328,7 @@ function App() {
       if (result.success) {
         setSource(result.source);
         Logger.info(`Source fetched for game: ${game.name}`);
+        setIsFetchingSource(true);
       } else {
         Logger.error('Failed to fetch source id:', result.error);
       }
@@ -424,7 +423,7 @@ function App() {
 
             <section className="recording-controls">
               <h2>录制控制</h2>
-              {selectedGame ? (
+              {isFetchingSource ? (
                 <div className="selected-game">
                   <h3>已选择游戏: {selectedGame.name}</h3>
                   <div className="controls">

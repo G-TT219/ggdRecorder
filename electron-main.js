@@ -15,7 +15,7 @@ try {
     // 使用 electron-reloader 实现热重载
     require('electron-reloader')(module, {
       watchRenderer: true,
-      ignore: ['node_modules', 'dist', 'logs']
+      ignore: ['node_modules', 'dist', 'logs','game-record']
     });
   }
 } catch (err) {
@@ -551,7 +551,7 @@ ipcMain.handle('get-game-processes', async () => {
 
     // Filter for common game processes
     const gameProcessNames = [
-      'duck','lol','微信'
+      'duck'
     ];
 
     const gameProcesses = processes.filter(process =>

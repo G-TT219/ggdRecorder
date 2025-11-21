@@ -60,8 +60,7 @@ function App() {
     // Load game processes
     loadGameProcesses();
     loadRecordings();
-    loadRecordingsDir();
-    loadGamePath()
+    loadingConfig();
 
     window.electronAPI.onStopRecording(() => {
       if (mediaRecorderRef.current) {
@@ -116,15 +115,17 @@ function App() {
     setRecordingThumbnails(thumbnails);
   };
 
-  const loadRecordingsDir = async () => {
+  const loadingConfig = async () => {
     try {
-      const result = await window.electronAPI.getRecordingsDir();
+      const result = await window.electronAPI.getAppConfig();
       if (result.success) {
-        setRecordingsDir(result.recordingsDir);
-        Logger.info(`Recordings directory loaded: ${result.recordingsDir}`);
-      }
+        Logger.info('Config loaded successfully');
+        setGamePath(result.config.gamePath || '');
+        setRecordingsDir(result.config.recordingsDir || '');
+        setCompressVideos(result.config.compressVideos || false);
+      } 
     } catch (error) {
-      Logger.error('Error loading recordings directory:', error);
+      Logger.error('Error loading config:', error);
     }
   };
 
@@ -137,36 +138,6 @@ function App() {
       }
     } catch (error) {
       Logger.error('Error loading recording data:', error);
-    }
-  };
-
-  const loadGamePath = async () => {
-    try {
-      const result = await window.electronAPI.getGamePath();
-      if (result.success) {
-        setGamePath(result.gamePath || '');
-        Logger.info(`Game path loaded: ${result.gamePath}`);
-      }
-    } catch (error) {
-      Logger.error('Error loading game path:', error);
-    }
-  };
-
-  const startRecording = async () => {
-    if (!selectedGame) return;
-
-    try {
-      const result = await window.electronAPI.startRecording({
-        gameName: selectedGame.name
-      });
-
-      if (!result.success) {
-        Logger.error('Failed to start recording:', result.message);
-      } else {
-        Logger.info('Recording started successfully');
-      }
-    } catch (error) {
-      Logger.error('Error starting recording:', error);
     }
   };
 
@@ -373,6 +344,17 @@ function App() {
       Logger.error('Error fetching source:', error);
     }
   };
+
+  const setCompressVideosConfig = async (e) => { 
+    setCompressVideos(e.target.checked)
+    try {
+      window.electronAPI.setCompressVideosConfig(e.target.checked)
+      Logger.info(`Compress videos config set to: ${e.target.checked}`);
+    } catch (error) {
+      Logger.error('Error setting compress videos config:', error);
+    }
+  };
+  
 
   useEffect(() => {
     if (selectedRecording) {
@@ -614,7 +596,7 @@ function App() {
                   <input
                     type="checkbox"
                     checked={compressVideos}
-                    onChange={(e) => { setCompressVideos(e.target.checked) }}
+                    onChange={(e) => { setCompressVideosConfig(e) }}
                   />
                   启用视频压缩
                 </label>

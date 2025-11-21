@@ -25,4 +25,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   preFetchSource: (options) => ipcRenderer.invoke('pre-fetch-source',options),
   logInfo: (message) => ipcRenderer.invoke('log-info', message),
   logError: (message) => ipcRenderer.invoke('log-error', message),
+  getAppConfig: () => ipcRenderer.invoke('get-app-config'),
+  setCompressVideosConfig: (value) => ipcRenderer.invoke('set-compressVideos', value),
 });

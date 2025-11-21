@@ -4,6 +4,9 @@ const path = require('path');
 const fs = require('fs').promises;
 const logger = require('./logger');
 
+// 定义全局配置变量
+let globalConfig = null;
+
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
   app.quit();
@@ -123,8 +126,18 @@ const createWindow = () => {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   const mainWindow = createWindow();
+
+  // Load global config
+  try {
+    globalConfig = await getAppConfig();
+    logger.info('Global config loaded:', globalConfig);
+  } catch (error) {
+    logger.error('Error loading global config:', error);
+    // Initialize with default config
+    globalConfig = { recordingsDir: null };
+  }
 
   // Initialize game monitoring
   initializeGameMonitoring();
@@ -240,8 +253,7 @@ ipcMain.handle('save-recording', async (event, buffer, filename, shouldCompress 
     // Get the custom recordings directory or use default
     let recordingsDir;
     try {
-      const config = await getAppConfig();
-      recordingsDir = config.recordingsDir || await createRecordingsDir();
+      recordingsDir = globalConfig.recordingsDir || await createRecordingsDir();
     } catch (error) {
       recordingsDir = await createRecordingsDir();
     }
@@ -288,8 +300,7 @@ ipcMain.handle('get-recordings', async () => {
     // Get the custom recordings directory or use default
     let recordingsDir;
     try {
-      const config = await getAppConfig();
-      recordingsDir = config.recordingsDir || await createRecordingsDir();
+      recordingsDir = globalConfig.recordingsDir || await createRecordingsDir();
     } catch (error) {
       recordingsDir = await createRecordingsDir();
     }
@@ -327,8 +338,7 @@ ipcMain.handle('delete-recording', async (event, filename) => {
     // Get the custom recordings directory or use default
     let recordingsDir;
     try {
-      const config = await getAppConfig();
-      recordingsDir = config.recordingsDir || await createRecordingsDir();
+      recordingsDir = globalConfig.recordingsDir || await createRecordingsDir();
     } catch (error) {
       recordingsDir = await createRecordingsDir();
     }
@@ -452,6 +462,8 @@ const saveAppConfig = async (config) => {
   try {
     const configPath = getAppConfigPath();
     await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+    // Update global config
+    globalConfig = config;
     return { success: true };
   } catch (error) {
     logger.error('Error saving app config:', error);
@@ -459,13 +471,36 @@ const saveAppConfig = async (config) => {
   }
 };
 
+ipcMain.handle('get-app-config', async () => {
+  try {
+    return { success: true, config: globalConfig };
+  } catch (error) {
+    logger.error('Error getting app config:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('set-compressVideos', async (event, compressVideos) => {
+  try {
+    globalConfig.compressVideos = compressVideos;
+    const result = await saveAppConfig(globalConfig);
+    if (result.success) {
+      return { success: true, compressVideos: compressVideos };
+    } else {
+      return { success: false, error: result.error };
+    }
+  } catch (error) {
+    logger.error('Error saving compressVideos config:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // IPC handler to get current recordings directory
 ipcMain.handle('get-recordings-dir', async () => {
   try {
-    const config = await getAppConfig();
     return {
       success: true,
-      recordingsDir: config.recordingsDir || await createRecordingsDir()
+      recordingsDir: globalConfig.recordingsDir || await createRecordingsDir()
     };
   } catch (error) {
     const defaultDir = await createRecordingsDir();
@@ -485,9 +520,8 @@ ipcMain.handle('set-recordings-dir', async (event, dirPath) => {
     }
 
     // Save the new directory in config
-    const config = await getAppConfig();
-    config.recordingsDir = dirPath;
-    const result = await saveAppConfig(config);
+    globalConfig.recordingsDir = dirPath;
+    const result = await saveAppConfig(globalConfig);
 
     if (result.success) {
       return { success: true, recordingsDir: dirPath };
@@ -511,9 +545,8 @@ ipcMain.handle('select-recordings-dir', async (event) => {
       const dirPath = result.filePaths[0];
 
       // Save the new directory in config
-      const config = await getAppConfig();
-      config.recordingsDir = dirPath;
-      const saveResult = await saveAppConfig(config);
+      globalConfig.recordingsDir = dirPath;
+      const saveResult = await saveAppConfig(globalConfig);
 
       if (saveResult.success) {
         return { success: true, recordingsDir: dirPath };
@@ -541,8 +574,7 @@ ipcMain.handle('open-dir', async (event, path) => {
 
 ipcMain.handle('get-game-path', async () => {
   try {
-    const config = await getAppConfig();
-    return { success: true, gamePath: config.gamePath }
+    return { success: true, gamePath: globalConfig.gamePath }
   } catch (error) {
     logger.error('Error getting game paths:', error);
     return { success: false, error: error.message };
@@ -558,9 +590,8 @@ ipcMain.handle('select-game-path', async (event, gamePath) => {
     if (!result.canceled && result.filePaths.length > 0) {
       const gamePath = result.filePaths[0];
       // Save the new game path in config 
-      const config = await getAppConfig();
-      config.gamePath = gamePath;
-      const saveResult = await saveAppConfig(config);
+      globalConfig.gamePath = gamePath;
+      const saveResult = await saveAppConfig(globalConfig);
       if (saveResult.success) {
         return { success: true, gamePath: gamePath }
       } else {

@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getGamePath: () => ipcRenderer.invoke('get-game-path'),
   selectGamePath: () => ipcRenderer.invoke('select-game-path'),
   startGame: (gamePath) => ipcRenderer.invoke('start-game', gamePath),
+  generateThumbnail: (filePath) => ipcRenderer.invoke('generate-thumbnail', filePath),
   // onSourceIdSelected: (callback) => ipcRenderer.on('source-id-selected', callback),
   onStopRecording: (callback) => ipcRenderer.on('stop-recording', callback),
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel),

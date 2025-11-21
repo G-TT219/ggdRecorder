@@ -335,6 +335,17 @@ ipcMain.handle('delete-recording', async (event, filename) => {
 
     const filePath = path.join(recordingsDir, filename);
     await fs.unlink(filePath);
+    
+    // Delete corresponding thumbnail if it exists
+    const cacheDir = path.join(app.getPath('userData'), 'cache', 'thumbnails');
+    const thumbnailPath = path.join(cacheDir, filename.replace(/\.[^/.]+$/, '_thumb.png'));
+    try {
+      await fs.unlink(thumbnailPath);
+    } catch (error) {
+      // Thumbnail may not exist, that's okay
+      logger.info('Thumbnail not found or already deleted:', thumbnailPath);
+    }
+    
     return { success: true };
   } catch (error) {
     logger.error('Error deleting recording:', error);
@@ -353,6 +364,73 @@ ipcMain.handle('read-recording', async (event, filePath) => {
     return { success: false, error: error.message };
   }
 });
+
+// Generate thumbnail for a video file
+ipcMain.handle('generate-thumbnail', async (event, filePath) => {
+  try {
+    const cacheDir = path.join(app.getPath('userData'), 'cache', 'thumbnails');
+    const filename = path.basename(filePath);
+    const thumbnailPath = path.join(cacheDir, filename.replace(/\.[^/.]+$/, '_thumb.png'));
+    
+    // Ensure cache directory exists
+    try {
+      await fs.access(cacheDir);
+    } catch (error) {
+      // Directory doesn't exist, create it
+      await fs.mkdir(cacheDir, { recursive: true });
+    }
+    
+    // Check if thumbnail already exists
+    try {
+      await fs.access(thumbnailPath);
+      const thumbnailData = await fs.readFile(thumbnailPath);
+      return { success: true, data: thumbnailData.toString('base64') };
+    } catch (error) {
+      // Thumbnail doesn't exist, generate it
+      return await generateVideoThumbnail(filePath, thumbnailPath);
+    }
+  } catch (error) {
+    logger.error('Error generating thumbnail:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Function to generate video thumbnail using ffmpeg
+const generateVideoThumbnail = async (videoPath, thumbnailPath) => {
+  return new Promise((resolve, reject) => {
+    // Use ffmpeg to extract a frame from the video at 1 second mark
+    const ffmpegPath = 'ffmpeg'; // You might need to specify the full path to ffmpeg
+    
+    const args = [
+      '-i', videoPath,
+      '-ss', '00:00:01.000', // Seek to 1 second
+      '-vframes', '1',       // Extract only 1 frame
+      '-vf', 'scale=320:180', // Scale to thumbnail size
+      '-y',                  // Overwrite output files
+      thumbnailPath
+    ];
+    
+    const ffmpegProcess = spawn(ffmpegPath, args);
+    
+    ffmpegProcess.on('close', async (code) => {
+      if (code === 0) {
+        try {
+          // Read the generated thumbnail
+          const thumbnailData = await fs.readFile(thumbnailPath);
+          resolve({ success: true, data: thumbnailData.toString('base64') });
+        } catch (readError) {
+          reject(new Error(`Failed to read thumbnail: ${readError.message}`));
+        }
+      } else {
+        reject(new Error(`FFmpeg exited with code ${code}`));
+      }
+    });
+
+    ffmpegProcess.on('error', (error) => {
+      reject(new Error(`Failed to start FFmpeg: ${error.message}`));
+    });
+  });
+};
 
 // Get app configuration
 const getAppConfigPath = () => {

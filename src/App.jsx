@@ -10,6 +10,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('games'); // 'games', 'recordings', 'settings', or 'entertainment'
   const [selectedRecording, setSelectedRecording] = useState(null);
   const [recordingData, setRecordingData] = useState(null);
+  const [recordingDataBuffers, setRecordingDataBuffers] = useState([]);
   const [recordingsDir, setRecordingsDir] = useState('');
   const [recordingTime, setRecordingTime] = useState(0);
   const [gamePath, setGamePath] = useState('');
@@ -17,11 +18,26 @@ function App() {
   const [compressVideos, setCompressVideos] = useState(false);
   const [source, setSource] = useState(null)
   const [isFetchingSource, setIsFetchingSource] = useState(false);
+  const [recordingThumbnails, setRecordingThumbnails] = useState({}); // New state for thumbnails
   const compressVideosRef = useRef(compressVideos);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
   const recordingStartTimeRef = useRef(null);
   const timerIntervalRef = useRef(null);
+
+  const MAX_LT = 3
+
+  const putRecordingDateBuffer = (filePath, data) => {
+    const newBuffers = [...recordingDataBuffers];
+    const index = newBuffers.findIndex(buffer => buffer.filePath === filePath);
+    if (index == -1) {
+      if(newBuffers.length  >= MAX_LT){
+        newBuffers.shift()
+      }
+      newBuffers.push({ filePath, data });
+      setRecordingDataBuffers(newBuffers);
+    }
+  };
 
   // Update the ref whenever the state changes
   useEffect(() => {
@@ -75,9 +91,29 @@ function App() {
       const recordingsList = await window.electronAPI.getRecordings();
       setRecordings(recordingsList);
       Logger.info(`Loaded ${recordingsList.length} recordings`);
+      // Load thumbnails for recordings
+      loadRecordingThumbnails(recordingsList);
     } catch (error) {
       Logger.error('Error loading recordings:', error);
     }
+  };
+
+  // Function to load thumbnails for all recordings
+  const loadRecordingThumbnails = async (recordingsList) => {
+    const thumbnails = {...recordingThumbnails};
+    for (const recording of recordingsList) {
+      try {
+        // Skip if thumbnail already loaded
+        if (thumbnails[recording.id]) continue;
+        const result = await window.electronAPI.generateThumbnail(recording.filePath);
+        if (result.success) {
+          thumbnails[recording.id] = result.data;
+        }
+      } catch (error) {
+        Logger.error('Error loading thumbnail for:', recording.id, error);
+      }
+    }
+    setRecordingThumbnails(thumbnails);
   };
 
   const loadRecordingsDir = async () => {
@@ -97,6 +133,7 @@ function App() {
       const result = await window.electronAPI.readRecording(filePath);
       if (result.success) {
         setRecordingData(`data:video/webm;base64,${result.data}`);
+        putRecordingDateBuffer(filePath, `data:video/webm;base64,${result.data}`)
       }
     } catch (error) {
       Logger.error('Error loading recording data:', error);
@@ -339,7 +376,12 @@ function App() {
 
   useEffect(() => {
     if (selectedRecording) {
-      loadRecordingData(selectedRecording.filePath);
+      const result = recordingDataBuffers.find(buffer => buffer.filePath === selectedRecording.filePath)
+      if(result){
+        setRecordingData(result.data);
+      }else{
+        loadRecordingData(selectedRecording.filePath);
+      }
     } else {
       setRecordingData(null);
     }
@@ -476,7 +518,15 @@ function App() {
                   recordings.map(recording => (
                     <div key={recording.id} className="recording-item">
                       <div className="recording-thumbnail">
-                        <div className="play-icon">▶</div>
+                        {recordingThumbnails[recording.id] ? (
+                          <img 
+                            src={`data:image/png;base64,${recordingThumbnails[recording.id]}`} 
+                            alt={`${recording.name} thumbnail`}
+                            className="recording-thumbnail-image"
+                          />
+                        ) : (
+                          <div className="play-icon">▶</div>
+                        )}
                       </div>
                       <div className="recording-info">
                         <h3>{recording.name}</h3>

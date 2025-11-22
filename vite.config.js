@@ -11,5 +11,7 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: false
-  }
+  },
+  // 添加 base 配置，使资源使用相对路径
+  base: './'
 })

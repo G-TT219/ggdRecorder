@@ -45,22 +45,5 @@
     "react-dom": "^18.2.0",
     "winston": "^3.18.3",
     "winston-daily-rotate-file": "^5.0.0"
-  },
-  "build": {
-    "appId": "com.example.gamerecorder",
-    "productName": "游戏录制器",
-    "directories": {
-      "output": "out"
-    },
-    "win": {
-      "target": [
-        "nsis",
-        "portable"
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
-    }
   }
 }

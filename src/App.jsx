@@ -299,6 +299,7 @@ function App() {
     try {
       const result = await window.electronAPI.startGame(gamePath);
       if (!result.success) {
+        alert('请先在设置中选择正确的游戏程序路径');
         Logger.error('Failed to start game:', result.message);
       } else {
         Logger.info('Game started successfully');

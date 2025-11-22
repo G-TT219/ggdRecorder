@@ -18,7 +18,7 @@ try {
     // 使用 electron-reloader 实现热重载
     require('electron-reloader')(module, {
       watchRenderer: true,
-      ignore: ['node_modules', 'dist', 'logs','game-record']
+      ignore: ['node_modules', 'dist', 'logs', 'game-record','out','public']
     });
   }
 } catch (err) {
@@ -76,7 +76,7 @@ const compressVideo = async (inputPath, outputPath) => {
 const createWindow = () => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 1200,
+    width: 500,
     height: 800,
     icon: path.join(__dirname, 'recorder.ico'),
     webPreferences: {
@@ -109,7 +109,8 @@ const createWindow = () => {
   }
 
   // Open the DevTools.
-  mainWindow.webContents.openDevTools();
+  if(isDev)
+    mainWindow.webContents.openDevTools();
 
   // Register shortcut to toggle dev tools
   globalShortcut.register('CommandOrControl+Shift+I', () => {
@@ -345,7 +346,7 @@ ipcMain.handle('delete-recording', async (event, filename) => {
 
     const filePath = path.join(recordingsDir, filename);
     await fs.unlink(filePath);
-    
+
     // Delete corresponding thumbnail if it exists
     const cacheDir = path.join(app.getPath('userData'), 'cache', 'thumbnails');
     const thumbnailPath = path.join(cacheDir, filename.replace(/\.[^/.]+$/, '_thumb.png'));
@@ -355,7 +356,7 @@ ipcMain.handle('delete-recording', async (event, filename) => {
       // Thumbnail may not exist, that's okay
       logger.info('Thumbnail not found or already deleted:', thumbnailPath);
     }
-    
+
     return { success: true };
   } catch (error) {
     logger.error('Error deleting recording:', error);
@@ -381,7 +382,7 @@ ipcMain.handle('generate-thumbnail', async (event, filePath) => {
     const cacheDir = path.join(app.getPath('userData'), 'cache', 'thumbnails');
     const filename = path.basename(filePath);
     const thumbnailPath = path.join(cacheDir, filename.replace(/\.[^/.]+$/, '_thumb.png'));
-    
+
     // Ensure cache directory exists
     try {
       await fs.access(cacheDir);
@@ -389,7 +390,7 @@ ipcMain.handle('generate-thumbnail', async (event, filePath) => {
       // Directory doesn't exist, create it
       await fs.mkdir(cacheDir, { recursive: true });
     }
-    
+
     // Check if thumbnail already exists
     try {
       await fs.access(thumbnailPath);
@@ -410,7 +411,7 @@ const generateVideoThumbnail = async (videoPath, thumbnailPath) => {
   return new Promise((resolve, reject) => {
     // Use ffmpeg to extract a frame from the video at 1 second mark
     const ffmpegPath = 'ffmpeg'; // You might need to specify the full path to ffmpeg
-    
+
     const args = [
       '-i', videoPath,
       '-ss', '00:00:01.000', // Seek to 1 second
@@ -419,9 +420,9 @@ const generateVideoThumbnail = async (videoPath, thumbnailPath) => {
       '-y',                  // Overwrite output files
       thumbnailPath
     ];
-    
+
     const ffmpegProcess = spawn(ffmpegPath, args);
-    
+
     ffmpegProcess.on('close', async (code) => {
       if (code === 0) {
         try {
@@ -574,7 +575,10 @@ ipcMain.handle('open-dir', async (event, path) => {
 
 ipcMain.handle('get-game-path', async () => {
   try {
-    return { success: true, gamePath: globalConfig.gamePath }
+    if (globalConfig.gamePath)
+      return { success: true, gamePath: globalConfig.gamePath }
+    else 
+      return { success: false, error: "please select game path" }
   } catch (error) {
     logger.error('Error getting game paths:', error);
     return { success: false, error: error.message };

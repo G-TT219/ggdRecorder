@@ -3,8 +3,32 @@ const { combine, timestamp, label, printf, errors } = format;
 const DailyRotateFile = require('winston-daily-rotate-file');
 const path = require('path');
 
-// 创建日志目录
-const logsDir = path.join(__dirname, 'logs');
+// 创建日志目录 - 默认使用用户数据目录下的 logs 文件夹
+const getLogsDir = () => {
+  // 如果环境变量中指定了用户数据路径，则使用该路径
+  if (process.env.USER_DATA_PATH) {
+    return path.join(process.env.USER_DATA_PATH, 'logs');
+  }
+
+  // 在 Electron 环境中，使用用户数据目录
+  try {
+    const electron = require('electron');
+    if (electron.app) {
+      return path.join(electron.app.getPath('userData'), 'logs');
+    }
+    // 在渲染进程中可能需要通过 remote 获取
+    if (electron.remote && electron.remote.app) {
+      return path.join(electron.remote.app.getPath('userData'), 'logs');
+    }
+  } catch (e) {
+    // 忽略错误，回退到默认行为
+  }
+
+  // 回退到应用程序目录下的 logs 文件夹
+  return path.join(__dirname, 'logs');
+};
+
+const logsDir = getLogsDir();
 
 // 自定义日志格式
 const logFormat = printf(({ level, message, label, timestamp, stack }) => {

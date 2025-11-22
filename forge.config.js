@@ -4,13 +4,28 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 module.exports = {
   packagerConfig: {
     asar: true,
-    icon: 'ggd',
+    icon: './recorder.ico', // 使用正确的图标文件名
+    extraResource: ['./dist'],
   },
   rebuildConfig: {},
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
-      config: {},
+      config: {
+        name: 'ggdrecorder',
+        authors: 'GTT',
+        exe: 'ggdrecorder.exe',
+        setupExe: 'ggdrecorder_setup.exe',
+        setupIcon: './recorder.ico',
+        iconUrl: 'https://raw.githubusercontent.com/electron/electron/master/shell/browser/resources/win/electron.ico',
+        noMsi: true,
+        nsis: {
+          oneClick: false,
+          allowToChangeInstallationDirectory: true,
+          perMachine: false,
+          differentialPackage: true
+        }
+      },
     },
     {
       name: '@electron-forge/maker-zip',

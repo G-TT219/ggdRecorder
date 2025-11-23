@@ -675,10 +675,9 @@ ipcMain.handle('get-game-processes', async () => {
 
   try {
     const processes = await psList.default();
-
     // Filter for common game processes
     const gameProcessNames = [
-      'duck'
+      'duck','firefox','edge','csgo','dota2','valorant','fortnite','minecraft'
     ];
 
     const gameProcesses = processes.filter(process =>

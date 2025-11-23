@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "description": "A game recording application",
   "main": "electron-main.js",
+  "homepage": "https://github.com/G-TT219/ggdRecorder",
+  "author": {
+    "name": "GTT",
+    "email": "huausb159357@163.com"
+  },
   "scripts": {
     "start": "electron-forge start",
     "dev": "vite",
@@ -11,7 +16,11 @@
     "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1",
     "package": "electron-forge package",
-    "make": "electron-forge make"
+    "make": "electron-forge make",
+    "pack-app": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:linux": "npm run build && electron-builder --linux deb"
   },
   "keywords": [
     "game",
@@ -19,7 +28,6 @@
     "electron",
     "react"
   ],
-  "author": "GTT",
   "license": "ISC",
   "devDependencies": {
     "@electron-forge/cli": "^7.10.2",
@@ -34,16 +42,66 @@
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
     "electron": "^39.0.0",
+    "electron-builder": "^24.9.1",
     "electron-reloader": "^1.2.3",
     "vite": "^4.0.0"
   },
   "dependencies": {
-    "electron": "^39.0.0",
     "electron-squirrel-startup": "^1.0.1",
     "ps-list": "^9.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "winston": "^3.18.3",
     "winston-daily-rotate-file": "^5.0.0"
+  },
+  "build": {
+    "appId": "com.example.gamerecorder",
+    "productName": "ggdRecord",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "recorder.ico"
+    },
+    "linux": {
+      "target": [
+        "deb"
+      ],
+      "category": "AudioVideo",
+      "icon": "recorder.png",
+      "maintainer": "GTT <huausb159357@163.com>"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "allowElevation": true,
+      "runAfterFinish": true,
+      "installerIcon": "recorder.ico",
+      "uninstallerIcon": "recorder.ico",
+      "installerHeaderIcon": "recorder.ico",
+      "shortcutName": "ggdRecord"
+    },
+    "files": [
+      "dist/**/*",
+      "electron-main.js",
+      "preload.js",
+      "logger.js",
+      "recorder.ico"
+    ],
+    "extraResources": [
+      {
+        "from": "dist",
+        "to": "resources/dist"
+      }
+    ]
   }
 }

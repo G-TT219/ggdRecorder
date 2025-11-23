@@ -4,3 +4,4 @@ out/
 dist/
 game-record/
 logs/
+dist-electron/

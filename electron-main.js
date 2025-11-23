@@ -25,6 +25,20 @@ try {
   logger.warn('Failed to load electron-reloader:', err);
 }
 
+// 获取正确的资源路径
+const getAssetPath = (...paths) => {
+  // 检查是否在 electron-builder 环境中
+  const isElectronBuilder = __dirname.includes('app.asar') || __dirname.includes('resources');
+  
+  if (isElectronBuilder) {
+    // electron-builder 打包后的路径
+    return path.join(__dirname, ...paths);
+  } else {
+    // electron-forge 或开发环境路径
+    return path.join(__dirname, ...paths);
+  }
+};
+
 // Get recordings directory path
 const getRecordingsDir = () => {
   return path.join(app.getPath('videos'), 'GameRecorder');
@@ -78,7 +92,7 @@ const createWindow = () => {
   const mainWindow = new BrowserWindow({
     width: 500,
     height: 800,
-    icon: path.join(__dirname, 'recorder.ico'),
+    icon: getAssetPath('recorder.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -103,7 +117,7 @@ const createWindow = () => {
     mainWindow.loadURL(url);
   } else {
     // 生产环境中正确加载打包后的文件
-    const indexPath = path.join(__dirname, 'dist', 'index.html');
+    const indexPath = getAssetPath('dist', 'index.html');
     logger.info('Loading file:', indexPath);
     mainWindow.loadFile(indexPath);
   }

@@ -31,7 +31,7 @@ function App() {
     const newBuffers = [...recordingDataBuffers];
     const index = newBuffers.findIndex(buffer => buffer.filePath === filePath);
     if (index == -1) {
-      if(newBuffers.length  >= MAX_LT){
+      if (newBuffers.length >= MAX_LT) {
         newBuffers.shift()
       }
       newBuffers.push({ filePath, data });
@@ -99,7 +99,7 @@ function App() {
 
   // Function to load thumbnails for all recordings
   const loadRecordingThumbnails = async (recordingsList) => {
-    const thumbnails = {...recordingThumbnails};
+    const thumbnails = { ...recordingThumbnails };
     for (const recording of recordingsList) {
       try {
         // Skip if thumbnail already loaded
@@ -123,7 +123,7 @@ function App() {
         setGamePath(result.config.gamePath || '');
         setRecordingsDir(result.config.recordingsDir || '');
         setCompressVideos(result.config.compressVideos || false);
-      } 
+      }
     } catch (error) {
       Logger.error('Error loading config:', error);
     }
@@ -329,7 +329,7 @@ function App() {
 
 
   const preFetchSource = async (game) => {
-    if(!game) return;
+    if (!game) return;
     try {
       const result = await window.electronAPI.preFetchSource({
         gameName: game.name
@@ -346,7 +346,7 @@ function App() {
     }
   };
 
-  const setCompressVideosConfig = async (e) => { 
+  const setCompressVideosConfig = async (e) => {
     setCompressVideos(e.target.checked)
     try {
       window.electronAPI.setCompressVideosConfig(e.target.checked)
@@ -355,14 +355,14 @@ function App() {
       Logger.error('Error setting compress videos config:', error);
     }
   };
-  
+
 
   useEffect(() => {
     if (selectedRecording) {
       const result = recordingDataBuffers.find(buffer => buffer.filePath === selectedRecording.filePath)
-      if(result){
+      if (result) {
         setRecordingData(result.data);
-      }else{
+      } else {
         loadRecordingData(selectedRecording.filePath);
       }
     } else {
@@ -420,6 +420,27 @@ function App() {
       <main className="app-main">
         {activeTab === 'games' ? (
           <>
+            <section className="recording-controls">
+              <h2>录制控制</h2>
+              {isFetchingSource ? (
+                <div className="selected-game">
+                  <h3>已选择游戏: {selectedGame.name}</h3>
+                  <div className="controls">
+                    {!isRecording ? (
+                      <button className="record-button" onClick={() => startMediaRecording(source)}>
+                        开始录制
+                      </button>
+                    ) : (
+                      <button className="stop-button" onClick={stopRecording}>
+                        停止录制
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p>请从下方列表中选择一个游戏程序开始录制</p>
+              )}
+            </section>
             <section className="game-selection">
               <h2>正在运行的游戏程序 ({gameProcesses.length})</h2>
               <button onClick={loadGameProcesses}>
@@ -446,27 +467,7 @@ function App() {
               )}
             </section>
 
-            <section className="recording-controls">
-              <h2>录制控制</h2>
-              {isFetchingSource ? (
-                <div className="selected-game">
-                  <h3>已选择游戏: {selectedGame.name}</h3>
-                  <div className="controls">
-                    {!isRecording ? (
-                      <button className="record-button" onClick={() => startMediaRecording(source)}>
-                        开始录制
-                      </button>
-                    ) : (
-                      <button className="stop-button" onClick={stopRecording}>
-                        停止录制
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <p>请从上方列表中选择一个游戏程序开始录制</p>
-              )}
-            </section>
+
           </>
         ) : activeTab === 'recordings' ? (
           <section className="recordings-section">
@@ -502,8 +503,8 @@ function App() {
                     <div key={recording.id} className="recording-item">
                       <div className="recording-thumbnail">
                         {recordingThumbnails[recording.id] ? (
-                          <img 
-                            src={`data:image/png;base64,${recordingThumbnails[recording.id]}`} 
+                          <img
+                            src={`data:image/png;base64,${recordingThumbnails[recording.id]}`}
                             alt={`${recording.name} thumbnail`}
                             className="recording-thumbnail-image"
                           />

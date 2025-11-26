@@ -135,6 +135,16 @@ const createWindow = () => {
     mainWindow.webContents.toggleDevTools();
   });
 
+  // Register shortcut for start recording
+  globalShortcut.register('CommandOrControl+Shift+S', () => {
+    mainWindow.webContents.send('start-recording-shortcut');
+  });
+
+  // Register shortcut for stop recording
+  globalShortcut.register('CommandOrControl+Shift+D', () => {
+    mainWindow.webContents.send('stop-recording-shortcut');
+  });
+
   return mainWindow;
 };
 

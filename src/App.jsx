@@ -6,6 +6,7 @@ function App() {
   const [gameProcesses, setGameProcesses] = useState([]);
   const [selectedGame, setSelectedGame] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [recordings, setRecordings] = useState([]);
   const [activeTab, setActiveTab] = useState('games'); // 'games', 'recordings', 'settings', or 'entertainment'
   const [selectedRecording, setSelectedRecording] = useState(null);
@@ -24,6 +25,23 @@ function App() {
   const recordedChunksRef = useRef([]);
   const recordingStartTimeRef = useRef(null);
   const timerIntervalRef = useRef(null);
+  // Refs for states that will be accessed in callbacks to avoid stale closures
+  const sourceRef = useRef(source);
+  const isRecordingRef = useRef(isRecording);
+  const isPausedRef = useRef(isPaused);
+  
+  // Update refs when states change
+  useEffect(() => {
+    sourceRef.current = source;
+  }, [source]);
+  
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
+  
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
 
   const MAX_LT = 3
 
@@ -68,10 +86,29 @@ function App() {
       }
     });
 
+    // Listen for start recording shortcut
+    const handleStartRecordingShortcut = () => {
+      if (sourceRef.current && !isRecordingRef.current) {
+        startMediaRecording(sourceRef.current);
+      }
+    };
+
+    // Listen for stop recording shortcut
+    const handleStopRecordingShortcut = () => {
+      if (isRecordingRef.current) {
+        stopRecording();
+      }
+    };
+
+    window.electronAPI.onStartRecordingShortcut(handleStartRecordingShortcut);
+    window.electronAPI.onStopRecordingShortcut(handleStopRecordingShortcut);
+
     // Clean up event listeners
     return () => {
       window.electronAPI.removeAllListeners('source-id-selected');
       window.electronAPI.removeAllListeners('stop-recording');
+      window.electronAPI.removeAllListeners('start-recording-shortcut');
+      window.electronAPI.removeAllListeners('stop-recording-shortcut');
     };
   }, []);
 
@@ -212,6 +249,7 @@ function App() {
 
       mediaRecorderRef.current.start();
       setIsRecording(true);
+      setIsPaused(false);
       // Start the timer
       recordingStartTimeRef.current = Date.now();
       timerIntervalRef.current = setInterval(() => {
@@ -233,6 +271,7 @@ function App() {
           mediaRecorderRef.current.stop();
         }
         setIsRecording(false);
+        setIsPaused(false);
         // Clear the timer
         if (timerIntervalRef.current) {
           clearInterval(timerIntervalRef.current);
@@ -376,6 +415,54 @@ function App() {
     }
   }, [selectedGame]);
 
+  // Add tooltip to indicate shortcut keys
+  useEffect(() => {
+    const recordButton = document.querySelector('.record-button');
+    const stopButton = document.querySelector('.stop-button');
+    
+    if (recordButton) {
+      recordButton.title = '快捷键: Ctrl+Shift+S';
+    }
+    
+    if (stopButton) {
+      stopButton.title = '快捷键: Ctrl+Shift+D';
+    }
+  }, [isFetchingSource, isRecording]);
+
+  const pauseRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.pause();
+      setIsPaused(true);
+      // Pause the timer
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+      Logger.info('Recording paused');
+    }
+  };
+
+  const resumeRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
+      mediaRecorderRef.current.resume();
+      setIsPaused(false);
+      // Resume the timer
+      timerIntervalRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - recordingStartTimeRef.current) / 1000);
+        setRecordingTime(elapsed);
+      }, 1000);
+      Logger.info('Recording resumed');
+    }
+  };
+
+  const togglePauseResume = () => {
+    if (isPaused) {
+      resumeRecording();
+    } else {
+      pauseRecording();
+    }
+  };
+
   return (
     <div className="app">
       <header className="app-header">
@@ -431,9 +518,17 @@ function App() {
                         开始录制
                       </button>
                     ) : (
-                      <button className="stop-button" onClick={stopRecording}>
-                        停止录制
-                      </button>
+                      <div className="recording-controls-group">
+                        <button 
+                          className={`pause-button ${isPaused ? 'resume' : 'pause'}`}
+                          onClick={togglePauseResume}
+                        >
+                          {isPaused ? '继续录制' : '暂停录制'}
+                        </button>
+                        <button className="stop-button" onClick={stopRecording}>
+                          停止录制
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

@@ -224,8 +224,36 @@
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.2s ease;
-  min-width: 200px;
-  font-weight: bold;
+}
+
+.pause-button {
+  background-color: #ff9800;
+  color: white;
+  border: none;
+  padding: 1rem 2rem;
+  font-size: 1.2rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  margin-right: 1rem;
+}
+
+.pause-button.pause:hover {
+  background-color: #f57c00;
+}
+
+.pause-button.resume {
+  background-color: #4caf50;
+}
+
+.pause-button.resume:hover {
+  background-color: #388e3c;
+}
+
+.recording-controls-group {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
 }
 
 .record-button:hover, .stop-button:hover {

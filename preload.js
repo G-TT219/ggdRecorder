@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   generateThumbnail: (filePath) => ipcRenderer.invoke('generate-thumbnail', filePath),
   // onSourceIdSelected: (callback) => ipcRenderer.on('source-id-selected', callback),
   onStopRecording: (callback) => ipcRenderer.on('stop-recording', callback),
+  onStartRecordingShortcut: (callback) => ipcRenderer.on('start-recording-shortcut', callback),
+  onStopRecordingShortcut: (callback) => ipcRenderer.on('stop-recording-shortcut', callback),
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel),
   preFetchSource: (options) => ipcRenderer.invoke('pre-fetch-source',options),
   logInfo: (message) => ipcRenderer.invoke('log-info', message),

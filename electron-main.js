@@ -1,11 +1,12 @@
 const { spawn } = require('child_process');
-const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, shell, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, shell, globalShortcut, Tray, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 const logger = require('./logger');
 
 // 定义全局配置变量
 let globalConfig = null;
+let tray = null;
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -106,6 +107,15 @@ const createWindow = () => {
   // Remove default menu bar
   mainWindow.setMenu(null);
 
+  // 当窗口被关闭时，最小化到系统托盘而不是退出
+  mainWindow.on('close', (event) => {
+    if (!app.isQuiting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+    return false;
+  });
+
   // and load the index.html of the app.
   const isDev = process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL;
   logger.info('isDev:', isDev);
@@ -148,11 +158,47 @@ const createWindow = () => {
   return mainWindow;
 };
 
+// 创建系统托盘
+const createTray = (mainWindow) => {
+  // 使用应用图标作为托盘图标
+  const iconPath = getAssetPath('recorder.ico');
+  tray = new Tray(iconPath);
+
+  // 创建托盘菜单
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: '显示',
+      click: () => {
+        mainWindow.show();
+      }
+    },
+    {
+      label: '退出',
+      click: () => {
+        app.quit();
+      }
+    }
+  ]);
+
+  tray.setContextMenu(contextMenu);
+  
+  // 设置托盘图标提示
+  tray.setToolTip('ggdRecorder');
+  
+  // 点击托盘图标时显示窗口
+  tray.on('click', () => {
+    mainWindow.show();
+  });
+};
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
   const mainWindow = createWindow();
+
+  // 创建系统托盘
+  createTray(mainWindow);
 
   // Load global config
   try {
@@ -189,6 +235,12 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+// 当窗口关闭时最小化到托盘而不是退出应用
+app.on('before-quit', (event) => {
+  app.isQuiting = true;
+  tray.destroy();
 });
 
 // Add handler for desktop capturer sources

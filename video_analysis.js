@@ -5,6 +5,7 @@ const {
 } = require("@google/genai");
 const { setGlobalDispatcher, ProxyAgent } = require("undici");
 const { config } = require("dotenv");
+const logger = require("./logger");
 
 config();
 
@@ -14,21 +15,18 @@ setGlobalDispatcher(dispatcher);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_GEMINI_APIKEY });
-
-const analyze = async (path) => {
+const analyze = async (path,apiKey) => {
     try {
+        const ai = new GoogleGenAI({ apiKey: apiKey });
         const myfile = await ai.files.upload({
             file: path,
             config: { mimeType: "video/webm" },
         });
 
         let fileState = myfile.state; // 获取当前状态
-        console.log(fileState)
         // 只要状态是 "PROCESSING" 就一直等待
         while (fileState === "PROCESSING") {
-            console.log("视频正在服务器端处理中，等待 2 秒...");
-            await sleep(2000);
+            await sleep(2000);  // 等待 2 秒
 
             const freshFile = await ai.files.get({ name: myfile.name });
             fileState = freshFile.state;
@@ -39,7 +37,7 @@ const analyze = async (path) => {
             }
         }
 
-        console.log("视频处理完毕 (ACTIVE)，开始请求模型...");
+        logger.info("视频处理完毕 (ACTIVE)，开始请求模型");
 
         const prompt = "你是一个鹅鸭杀游戏高手，你可以在游戏界面右上角的地图确认玩家的位置，你可以在游戏界面左上角获取玩家阵营和身份信息。"
             + "这里有一份地点名称列表供你参考：[祭坛，前堂，书房，礼堂，储物间，储物柜，奇珍异品收藏室，地牢，隧道，隧道入口，坑，实验室，锅炉房，走廊，雾洞]。"
@@ -53,6 +51,7 @@ const analyze = async (path) => {
                 prompt
             ]),
         });
+        ai.files.delete({ name: myfile.name });
         return response.text;
     } catch (e) {
         throw e;

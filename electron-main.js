@@ -762,12 +762,56 @@ ipcMain.handle('get-game-processes', async () => {
 // 在 electron-main.js 中添加ai调用功能
 ipcMain.handle('analyze-recording', async (event, filePath) => {
   try {
-    const result = await analyze(filePath);
+    const apiKey = globalConfig.apiKey;
+    if (!apiKey) return { success: false, error: 'API key not found' };
+    const result = await analyze(filePath,apiKey);
     return {
       success: true,
       text: result
     };
   } catch (error) {
     return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('save-api-key', async (event, apiKey) => {
+  try {
+    globalConfig.apiKey = apiKey;
+    const result = await saveAppConfig(globalConfig);
+    return { success: true };
+  } catch (error) {
+    logger.error('Error saving API key:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('load-api-key', async () => {
+  try {
+    const apiKey = globalConfig.apiKey || '';
+    return { success: true, apiKey: apiKey };
+  } catch (error) {
+    // 如果文件不存在或其他错误，返回空的API密钥
+    if (error.code === 'ENOENT') {
+      return { success: true, apiKey: '' };
+    } else {
+      logger.error('Error loading API key:', error);
+      return { success: false, error: error.message };
+    }
+  }
+});
+
+ipcMain.handle('clear-api-key', async () => {
+  try {
+    globalConfig.apiKey = '';
+    const result = await saveAppConfig(globalConfig);
+    return { success: true };
+  } catch (error) {
+    // 如果文件不存在，也视为成功
+    if (error.code === 'ENOENT') {
+      return { success: true };
+    } else {
+      logger.error('Error clearing API key:', error);
+      return { success: false, error: error.message };
+    }
   }
 });

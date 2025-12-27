@@ -30,4 +30,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppConfig: () => ipcRenderer.invoke('get-app-config'),
   setCompressVideosConfig: (value) => ipcRenderer.invoke('set-compressVideos', value),
   analyzeRecording: (filePath) => ipcRenderer.invoke('analyze-recording', filePath),
+  saveApiKey: (apiKey) => ipcRenderer.invoke('save-api-key', apiKey),
+  loadApiKey: () => ipcRenderer.invoke('load-api-key'),
+  clearApiKey: () => ipcRenderer.invoke('clear-api-key'),
 });

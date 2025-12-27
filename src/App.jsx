@@ -16,6 +16,7 @@ function App() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analyzeStatus, setAnalyzeStatus] = useState('');
+  const [apiKey, setApiKey] = useState('');
   const [gamePath, setGamePath] = useState('');
   const [entertainmentUrl, setEntertainmentUrl] = useState('https://www.bilibili.com');
   const [compressVideos, setCompressVideos] = useState(false);
@@ -81,6 +82,7 @@ function App() {
     loadGameProcesses();
     loadRecordings();
     loadingConfig();
+    loadApiKey();
 
     window.electronAPI.onStopRecording(() => {
       if (mediaRecorderRef.current) {
@@ -397,6 +399,53 @@ function App() {
     }
   };
 
+  const saveApiKey = async () => {
+    try {
+      const result = await window.electronAPI.saveApiKey(apiKey);
+      if (result.success) {
+        Logger.info('API key saved successfully');
+        alert('API密钥保存成功');
+      } else {
+        Logger.error('Failed to save API key:', result.error);
+        alert('API密钥保存失败: ' + result.error);
+      }
+    } catch (error) {
+      Logger.error('Error saving API key:', error);
+      alert('保存API密钥时发生错误: ' + error.message);
+    }
+  };
+
+  const clearApiKey = async () => {
+    if (window.confirm('确定要清除API密钥吗？此操作不可恢复。')) {
+      try {
+        setApiKey('');
+        const result = await window.electronAPI.clearApiKey();
+        if (result.success) {
+          Logger.info('API key cleared successfully');
+          alert('API密钥已清除');
+        } else {
+          Logger.error('Failed to clear API key:', result.error);
+          alert('清除API密钥失败: ' + result.error);
+        }
+      } catch (error) {
+        Logger.error('Error clearing API key:', error);
+        alert('清除API密钥时发生错误: ' + error.message);
+      }
+    }
+  };
+
+  const loadApiKey = async () => {
+    try {
+      const result = await window.electronAPI.loadApiKey();
+      if (result.success) {
+        setApiKey(result.apiKey || '');
+      } else {
+        Logger.error('Failed to load API key:', result.error);
+      }
+    } catch (error) {
+      Logger.error('Error loading API key:', error);
+    }
+  };
 
   useEffect(() => {
     if (selectedRecording) {
@@ -464,11 +513,11 @@ function App() {
       pauseRecording();
     }
   };
-  
+
   const analyzeRecording = async (recording) => {
     const analyzeResult = {
-          recording: recording
-        }
+      recording: recording
+    }
     try {
       setAnalyzeStatus('analyzing');
       const result = await window.electronAPI.analyzeRecording(recording.filePath);
@@ -619,7 +668,7 @@ function App() {
                         {analysisResult && analysisResult.recording.id === selectedRecording.id && (
                           <div className="analysis-result">
                             <h4>分析结果:</h4>
-                            <textarea 
+                            <textarea
                               value={analysisResult.text}
                               readOnly
                               rows={6}
@@ -759,6 +808,23 @@ function App() {
                   <button onClick={() => { openDir(getDirname(gamePath)) }}>打开文件位置</button>
                   <button onClick={selectGamePath}>选择路径</button>
                 </div>
+              </div>
+              <div className="setting-item">
+                <label htmlFor="api-key">AI API密钥:</label>
+                <div className="setting-input">
+                  <input
+                    type="password"
+                    id="api-key"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="请输入API密钥"
+                  />
+                  <button onClick={saveApiKey}>保存密钥</button>
+                  <button onClick={clearApiKey}>清除密钥</button>
+                </div>
+                <p className="setting-description">
+                  用于AI视频分析功能的API密钥。当前状态: {apiKey ? '已设置' : '未设置'}
+                </p>
               </div>
             </div>
           </section>

@@ -3,7 +3,14 @@ const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, shell, globalShort
 const path = require('path');
 const fs = require('fs').promises;
 const logger = require('./logger');
-const analyze = require('./video_analysis.js').analyze;
+const {
+  GoogleGenAI,
+  createUserContent,
+  createPartFromUri,
+} = require("@google/genai");
+const { setGlobalDispatcher, ProxyAgent } = require("undici");
+const { config } = require("dotenv");
+
 // 定义全局配置变量
 let globalConfig = null;
 let tray = null;
@@ -19,7 +26,7 @@ try {
     // 使用 electron-reloader 实现热重载
     require('electron-reloader')(module, {
       watchRenderer: true,
-      ignore: ['node_modules', 'dist', 'logs', 'game-record','out','public']
+      ignore: ['node_modules', 'dist', 'logs', 'game-record', 'out', 'public']
     });
   }
 } catch (err) {
@@ -30,7 +37,7 @@ try {
 const getAssetPath = (...paths) => {
   // 检查是否在 electron-builder 环境中
   const isElectronBuilder = __dirname.includes('app.asar') || __dirname.includes('resources');
-  
+
   if (isElectronBuilder) {
     // electron-builder 打包后的路径
     return path.join(__dirname, ...paths);
@@ -118,9 +125,9 @@ const createWindow = () => {
 
   // and load the index.html of the app.
   const isDev = process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL;
-  logger.info('isDev:', isDev);
-  logger.info('VITE_DEV_SERVER_URL:', process.env.VITE_DEV_SERVER_URL);
-  logger.info('NODE_ENV:', process.env.NODE_ENV);
+  logger.info('isDev:' + isDev);
+  logger.info('VITE_DEV_SERVER_URL:' + process.env.VITE_DEV_SERVER_URL);
+  logger.info('NODE_ENV:' + process.env.NODE_ENV);
   if (isDev) {
     const url = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
     logger.info('Loading URL:', url);
@@ -128,12 +135,12 @@ const createWindow = () => {
   } else {
     // 生产环境中正确加载打包后的文件
     const indexPath = getAssetPath('dist', 'index.html');
-    logger.info('Loading file:', indexPath);
+    logger.info('Loading index.html file:' + indexPath);
     mainWindow.loadFile(indexPath);
   }
 
   // Open the DevTools.
-  if(isDev)
+  if (isDev)
     mainWindow.webContents.openDevTools();
 
   // Register shortcut to toggle dev tools
@@ -181,10 +188,10 @@ const createTray = (mainWindow) => {
   ]);
 
   tray.setContextMenu(contextMenu);
-  
+
   // 设置托盘图标提示
   tray.setToolTip('ggdRecorder');
-  
+
   // 点击托盘图标时显示窗口
   tray.on('click', () => {
     mainWindow.show();
@@ -203,9 +210,9 @@ app.whenReady().then(async () => {
   // Load global config
   try {
     globalConfig = await getAppConfig();
-    logger.info('Global config loaded:', globalConfig);
+    logger.info('Global config loaded');
   } catch (error) {
-    logger.error('Error loading global config:', error);
+    logger.error('Error loading global config:' + error);
     // Initialize with default config
     globalConfig = { recordingsDir: null };
   }
@@ -225,6 +232,20 @@ app.whenReady().then(async () => {
   app.on('will-quit', () => {
     globalShortcut.unregisterAll();
   });
+
+  try {
+    const envPath = app.isPackaged
+      ? path.join(process.resourcesPath,'.env')
+      : path.join(__dirname, '.env');
+    config({ path: envPath });
+    //全局fetch调用启用代理
+    logger.info('Using proxy:' + process.env.https_proxy);
+    const dispatcher = new ProxyAgent({ uri: new URL(process.env.https_proxy).toString() });
+    setGlobalDispatcher(dispatcher);
+  } catch (error) {
+    logger.error('Error loading env file:' + error);
+  }
+
 });
 
 
@@ -653,7 +674,7 @@ ipcMain.handle('get-game-path', async () => {
   try {
     if (globalConfig.gamePath)
       return { success: true, gamePath: globalConfig.gamePath }
-    else 
+    else
       return { success: false, error: "please select game path" }
   } catch (error) {
     logger.error('Error getting game paths:', error);
@@ -739,7 +760,7 @@ ipcMain.handle('get-game-processes', async () => {
     const processes = await psList.default();
     // Filter for common game processes
     const gameProcessNames = [
-      'duck','firefox','edge','csgo','dota2','valorant','fortnite','minecraft'
+      'duck', 'firefox', 'edge', 'csgo', 'dota2', 'valorant', 'fortnite', 'minecraft'
     ];
 
     const gameProcesses = processes.filter(process =>
@@ -759,12 +780,58 @@ ipcMain.handle('get-game-processes', async () => {
   }
 });
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const analyze = async (path, apiKey) => {
+  try {
+    const ai = new GoogleGenAI({ apiKey: apiKey });
+    const myfile = await ai.files.upload({
+      file: path,
+      config: { mimeType: "video/webm" },
+    });
+
+    let fileState = myfile.state; // 获取当前状态
+    // 只要状态是 "PROCESSING" 就一直等待
+    while (fileState === "PROCESSING") {
+      await sleep(2000);  // 等待 2 秒
+
+      const freshFile = await ai.files.get({ name: myfile.name });
+      fileState = freshFile.state;
+
+      // 检查是否有错误状态
+      if (fileState === "FAILED") {
+        throw new Error("视频处理失败 (FAILED)，请检查视频格式是否受支持。");
+      }
+    }
+
+    logger.info("视频处理完毕 (ACTIVE)，开始请求模型");
+
+    const prompt = "你是一个鹅鸭杀游戏高手，你可以在游戏界面右上角的地图确认玩家的位置，你可以在游戏界面左上角获取玩家阵营和身份信息。"
+      + "这里有一份地点名称列表供你参考：[祭坛，前堂，书房，礼堂，储物间，储物柜，奇珍异品收藏室，地牢，隧道，隧道入口，坑，实验室，锅炉房，走廊，雾洞]。"
+      + "这是一局鹅鸭杀游戏的录像，请你简单描述被玩家操控的角色的主要行动轨迹，"
+      + "以及在哪里什么时候遇上了什么玩家、以及这些玩家值得关注的行为。"
+      + "并根据这些信息提供一个20s的会议发言稿，需要包括我的行动轨迹，遇上的人，和怀疑目标";
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: createUserContent([
+        createPartFromUri(myfile.uri, myfile.mimeType),
+        prompt
+      ]),
+    });
+    ai.files.delete({ name: myfile.name });
+    return response.text;
+  } catch (e) {
+    throw e;
+  }
+}
+
+
 // 在 electron-main.js 中添加ai调用功能
 ipcMain.handle('analyze-recording', async (event, filePath) => {
   try {
     const apiKey = globalConfig.apiKey;
     if (!apiKey) return { success: false, error: 'API key not found' };
-    const result = await analyze(filePath,apiKey);
+    const result = await analyze(filePath, apiKey);
     return {
       success: true,
       text: result

@@ -4,7 +4,7 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 module.exports = {
   packagerConfig: {
     asar: true,
-    icon: './recorder.ico', // 使用正确的图标文件名
+    icon: './recorder.ico',
     extraResource: ['./dist'],
   },
   rebuildConfig: {},

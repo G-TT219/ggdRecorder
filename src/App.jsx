@@ -14,6 +14,8 @@ function App() {
   const [recordingDataBuffers, setRecordingDataBuffers] = useState([]);
   const [recordingsDir, setRecordingsDir] = useState('');
   const [recordingTime, setRecordingTime] = useState(0);
+  const [analysisResult, setAnalysisResult] = useState(null);
+  const [analyzeStatus, setAnalyzeStatus] = useState('');
   const [gamePath, setGamePath] = useState('');
   const [entertainmentUrl, setEntertainmentUrl] = useState('https://www.bilibili.com');
   const [compressVideos, setCompressVideos] = useState(false);
@@ -29,16 +31,16 @@ function App() {
   const sourceRef = useRef(source);
   const isRecordingRef = useRef(isRecording);
   const isPausedRef = useRef(isPaused);
-  
+
   // Update refs when states change
   useEffect(() => {
     sourceRef.current = source;
   }, [source]);
-  
+
   useEffect(() => {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
-  
+
   useEffect(() => {
     isPausedRef.current = isPaused;
   }, [isPaused]);
@@ -419,11 +421,11 @@ function App() {
   useEffect(() => {
     const recordButton = document.querySelector('.record-button');
     const stopButton = document.querySelector('.stop-button');
-    
+
     if (recordButton) {
       recordButton.title = '快捷键: Ctrl+Shift+S';
     }
-    
+
     if (stopButton) {
       stopButton.title = '快捷键: Ctrl+Shift+D';
     }
@@ -460,6 +462,31 @@ function App() {
       resumeRecording();
     } else {
       pauseRecording();
+    }
+  };
+  
+  const analyzeRecording = async (recording) => {
+    const analyzeResult = {
+          recording: recording
+        }
+    try {
+      setAnalyzeStatus('analyzing');
+      const result = await window.electronAPI.analyzeRecording(recording.filePath);
+      setAnalyzeStatus('');
+      if (result.success) {
+        analyzeResult.text = result.text
+        setAnalysisResult(analyzeResult);
+        Logger.info('Recording analysis completed successfully');
+        console.log(analyzeResult)
+      } else {
+        Logger.error('Recording analysis failed:', result.error);
+        analyzeResult.text = `分析失败: ${result.error}`
+        setAnalysisResult(analyzeResult);
+      }
+    } catch (error) {
+      Logger.error('Error analyzing recording:', error);
+      analyzeResult.text = `分析过程中出现错误: ${error.message}`;
+      setAnalysisResult(analyzeResult);
     }
   };
 
@@ -519,7 +546,7 @@ function App() {
                       </button>
                     ) : (
                       <div className="recording-controls-group">
-                        <button 
+                        <button
                           className={`pause-button ${isPaused ? 'resume' : 'pause'}`}
                           onClick={togglePauseResume}
                         >
@@ -579,10 +606,29 @@ function App() {
                 </div>
                 <div className="video-container">
                   {recordingData ? (
-                    <video controls autoPlay>
-                      <source src={recordingData} type="video/webm" />
-                      您的浏览器不支持视频播放。
-                    </video>
+                    <>
+                      <video controls autoPlay>
+                        <source src={recordingData} type="video/webm" />
+                        您的浏览器不支持视频播放。
+                      </video>
+                      <div className="analysis-controls">
+                        <button onClick={() => analyzeRecording(selectedRecording)}>分析录像</button>
+                        {analyzeStatus === 'analyzing' && (
+                          <p>正在分析录像...</p>
+                        )}
+                        {analysisResult && analysisResult.recording.id === selectedRecording.id && (
+                          <div className="analysis-result">
+                            <h4>分析结果:</h4>
+                            <textarea 
+                              value={analysisResult.text}
+                              readOnly
+                              rows={6}
+                              className="analysis-textarea"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </>
                   ) : (
                     <p>正在加载录像...</p>
                   )}

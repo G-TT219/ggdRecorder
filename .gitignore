@@ -6,3 +6,5 @@ game-record/
 logs/
 dist-electron/
 .npmrc
+.env
+package-lock.json

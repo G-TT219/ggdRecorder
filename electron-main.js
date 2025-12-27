@@ -3,7 +3,7 @@ const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, shell, globalShort
 const path = require('path');
 const fs = require('fs').promises;
 const logger = require('./logger');
-
+const analyze = require('./video_analysis.js').analyze;
 // 定义全局配置变量
 let globalConfig = null;
 let tray = null;
@@ -756,5 +756,18 @@ ipcMain.handle('get-game-processes', async () => {
   } catch (error) {
     logger.error('Error getting processes:', error);
     return [];
+  }
+});
+
+// 在 electron-main.js 中添加ai调用功能
+ipcMain.handle('analyze-recording', async (event, filePath) => {
+  try {
+    const result = await analyze(filePath);
+    return {
+      success: true,
+      text: result
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
   }
 });

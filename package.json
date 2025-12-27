@@ -1,6 +1,6 @@
 {
   "name": "ggdrecorder",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A game recording application",
   "main": "electron-main.js",
   "homepage": "https://github.com/G-TT219/ggdRecorder",
@@ -47,10 +47,13 @@
     "vite": "^4.0.0"
   },
   "dependencies": {
+    "@google/genai": "^1.34.0",
+    "dotenv": "^17.2.3",
     "electron-squirrel-startup": "^1.0.1",
     "ps-list": "^9.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "undici": "^7.16.0",
     "winston": "^3.18.3",
     "winston-daily-rotate-file": "^5.0.0"
   },

@@ -29,4 +29,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   logError: (message) => ipcRenderer.invoke('log-error', message),
   getAppConfig: () => ipcRenderer.invoke('get-app-config'),
   setCompressVideosConfig: (value) => ipcRenderer.invoke('set-compressVideos', value),
+  analyzeRecording: (filePath) => ipcRenderer.invoke('analyze-recording', filePath),
 });

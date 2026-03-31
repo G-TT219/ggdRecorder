@@ -111,6 +111,17 @@
   box-shadow: 0 0 8px rgba(79, 195, 247, 0.5);
 }
 
+.recording-item.selected {
+  border-color: #ff9800;
+  box-shadow: 0 0 12px rgba(255, 152, 0, 0.6);
+  background-color: #332a20;
+}
+
+/* Show pointer cursor only in select mode */
+.recordings-list .recording-item.clickable {
+  cursor: pointer;
+}
+
 .recording-thumbnail {
   width: 150px;
   height: 120px;
@@ -120,6 +131,19 @@
   justify-content: center;
   position: relative;
   flex-shrink: 0;
+}
+
+.recording-checkbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 22px;
+  height: 22px;
+  z-index: 10;
+  cursor: pointer;
+  accent-color: #ff9800;
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 3px;
 }
 
 .recording-thumbnail-image {
@@ -640,4 +664,200 @@
 
 .analysis-controls button:hover {
   background-color: #29b6f6;
+}
+
+/* Batch operation controls */
+.recordings-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0 0.5rem;
+}
+
+.recordings-list-header h2 {
+  margin: 0;
+  color: #4fc3f7;
+}
+
+.batch-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.date-range-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.date-separator {
+  color: #aaa;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+.date-filter-input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background-color: #2d2d2d;
+  color: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.date-filter-input:focus {
+  border-color: #4fc3f7;
+  box-shadow: 0 0 5px rgba(79, 195, 247, 0.3);
+}
+
+.date-filter-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
+.select-mode-button {
+  background-color: #ff9800;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 0.95rem;
+  transition: background-color 0.2s;
+}
+
+.select-mode-button:hover {
+  background-color: #f57c00;
+}
+
+.batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.selected-count {
+  color: #ff9800;
+  font-weight: bold;
+  font-size: 0.95rem;
+}
+
+.select-all-button {
+  background-color: #4fc3f7;
+  color: #000;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.select-all-button:hover {
+  background-color: #29b6f6;
+}
+
+.batch-delete-button {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.batch-delete-button:hover:not(:disabled) {
+  background-color: #d32f2f;
+}
+
+.batch-delete-button:disabled {
+  background-color: #666;
+  color: #999;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.cancel-select-button {
+  background-color: #757575;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.cancel-select-button:hover {
+  background-color: #616161;
+}
+
+/* Responsive adjustments for batch controls */
+@media (max-width: 768px) {
+  .recordings-list-header {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .batch-controls {
+    justify-content: flex-end;
+  }
+  
+  .batch-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  
+  .date-range-filter {
+    gap: 0.3rem;
+  }
+  
+  .date-filter-input {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.6rem;
+  }
+  
+  .date-separator {
+    font-size: 0.85rem;
+  }
+  
+  .select-all-button,
+  .batch-delete-button,
+  .cancel-select-button {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .batch-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .date-range-filter {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+  
+  .date-filter-input {
+    flex: 1;
+  }
+  
+  .select-all-button,
+  .batch-delete-button,
+  .cancel-select-button {
+    width: 100%;
+  }
 }

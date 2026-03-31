@@ -23,6 +23,10 @@ function App() {
   const [source, setSource] = useState(null)
   const [isFetchingSource, setIsFetchingSource] = useState(false);
   const [recordingThumbnails, setRecordingThumbnails] = useState({}); // New state for thumbnails
+  const [selectedRecordings, setSelectedRecordings] = useState([]); // For batch operations
+  const [isSelectMode, setIsSelectMode] = useState(false); // Batch selection mode
+  const [startDate, setStartDate] = useState(''); // Filter start date
+  const [endDate, setEndDate] = useState(''); // Filter end date
   const compressVideosRef = useRef(compressVideos);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
@@ -301,11 +305,131 @@ function App() {
           setSelectedRecording(null);
           setRecordingData(null);
         }
+        // Remove from selected recordings if present
+        setSelectedRecordings(selectedRecordings.filter(r => r.id !== recording.id));
       } else {
         Logger.error('Failed to delete recording:', result.error);
       }
     } catch (error) {
       Logger.error('Error deleting recording:', error);
+    }
+  };
+
+  // Batch delete recordings
+  const batchDeleteRecordings = async () => {
+    if (selectedRecordings.length === 0) {
+      alert('请先选择要删除的录像');
+      return;
+    }
+
+    if (!window.confirm(`确定要删除选中的 ${selectedRecordings.length} 个录像吗？此操作不可恢复。`)) {
+      return;
+    }
+
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const recording of selectedRecordings) {
+        const result = await window.electronAPI.deleteRecording(recording.id);
+        if (result.success) {
+          successCount++;
+        } else {
+          failCount++;
+          Logger.error(`Failed to delete ${recording.name}:`, result.error);
+        }
+      }
+
+      Logger.info(`Batch delete completed: ${successCount} succeeded, ${failCount} failed`);
+      
+      // Clear selection and refresh list
+      setSelectedRecordings([]);
+      setIsSelectMode(false);
+      loadRecordings();
+      
+      // Clear selected recording if it was deleted
+      if (selectedRecording && selectedRecordings.some(r => r.id === selectedRecording.id)) {
+        setSelectedRecording(null);
+        setRecordingData(null);
+      }
+      
+      alert(`成功删除 ${successCount} 个录像，${failCount} 个删除失败`);
+    } catch (error) {
+      Logger.error('Error batch deleting recordings:', error);
+      alert('批量删除时发生错误：' + error.message);
+    }
+  };
+
+  // Toggle selection mode
+  const toggleSelectMode = () => {
+    if (isSelectMode) {
+      setSelectedRecordings([]);
+      setStartDate(''); // Clear filter when exiting select mode
+      setEndDate('');
+    }
+    setIsSelectMode(!isSelectMode);
+  };
+
+  // Handle start date change with validation
+  const handleStartDateChange = (e) => {
+    const newStartDate = e.target.value;
+    
+    if (endDate && newStartDate > endDate) {
+      alert('开始日期不能晚于结束日期！');
+      return;
+    }
+    
+    setStartDate(newStartDate);
+  };
+
+  // Handle end date change with validation
+  const handleEndDateChange = (e) => {
+    const newEndDate = e.target.value;
+    
+    if (startDate && newEndDate < startDate) {
+      alert('结束日期不能早于开始日期！');
+      return;
+    }
+    
+    setEndDate(newEndDate);
+  };
+
+  // Filter recordings by date range
+  const filteredRecordings = (startDate || endDate)
+    ? recordings.filter(recording => {
+        const recordingDate = new Date(recording.date);
+        
+        if (startDate) {
+          const startDateObj = new Date(startDate);
+          startDateObj.setHours(0, 0, 0, 0);
+          if (recordingDate < startDateObj) return false;
+        }
+        
+        if (endDate) {
+          const endDateObj = new Date(endDate);
+          endDateObj.setHours(23, 59, 59, 999);
+          if (recordingDate > endDateObj) return false;
+        }
+        
+        return true;
+      })
+    : recordings;
+
+  // Toggle selection of a recording
+  const toggleRecordingSelection = (recording) => {
+    if (selectedRecordings.some(r => r.id === recording.id)) {
+      setSelectedRecordings(selectedRecordings.filter(r => r.id !== recording.id));
+    } else {
+      setSelectedRecordings([...selectedRecordings, recording]);
+    }
+  };
+
+  // Select all recordings
+  const selectAllRecordings = () => {
+    if (selectedRecordings.length === filteredRecordings.length) {
+      setSelectedRecordings([]);
+    } else {
+      setSelectedRecordings([...filteredRecordings]);
     }
   };
 
@@ -685,13 +809,66 @@ function App() {
               </div>
             ) : (
               <div className="recordings-list">
-                <h2>录像列表</h2>
+                <div className="recordings-list-header">
+                  <h2>录像列表</h2>
+                  <div className="batch-controls">
+                    {!isSelectMode ? (
+                      <button onClick={toggleSelectMode} className="select-mode-button">
+                        批量操作
+                      </button>
+                    ) : (
+                      <div className="batch-actions">
+                        <div className="date-range-filter">
+                          <input
+                            type="date"
+                            value={startDate}
+                            onChange={handleStartDateChange}
+                            className="date-filter-input"
+                            title="开始日期"
+                            placeholder="开始日期"
+                          />
+                          <span className="date-separator">至</span>
+                          <input
+                            type="date"
+                            value={endDate}
+                            onChange={handleEndDateChange}
+                            className="date-filter-input"
+                            title="结束日期"
+                            placeholder="结束日期"
+                          />
+                        </div>
+                        <span className="selected-count">已选择 {selectedRecordings.length} / {filteredRecordings.length} 项</span>
+                        <button onClick={selectAllRecordings} className="select-all-button">
+                          {selectedRecordings.length === filteredRecordings.length ? '取消全选' : '全选'}
+                        </button>
+                        <button onClick={batchDeleteRecordings} className="batch-delete-button" disabled={selectedRecordings.length === 0}>
+                          批量删除
+                        </button>
+                        <button onClick={toggleSelectMode} className="cancel-select-button">
+                          取消
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
                 {recordings.length === 0 ? (
                   <p>暂无录像文件</p>
                 ) : (
-                  recordings.map(recording => (
-                    <div key={recording.id} className="recording-item">
+                  filteredRecordings.map(recording => (
+                    <div 
+                      key={recording.id} 
+                      className={`recording-item ${isSelectMode ? 'clickable' : ''} ${isSelectMode && selectedRecordings.some(r => r.id === recording.id) ? 'selected' : ''}`}
+                      onClick={() => isSelectMode && toggleRecordingSelection(recording)}
+                    >
                       <div className="recording-thumbnail">
+                        {isSelectMode && (
+                          <input
+                            type="checkbox"
+                            checked={selectedRecordings.some(r => r.id === recording.id)}
+                            onChange={(e) => e.stopPropagation()}
+                            className="recording-checkbox"
+                          />
+                        )}
                         {recordingThumbnails[recording.id] ? (
                           <img
                             src={`data:image/png;base64,${recordingThumbnails[recording.id]}`}
@@ -702,23 +879,25 @@ function App() {
                           <div className="play-icon">▶</div>
                         )}
                       </div>
-                      <div className="recording-info">
+                      <div className="recording-info" onClick={(e) => e.stopPropagation()}>
                         <h3>{recording.name}</h3>
                         <p>{new Date(recording.date).toLocaleString('zh-CN')}</p>
-                        <div className="recording-actions">
-                          <button
-                            className="play-button"
-                            onClick={() => setSelectedRecording(recording)}
-                          >
-                            播放
-                          </button>
-                          <button
-                            className="delete-button"
-                            onClick={() => deleteRecording(recording)}
-                          >
-                            删除
-                          </button>
-                        </div>
+                        {!isSelectMode && (
+                          <div className="recording-actions">
+                            <button
+                              className="play-button"
+                              onClick={() => setSelectedRecording(recording)}
+                            >
+                              播放
+                            </button>
+                            <button
+                              className="delete-button"
+                              onClick={() => deleteRecording(recording)}
+                            >
+                              删除
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))

@@ -101,6 +101,7 @@ const createWindow = () => {
     width: 500,
     height: 800,
     icon: getAssetPath('recorder.ico'),
+    frame: false, // 无边框窗口
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -880,5 +881,32 @@ ipcMain.handle('clear-api-key', async () => {
       logger.error('Error clearing API key:', error);
       return { success: false, error: error.message };
     }
+  }
+});
+
+// Window control handlers
+ipcMain.handle('window-minimize', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) {
+    window.minimize();
+  }
+});
+
+ipcMain.handle('window-maximize', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) {
+    if (window.isMaximized()) {
+      window.unmaximize();
+    } else {
+      window.maximize();
+    }
+  }
+});
+
+ipcMain.handle('window-close', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) {
+    app.isQuiting = true;
+    window.close();
   }
 });

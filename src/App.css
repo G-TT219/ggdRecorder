@@ -1,48 +1,141 @@
 .app {
   min-height: 100vh;
   width: 100%;
-  background-color: #1e1e1e;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  font-family: Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
   display: flex;
   flex-direction: column;
+  padding-top: 32px; /* Space for fixed titlebar */
+  box-sizing: border-box;
+}
+
+/* Custom Title Bar Styles */
+.custom-titlebar {
+  height: 32px;
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(20px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+  -webkit-app-region: drag;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+}
+
+.titlebar-drag-region {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+  height: 100%;
+}
+
+.app-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.5px;
+}
+
+.titlebar-controls {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-button {
+  width: 46px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.titlebar-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.titlebar-button.close-button:hover {
+  background: #e81123;
+  color: white;
+}
+
+.titlebar-button svg {
+  width: 12px;
+  height: 12px;
 }
 
 .app-header {
-  background-color: #121212;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
   padding: 1rem;
   text-align: center;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   flex-shrink: 0;
 }
 
 .app-header h1 {
   margin: 0;
-  font-size: 2rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .tabs {
   margin-top: 1rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
 .tabs button {
-  background-color: #333;
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  margin: 0 0.25rem;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.6rem 1.2rem;
+  margin: 0;
   cursor: pointer;
-  border-radius: 4px 4px 0 0;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.tabs button:hover {
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .tabs button.active {
-  background-color: #4fc3f7;
-  color: #000;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
 .app-header p {
   margin: 0.5rem 0 0;
-  color: #aaa;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .recording-indicator {
@@ -50,15 +143,19 @@
   align-items: center;
   justify-content: center;
   margin-top: 10px;
-  color: #f44336;
+  color: #e74c3c;
   font-weight: bold;
+  background-color: rgba(231, 76, 60, 0.1);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  border: 1px solid rgba(231, 76, 60, 0.2);
 }
 
 .recording-dot {
   display: inline-block;
-  width: 10px;
-  height: 10px;
-  background-color: #f44336;
+  width: 12px;
+  height: 12px;
+  background-color: #e74c3c;
   border-radius: 50%;
   margin-right: 10px;
   animation: pulse 1.5s infinite;
@@ -79,8 +176,9 @@
 .app-main {
   flex: 1;
   width: 100%;
+  max-width: 100%;
   margin: 0;
-  padding: 1rem;
+  padding: 1.5rem;
   overflow: auto;
   box-sizing: border-box;
 }
@@ -92,29 +190,32 @@
 
 .recordings-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1.5rem;
   padding: 0;
 }
 
 .recording-item {
   display: flex;
-  background-color: #2d2d2d;
-  border: 1px solid #444;
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
   overflow: hidden;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
 }
 
 .recording-item:hover {
-  border-color: #4fc3f7;
-  box-shadow: 0 0 8px rgba(79, 195, 247, 0.5);
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
 }
 
 .recording-item.selected {
-  border-color: #ff9800;
-  box-shadow: 0 0 12px rgba(255, 152, 0, 0.6);
-  background-color: #332a20;
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid #f39c12;
+  box-shadow: 0 8px 24px rgba(243, 156, 18, 0.3);
 }
 
 /* Show pointer cursor only in select mode */
@@ -125,7 +226,8 @@
 .recording-thumbnail {
   width: 150px;
   height: 120px;
-  background-color: #1e1e1e;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -141,9 +243,7 @@
   height: 22px;
   z-index: 10;
   cursor: pointer;
-  accent-color: #ff9800;
-  background-color: rgba(0, 0, 0, 0.5);
-  border-radius: 3px;
+  accent-color: #f39c12;
 }
 
 .recording-thumbnail-image {
@@ -167,8 +267,9 @@
 
 .recording-info h3 {
   margin: 0 0 0.5rem;
-  color: #4fc3f7;
+  color: white;
   font-size: 1.1rem;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -176,7 +277,7 @@
 
 .recording-info p {
   margin: 0 0 1rem;
-  color: #aaa;
+  color: rgba(255, 255, 255, 0.8);
   font-size: 0.9rem;
   flex: 1;
 }
@@ -190,28 +291,31 @@
   flex: 1;
   padding: 0.8rem;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 600;
   font-size: 1.1rem;
+  transition: all 0.3s ease;
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .play-button {
-  background-color: #4caf50;
-  color: white;
-}
-
-.delete-button {
-  background-color: #f44336;
-  color: white;
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
 }
 
 .play-button:hover {
-  background-color: #43a047;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(17, 153, 142, 0.4);
+}
+
+.delete-button {
+  background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
 }
 
 .delete-button:hover {
-  background-color: #d32f2f;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(235, 51, 73, 0.4);
 }
 
 .recording-controls {
@@ -219,9 +323,10 @@
 }
 
 .selected-game {
-  background-color: #2d2d2d;
-  border: 1px solid #444;
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
   padding: 2rem;
   max-width: 800px;
   margin: 2rem auto;
@@ -230,8 +335,9 @@
 
 .selected-game h3 {
   margin-top: 0;
-  color: #4fc3f7;
+  color: white;
   font-size: 1.5rem;
+  font-weight: 600;
 }
 
 .controls {
@@ -240,38 +346,49 @@
 }
 
 .record-button, .stop-button {
-  background-color: #f44336;
+  background: linear-gradient(135deg, #eb3349 50%, #f45c43 100%);
   color: white;
   border: none;
   padding: 1rem 2rem;
   font-size: 1.2rem;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: all 0.3s ease;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(235, 51, 73, 0.3);
+}
+
+.record-button:hover, .stop-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(235, 51, 73, 0.5);
 }
 
 .pause-button {
-  background-color: #ff9800;
+  background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
   color: white;
   border: none;
   padding: 1rem 2rem;
   font-size: 1.2rem;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: all 0.3s ease;
+  font-weight: 600;
   margin-right: 1rem;
+  box-shadow: 0 4px 12px rgba(243, 156, 18, 0.3);
 }
 
 .pause-button.pause:hover {
-  background-color: #f57c00;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(243, 156, 18, 0.5);
 }
 
 .pause-button.resume {
-  background-color: #4caf50;
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
 }
 
 .pause-button.resume:hover {
-  background-color: #388e3c;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(17, 153, 142, 0.5);
 }
 
 .recording-controls-group {
@@ -294,8 +411,8 @@
 }
 
 .entertainment-section h2 {
-  color: #4fc3f7;
-  border-bottom: 1px solid #333;
+  color: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   padding-bottom: 0.5rem;
   margin-top: 0;
 }
@@ -304,9 +421,10 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: #2d2d2d;
-  border: 1px solid #444;
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
   overflow: hidden;
   height: 95vh;
 }
@@ -314,39 +432,46 @@
 .browser-controls {
   display: flex;
   padding: 1rem;
-  background-color: #1e1e1e;
-  border-bottom: 1px solid #444;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   gap: 0.5rem;
 }
 
 .browser-controls input {
   flex: 1;
   padding: 0.75rem;
-  border: 1px solid #444;
-  border-radius: 4px;
-  background-color: #2d2d2d;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(5px);
   color: white;
   font-size: 1rem;
+  outline: none;
 }
 
 .browser-controls input:focus {
   outline: none;
-  border-color: #4fc3f7;
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .browser-controls button {
-  background-color: #4fc3f7;
-  color: #000;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
   border: none;
   padding: 0.75rem 1.5rem;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 600;
   font-size: 1rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .browser-controls button:hover {
-  background-color: #29b6f6;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
 }
 
 #entertainment-browser {
@@ -368,9 +493,10 @@
 }
 
 .setting-item {
-  background-color: #2d2d2d;
-  border: 1px solid #444;
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
   padding: 1.5rem;
   margin-bottom: 1.5rem;
 }
@@ -378,8 +504,8 @@
 .setting-item label {
   display: block;
   margin-bottom: 0.5rem;
-  font-weight: bold;
-  color: #4fc3f7;
+  font-weight: 600;
+  color: white;
   font-size: 1.1rem;
 }
 
@@ -393,31 +519,41 @@
 .setting-input input {
   flex: 1;
   padding: 0.75rem;
-  border: 1px solid #444;
-  border-radius: 4px;
-  background-color: #1e1e1e;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(5px);
   color: white;
   font-size: 1rem;
+  outline: none;
+}
+
+.setting-input input:focus {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .setting-input button {
-  background-color: #4fc3f7;
-  color: #000;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
   border: none;
   padding: 0.75rem 1.5rem;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 600;
   font-size: 1rem;
   white-space: nowrap;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .setting-input button:hover {
-  background-color: #29b6f6;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
 }
 
 .setting-description {
-  color: #aaa;
+  color: rgba(255, 255, 255, 0.7);
   font-size: 0.9rem;
   margin: 0;
 }
@@ -468,7 +604,7 @@
   }
   
   .recordings-list {
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   }
   
   .recording-thumbnail {
@@ -477,6 +613,14 @@
   
   .app-main {
     padding: 0.75rem;
+  }
+  
+  .selected-game {
+    max-width: 95%;
+  }
+  
+  .settings-container {
+    max-width: 95%;
   }
 }
 
@@ -518,6 +662,7 @@
   
   .selected-game {
     padding: 1rem;
+    max-width: 100%;
   }
   
   .record-button, .stop-button {
@@ -541,6 +686,10 @@
   
   .setting-input button {
     width: 100%;
+  }
+  
+  .settings-container {
+    max-width: 100%;
   }
 }
 
@@ -602,8 +751,8 @@
 .video-container video {
   max-width: 100%;
   max-height: 60vh;
-  border: 1px solid #444;
-  border-radius: 4px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
   width: auto;
   height: auto;
 }
@@ -615,30 +764,30 @@
 }
 
 .analysis-result h4 {
-  color: #4fc3f7;
+  color: #ecf0f1;
   margin-bottom: 0.5rem;
   text-align: left;
+  font-weight: 600;
 }
 
 .analysis-textarea {
   width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #444;
-  border-radius: 4px;
-  background-color: #1e1e1e;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background-color: #34495e;
   color: white;
   font-size: 1rem;
-  font-family: Arial, sans-serif;
+  font-family: inherit;
   resize: vertical;
   min-height: 200px;
   box-sizing: border-box;
-  box-shadow: 0 0 5px rgba(79, 195, 247, 0.3);
 }
 
 .analysis-textarea:focus {
   outline: none;
-  border-color: #4fc3f7;
-  box-shadow: 0 0 8px rgba(79, 195, 247, 0.5);
+  border-color: #5dade2;
+  background-color: #3d566e;
 }
 
 .analysis-controls {
@@ -651,19 +800,20 @@
 }
 
 .analysis-controls button {
-  background-color: #4fc3f7;
-  color: #000;
+  background-color: #3498db;
+  color: white;
   border: none;
   padding: 0.75rem 1.5rem;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 600;
   font-size: 1rem;
   margin-bottom: 1rem;
+  transition: all 0.3s ease;
 }
 
 .analysis-controls button:hover {
-  background-color: #29b6f6;
+  background-color: #2980b9;
 }
 
 /* Batch operation controls */
@@ -672,12 +822,14 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
-  padding: 0 0.5rem;
+  padding: 0.5rem;
 }
 
 .recordings-list-header h2 {
   margin: 0;
-  color: #4fc3f7;
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 700;
 }
 
 .batch-controls {
@@ -693,16 +845,17 @@
 }
 
 .date-separator {
-  color: #aaa;
+  color: rgba(255, 255, 255, 0.7);
   font-weight: bold;
   font-size: 0.9rem;
 }
 
 .date-filter-input {
   padding: 0.5rem 0.75rem;
-  border: 1px solid #444;
-  border-radius: 4px;
-  background-color: #2d2d2d;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(5px);
   color: white;
   font-size: 0.9rem;
   cursor: pointer;
@@ -710,29 +863,26 @@
 }
 
 .date-filter-input:focus {
-  border-color: #4fc3f7;
-  box-shadow: 0 0 5px rgba(79, 195, 247, 0.3);
-}
-
-.date-filter-input::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-  cursor: pointer;
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .select-mode-button {
-  background-color: #ff9800;
+  background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
   color: white;
   border: none;
   padding: 0.6rem 1.2rem;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 600;
   font-size: 0.95rem;
-  transition: background-color 0.2s;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .select-mode-button:hover {
-  background-color: #f57c00;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(243, 156, 18, 0.4);
 }
 
 .batch-actions {
@@ -742,64 +892,70 @@
 }
 
 .selected-count {
-  color: #ff9800;
+  color: rgba(255, 255, 255, 0.9);
   font-weight: bold;
   font-size: 0.95rem;
 }
 
 .select-all-button {
-  background-color: #4fc3f7;
-  color: #000;
-  border: none;
-  padding: 0.6rem 1.2rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: bold;
-  font-size: 0.9rem;
-  transition: background-color 0.2s;
-}
-
-.select-all-button:hover {
-  background-color: #29b6f6;
-}
-
-.batch-delete-button {
-  background-color: #f44336;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
   padding: 0.6rem 1.2rem;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 600;
   font-size: 0.9rem;
-  transition: background-color 0.2s;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.select-all-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+}
+
+.batch-delete-button {
+  background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .batch-delete-button:hover:not(:disabled) {
-  background-color: #d32f2f;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(235, 51, 73, 0.4);
 }
 
 .batch-delete-button:disabled {
-  background-color: #666;
-  color: #999;
+  background: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.5);
   cursor: not-allowed;
   opacity: 0.6;
 }
 
 .cancel-select-button {
-  background-color: #757575;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(5px);
   color: white;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   padding: 0.6rem 1.2rem;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 600;
   font-size: 0.9rem;
-  transition: background-color 0.2s;
+  transition: all 0.3s ease;
 }
 
 .cancel-select-button:hover {
-  background-color: #616161;
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 /* Responsive adjustments for batch controls */

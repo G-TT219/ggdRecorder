@@ -11,6 +11,8 @@ function App() {
   const [activeTab, setActiveTab] = useState('games'); // 'games', 'recordings', 'settings', or 'entertainment'
   const [selectedRecording, setSelectedRecording] = useState(null);
   const [recordingData, setRecordingData] = useState(null);
+  // const [recordingsListRef, setRecordingsListRef] = useState(null);
+  const [listScrollPosition, setListScrollPosition] = useState(0);
   const [recordingDataBuffers, setRecordingDataBuffers] = useState([]);
   const [recordingsDir, setRecordingsDir] = useState('');
   const [recordingTime, setRecordingTime] = useState(0);
@@ -35,6 +37,7 @@ function App() {
   const recordedChunksRef = useRef([]);
   const recordingStartTimeRef = useRef(null);
   const timerIntervalRef = useRef(null);
+  const recordingsListRef = useRef(null); // Reference to recordings list container
   // Refs for states that will be accessed in callbacks to avoid stale closures
   const sourceRef = useRef(source);
   const isRecordingRef = useRef(isRecording);
@@ -90,6 +93,11 @@ function App() {
     loadRecordings();
     loadingConfig();
     loadApiKey();
+
+    // Remove focus from any element on app load to prevent button highlight
+    if (document.activeElement) {
+      document.activeElement.blur();
+    }
 
     window.electronAPI.onStopRecording(() => {
       if (mediaRecorderRef.current) {
@@ -356,6 +364,35 @@ function App() {
       Logger.error('Error toggling favorite recording:', error);
     }
   };
+
+  // Save scroll position before navigating to player view
+  const handleNavigateToPlayer = (recording) => {
+    if (recordingsListRef.current) {
+      const currentScrollPosition = recordingsListRef.current.scrollTop;
+      setListScrollPosition(currentScrollPosition);
+    }
+    setSelectedRecording(recording);
+  };
+
+  // Restore scroll position when returning to list view
+  const handleReturnToList = () => {
+    setSelectedRecording(null);
+    setRecordingData(null);
+  };
+
+  // Effect to restore scroll position after returning to list view
+  useEffect(() => {
+    if (!selectedRecording && activeTab === 'recordings' && listScrollPosition > 0) {
+      const restoreScroll = () => {
+        if (recordingsListRef.current) {
+          recordingsListRef.current.scrollTop = listScrollPosition;
+        }
+      };
+      restoreScroll();
+      // const timer = setTimeout(restoreScroll, 0);
+      // return () => clearTimeout(timer);
+    }
+  }, [selectedRecording, listScrollPosition, activeTab]);
 
   const saveFavoriteToDirectory = async (recording) => {
     try {
@@ -816,7 +853,7 @@ function App() {
 
       <main className="app-main">
         {activeTab === 'games' ? (
-          <>
+          <section className="games-section">
             <section className="recording-controls">
               <h2>录制控制</h2>
               {isFetchingSource ? (
@@ -871,18 +908,13 @@ function App() {
                 </div>
               )}
             </section>
-
-
-          </>
+          </section>
         ) : activeTab === 'recordings' ? (
-          <section className="recordings-section">
+          <section className="recordings-section" ref={recordingsListRef}>
             {selectedRecording ? (
               <div className="viewer">
                 <div className="viewer-header">
-                  <button onClick={() => {
-                    setSelectedRecording(null);
-                    setRecordingData(null);
-                  }}>
+                  <button onClick={handleReturnToList}>
                     ← 返回列表
                   </button>
                   <h3>{selectedRecording.name}</h3>
@@ -1007,7 +1039,7 @@ function App() {
                           <div className="recording-actions">
                             <button
                               className="play-button"
-                              onClick={() => setSelectedRecording(recording)}
+                              onClick={() => handleNavigateToPlayer(recording)}
                             >
                               播放
                             </button>
@@ -1024,7 +1056,7 @@ function App() {
                                 onClick={() => saveFavoriteToDirectory(recording)}
                                 title="另存到指定目录"
                               >
-                                另存
+                                另存为
                               </button>
                             )}
                             <button

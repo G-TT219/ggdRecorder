@@ -1,6 +1,50 @@
-.app {
-  min-height: 100vh;
+/* Global styles to prevent body scrolling */
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  height: 100%;
+}
+
+#root {
+  height: 100%;
   width: 100%;
+}
+
+/* Custom Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+/* Firefox scrollbar styles */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
+}
+
+.app {
+  height: 100vh; /* Fixed height, not min-height */
+  width: 100vw; /* Use viewport width instead of percentage */
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
@@ -8,6 +52,8 @@
   flex-direction: column;
   padding-top: 32px; /* Space for fixed titlebar */
   box-sizing: border-box;
+  overflow: hidden; /* Prevent app from scrolling */
+  overflow-x: hidden; /* Fix horizontal overflow */
 }
 
 /* Custom Title Bar Styles */
@@ -70,6 +116,16 @@
   color: white;
 }
 
+.titlebar-button:focus {
+  outline: none;
+  background: transparent;
+}
+
+.titlebar-button:focus-visible {
+  outline: none;
+  background: transparent;
+}
+
 .titlebar-button.close-button:hover {
   background: #e81123;
   color: white;
@@ -86,7 +142,10 @@
   padding: 1rem;
   text-align: center;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  flex-shrink: 0;
+  flex-shrink: 0; /* Prevent header from shrinking */
+  overflow: hidden; /* Prevent header content from causing scroll */
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .app-header h1 {
@@ -178,14 +237,38 @@
   width: 100%;
   max-width: 100%;
   margin: 0;
-  padding: 1.5rem;
-  overflow: auto;
+  padding: 0; /* Remove padding, add to sections instead */
+  overflow: hidden; /* Prevent main from scrolling */
+  overflow-x: hidden; /* Fix horizontal overflow */
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* Allow flex children to shrink below content size */
+  align-items: stretch; /* Stretch children to full width */
 }
 
 .recordings-section {
   width: 100%;
   height: 100%;
+  overflow-y: auto; /* Enable vertical scrolling */
+  padding: 1.5rem;
+  box-sizing: border-box;
+  /* Fix scrollbar overlap issue */
+  overflow-x: hidden;
+  /* Ensure full width when no scrollbar */
+  min-width: 100%;
+}
+
+.games-section {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto; /* Enable vertical scrolling */
+  padding: 1.5rem;
+  box-sizing: border-box;
+  /* Fix scrollbar overlap issue */
+  overflow-x: hidden;
+  /* Ensure full width when no scrollbar */
+  min-width: 100%;
 }
 
 .recordings-list {
@@ -328,7 +411,7 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
   padding: 2rem;
-  max-width: 800px;
+  max-width: 100%; /* Allow full width */
   margin: 2rem auto;
   text-align: center;
 }
@@ -404,10 +487,14 @@
 /* Entertainment section styles */
 .entertainment-section {
   width: 100%;
-  height: 85vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  flex: 1;
+  overflow-y: auto; /* Enable vertical scrolling */
+  overflow-x: hidden; /* Fix scrollbar overlap issue */
+  padding: 1.5rem;
+  box-sizing: border-box;
+  min-width: 100%; /* Ensure full width when no scrollbar */
 }
 
 .entertainment-section h2 {
@@ -581,12 +668,16 @@
 /* Settings section styles */
 .settings-section {
   width: 100%;
-  padding: 1rem;
+  height: 100%;
+  overflow-y: auto; /* Enable vertical scrolling */
+  overflow-x: hidden; /* Fix scrollbar overlap issue */
+  padding: 1.5rem;
   box-sizing: border-box;
+  min-width: 100%; /* Ensure full width when no scrollbar */
 }
 
 .settings-container {
-  max-width: 800px;
+  max-width: 100%; /* Allow full width */
   margin: 0 auto;
 }
 
@@ -714,11 +805,11 @@
   }
   
   .selected-game {
-    max-width: 95%;
+    max-width: 100%; /* Allow full width */
   }
   
   .settings-container {
-    max-width: 95%;
+    max-width: 100%; /* Allow full width */
   }
 }
 
@@ -840,9 +931,16 @@
   margin: 1rem auto;
   display: flex;
   justify-content: center;
-  max-width: 1200px;
+  max-width: 100%; /* Allow full width */
   padding: 0 1rem;
   box-sizing: border-box;
+  flex-direction: column;
+}
+
+.viewer {
+  width: 100%;
+  height: 100%;
+  display: flex;
   flex-direction: column;
 }
 
@@ -858,7 +956,7 @@
 .analysis-result {
   margin-top: -2rem;
   width: 100%;
-  max-width: 1200px;
+  max-width: 100%; /* Allow full width */
 }
 
 .analysis-result h4 {
@@ -894,7 +992,7 @@
   flex-direction: column;
   align-items: flex-start;
   width: 100%;
-  max-width: 1200px;
+  max-width: 100%; /* Allow full width */
 }
 
 .analysis-controls button {

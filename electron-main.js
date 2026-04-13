@@ -956,17 +956,25 @@ ipcMain.handle('toggle-favorite-recording', async (event, recordingId, isFavorit
 
 ipcMain.handle('save-favorite-to-directory', async (event, filePath, recordingName) => {
   try {
-    const result = await dialog.showOpenDialog({
-      title: '选择保存目录',
-      properties: ['openDirectory']
+    // 确保文件名有正确的扩展名
+    const defaultFileName = recordingName.endsWith('.webm') || recordingName.endsWith('.mp4')
+      ? recordingName
+      : `${recordingName}.webm`;
+
+    const result = await dialog.showSaveDialog({
+      title: '保存录像',
+      defaultPath: defaultFileName,
+      filters: [
+        { name: '视频文件', extensions: ['webm', 'mp4'] },
+        { name: 'WebM 视频', extensions: ['webm'] },
+        { name: 'MP4 视频', extensions: ['mp4'] },
+        { name: '所有文件', extensions: ['*'] }
+      ],
+      properties: ['showOverwriteConfirmation']
     });
 
-    if (!result.canceled && result.filePaths.length > 0) {
-      const targetDir = result.filePaths[0];
-      const fileName = recordingName.endsWith('.webm') || recordingName.endsWith('.mp4')
-        ? recordingName
-        : `${recordingName}.webm`;
-      const targetPath = path.join(targetDir, fileName);
+    if (!result.canceled && result.filePath) {
+      const targetPath = result.filePath;
 
       // Copy the file
       const sourceData = await fs.readFile(filePath);

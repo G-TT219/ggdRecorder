@@ -541,6 +541,11 @@ const generateVideoThumbnail = async (videoPath, thumbnailPath) => {
   });
 };
 
+// Get favorites configuration path
+const getFavoritesConfigPath = () => {
+  return path.join(app.getPath('userData'), 'favorites.json');
+};
+
 // Get app configuration
 const getAppConfigPath = () => {
   return path.join(app.getPath('userData'), 'config.json');
@@ -554,6 +559,30 @@ const getAppConfig = async () => {
   } catch (error) {
     // Return default config if file doesn't exist or is invalid
     return { recordingsDir: null };
+  }
+};
+
+// Get favorites configuration
+const getFavoritesConfig = async () => {
+  try {
+    const favoritesPath = getFavoritesConfigPath();
+    const data = await fs.readFile(favoritesPath, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    // Return empty favorites if file doesn't exist or is invalid
+    return { favorites: [] };
+  }
+};
+
+// Save favorites configuration
+const saveFavoritesConfig = async (favorites) => {
+  try {
+    const favoritesPath = getFavoritesConfigPath();
+    await fs.writeFile(favoritesPath, JSON.stringify(favorites, null, 2));
+    return { success: true };
+  } catch (error) {
+    logger.error('Error saving favorites config:', error);
+    return { success: false, error: error.message };
   }
 };
 
@@ -881,6 +910,75 @@ ipcMain.handle('clear-api-key', async () => {
       logger.error('Error clearing API key:', error);
       return { success: false, error: error.message };
     }
+  }
+});
+
+// Favorite recordings handlers
+ipcMain.handle('get-favorite-recordings', async () => {
+  try {
+    const favorites = await getFavoritesConfig();
+    return { success: true, favorites: favorites.favorites || [] };
+  } catch (error) {
+    logger.error('Error getting favorite recordings:', error);
+    return { success: true, favorites: [] };
+  }
+});
+
+ipcMain.handle('toggle-favorite-recording', async (event, recordingId, isFavorite) => {
+  try {
+    const favorites = await getFavoritesConfig();
+    const favoriteList = favorites.favorites || [];
+
+    if (isFavorite) {
+      // Add to favorites
+      if (!favoriteList.includes(recordingId)) {
+        favoriteList.push(recordingId);
+      }
+    } else {
+      // Remove from favorites
+      const index = favoriteList.indexOf(recordingId);
+      if (index > -1) {
+        favoriteList.splice(index, 1);
+      }
+    }
+
+    const result = await saveFavoritesConfig({ favorites: favoriteList });
+    if (result.success) {
+      return { success: true, favorites: favoriteList };
+    } else {
+      return { success: false, error: result.error };
+    }
+  } catch (error) {
+    logger.error('Error toggling favorite recording:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('save-favorite-to-directory', async (event, filePath, recordingName) => {
+  try {
+    const result = await dialog.showOpenDialog({
+      title: '选择保存目录',
+      properties: ['openDirectory']
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      const targetDir = result.filePaths[0];
+      const fileName = recordingName.endsWith('.webm') || recordingName.endsWith('.mp4')
+        ? recordingName
+        : `${recordingName}.webm`;
+      const targetPath = path.join(targetDir, fileName);
+
+      // Copy the file
+      const sourceData = await fs.readFile(filePath);
+      await fs.writeFile(targetPath, sourceData);
+
+      return { success: true, savePath: targetPath };
+    } else {
+      return { success: false, canceled: true };
+    }
+  } catch (error) {
+    logger.error('Error saving favorite to directory:', error);
+    return { success: false, error: error.message };
   }
 });
 

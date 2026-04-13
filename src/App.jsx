@@ -28,6 +28,8 @@ function App() {
   const [startDate, setStartDate] = useState(''); // Filter start date
   const [endDate, setEndDate] = useState(''); // Filter end date
   const [isMaximized, setIsMaximized] = useState(false); // Window maximized state
+  const [favoriteRecordings, setFavoriteRecordings] = useState([]); // Favorite recordings
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false); // Filter to show only favorites
   const compressVideosRef = useRef(compressVideos);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
@@ -95,6 +97,9 @@ function App() {
       }
     });
 
+    // Load favorite recordings
+    loadFavoriteRecordings();
+
     // Listen for start recording shortcut
     const handleStartRecordingShortcut = () => {
       if (sourceRef.current && !isRecordingRef.current) {
@@ -140,6 +145,17 @@ function App() {
       loadRecordingThumbnails(recordingsList);
     } catch (error) {
       Logger.error('Error loading recordings:', error);
+    }
+  };
+
+  const loadFavoriteRecordings = async () => {
+    try {
+      const result = await window.electronAPI.getFavoriteRecordings();
+      if (result.success) {
+        setFavoriteRecordings(result.favorites || []);
+      }
+    } catch (error) {
+      Logger.error('Error loading favorite recordings:', error);
     }
   };
 
@@ -298,10 +314,20 @@ function App() {
 
   const deleteRecording = async (recording) => {
     try {
+      // Check if recording is favorited and show extra confirmation
+      const isFavorite = favoriteRecordings.includes(recording.id);
+      if (isFavorite) {
+        const confirmed = window.confirm(`⚠️ ${recording.name} 已被收藏\n\n确定要删除这个收藏的录像吗？此操作不可恢复。`);
+        if (!confirmed) {
+          return;
+        }
+      }
+
       const result = await window.electronAPI.deleteRecording(recording.id);
       if (result.success) {
         Logger.info('Recording deleted successfully');
         loadRecordings(); // Refresh recordings list
+        loadFavoriteRecordings(); // Refresh favorites
         if (selectedRecording && selectedRecording.id === recording.id) {
           setSelectedRecording(null);
           setRecordingData(null);
@@ -313,6 +339,37 @@ function App() {
       }
     } catch (error) {
       Logger.error('Error deleting recording:', error);
+    }
+  };
+
+  const toggleFavoriteRecording = async (recording) => {
+    try {
+      const isFavorite = favoriteRecordings.includes(recording.id);
+      const result = await window.electronAPI.toggleFavoriteRecording(recording.id, !isFavorite);
+      if (result.success) {
+        await loadFavoriteRecordings();
+        Logger.info(`Recording ${!isFavorite ? 'added to' : 'removed from'} favorites`);
+      } else {
+        Logger.error('Failed to toggle favorite:', result.error);
+      }
+    } catch (error) {
+      Logger.error('Error toggling favorite recording:', error);
+    }
+  };
+
+  const saveFavoriteToDirectory = async (recording) => {
+    try {
+      const result = await window.electronAPI.saveFavoriteToDirectory(recording.filePath, recording.name);
+      if (result.success) {
+        Logger.info(`Recording saved to: ${result.savePath}`);
+        alert(`录像已保存到: ${result.savePath}`);
+      } else if (!result.canceled) {
+        Logger.error('Failed to save recording:', result.error);
+        alert('保存录像失败: ' + result.error);
+      }
+    } catch (error) {
+      Logger.error('Error saving favorite recording:', error);
+      alert('保存录像时发生错误: ' + error.message);
     }
   };
 
@@ -395,23 +452,29 @@ function App() {
     setEndDate(newEndDate);
   };
 
-  // Filter recordings by date range
-  const filteredRecordings = (startDate || endDate)
+  // Filter recordings by date range and favorites
+  const filteredRecordings = (startDate || endDate || showFavoritesOnly)
     ? recordings.filter(recording => {
         const recordingDate = new Date(recording.date);
-        
+
+        // Date range filtering
         if (startDate) {
           const startDateObj = new Date(startDate);
           startDateObj.setHours(0, 0, 0, 0);
           if (recordingDate < startDateObj) return false;
         }
-        
+
         if (endDate) {
           const endDateObj = new Date(endDate);
           endDateObj.setHours(23, 59, 59, 999);
           if (recordingDate > endDateObj) return false;
         }
-        
+
+        // Favorites filtering
+        if (showFavoritesOnly && !favoriteRecordings.includes(recording.id)) {
+          return false;
+        }
+
         return true;
       })
     : recordings;
@@ -860,9 +923,17 @@ function App() {
                   <h2>录像列表</h2>
                   <div className="batch-controls">
                     {!isSelectMode ? (
-                      <button onClick={toggleSelectMode} className="select-mode-button">
-                        批量操作
-                      </button>
+                      <div className="view-controls">
+                        <button
+                          onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                          className={`favorites-filter-button ${showFavoritesOnly ? 'active' : ''}`}
+                        >
+                          {showFavoritesOnly ? '⭐ 仅显示收藏' : '☆ 显示收藏'}
+                        </button>
+                        <button onClick={toggleSelectMode} className="select-mode-button">
+                          批量操作
+                        </button>
+                      </div>
                     ) : (
                       <div className="batch-actions">
                         <div className="date-range-filter">
@@ -902,9 +973,9 @@ function App() {
                   <p>暂无录像文件</p>
                 ) : (
                   filteredRecordings.map(recording => (
-                    <div 
-                      key={recording.id} 
-                      className={`recording-item ${isSelectMode ? 'clickable' : ''} ${isSelectMode && selectedRecordings.some(r => r.id === recording.id) ? 'selected' : ''}`}
+                    <div
+                      key={recording.id}
+                      className={`recording-item ${isSelectMode ? 'clickable' : ''} ${isSelectMode && selectedRecordings.some(r => r.id === recording.id) ? 'selected' : ''} ${favoriteRecordings.includes(recording.id) ? 'favorite' : ''}`}
                       onClick={() => isSelectMode && toggleRecordingSelection(recording)}
                     >
                       <div className="recording-thumbnail">
@@ -925,6 +996,9 @@ function App() {
                         ) : (
                           <div className="play-icon">▶</div>
                         )}
+                        {favoriteRecordings.includes(recording.id) && (
+                          <div className="favorite-indicator">⭐</div>
+                        )}
                       </div>
                       <div className="recording-info" onClick={(e) => e.stopPropagation()}>
                         <h3>{recording.name}</h3>
@@ -937,6 +1011,22 @@ function App() {
                             >
                               播放
                             </button>
+                            <button
+                              className={`favorite-button ${favoriteRecordings.includes(recording.id) ? 'favorited' : ''}`}
+                              onClick={() => toggleFavoriteRecording(recording)}
+                              title={favoriteRecordings.includes(recording.id) ? '取消收藏' : '添加收藏'}
+                            >
+                              {favoriteRecordings.includes(recording.id) ? '★' : '☆'}
+                            </button>
+                            {favoriteRecordings.includes(recording.id) && (
+                              <button
+                                className="save-favorite-button"
+                                onClick={() => saveFavoriteToDirectory(recording)}
+                                title="另存到指定目录"
+                              >
+                                另存
+                              </button>
+                            )}
                             <button
                               className="delete-button"
                               onClick={() => deleteRecording(recording)}

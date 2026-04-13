@@ -33,6 +33,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveApiKey: (apiKey) => ipcRenderer.invoke('save-api-key', apiKey),
   loadApiKey: () => ipcRenderer.invoke('load-api-key'),
   clearApiKey: () => ipcRenderer.invoke('clear-api-key'),
+  // Favorite recordings
+  getFavoriteRecordings: () => ipcRenderer.invoke('get-favorite-recordings'),
+  toggleFavoriteRecording: (recordingId, isFavorite) => ipcRenderer.invoke('toggle-favorite-recording', recordingId, isFavorite),
+  saveFavoriteToDirectory: (filePath, recordingName) => ipcRenderer.invoke('save-favorite-to-directory', filePath, recordingName),
   // Window controls
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
   windowMaximize: () => ipcRenderer.invoke('window-maximize'),

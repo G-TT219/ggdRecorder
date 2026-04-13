@@ -480,6 +480,104 @@
   height: 90vh;
 }
 
+/* Favorite recordings styles */
+.view-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.favorites-filter-button {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.favorites-filter-button.active {
+  background: linear-gradient(135deg, #ffd700 0%, #ffb347 100%);
+  color: #333;
+  border-color: rgba(255, 215, 0, 0.5);
+}
+
+.favorites-filter-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+}
+
+.recording-item.favorite {
+  border-left: 4px solid #ffd700;
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 179, 71, 0.05) 100%);
+}
+
+.favorite-indicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 16px;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.favorite-button {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  min-width: 40px;
+}
+
+.favorite-button.favorited {
+  background: linear-gradient(135deg, #ffd700 0%, #ffb347 100%);
+  color: #333;
+  border-color: rgba(255, 215, 0, 0.5);
+}
+
+.favorite-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+}
+
+.save-favorite-button {
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.save-favorite-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+}
+
+.recording-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.recording-actions button {
+  flex: 0 0 auto;
+}
+
 /* Settings section styles */
 .settings-section {
   width: 100%;

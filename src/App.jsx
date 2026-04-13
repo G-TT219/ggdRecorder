@@ -32,12 +32,16 @@ function App() {
   const [isMaximized, setIsMaximized] = useState(false); // Window maximized state
   const [favoriteRecordings, setFavoriteRecordings] = useState([]); // Favorite recordings
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false); // Filter to show only favorites
+  const [isRefreshingRecordings, setIsRefreshingRecordings] = useState(false); // Refreshing state
   const compressVideosRef = useRef(compressVideos);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
   const recordingStartTimeRef = useRef(null);
   const timerIntervalRef = useRef(null);
   const recordingsListRef = useRef(null); // Reference to recordings list container
+  const recordingsCacheRef = useRef([]); // Cache for recordings list
+  const lastRefreshTimeRef = useRef(0); // Last refresh timestamp
+  const REFRESH_DEBOUNCE_MS = 5000; // Minimum time between refreshes (2 seconds)
   // Refs for states that will be accessed in callbacks to avoid stale closures
   const sourceRef = useRef(source);
   const isRecordingRef = useRef(isRecording);
@@ -144,15 +148,53 @@ function App() {
     }
   };
 
-  const loadRecordings = async () => {
+  const loadRecordings = async (forceRefresh = false) => {
     try {
-      const recordingsList = await window.electronAPI.getRecordings();
-      setRecordings(recordingsList);
-      Logger.info(`Loaded ${recordingsList.length} recordings`);
-      // Load thumbnails for recordings
-      loadRecordingThumbnails(recordingsList);
+      // Check if we should skip refresh due to debounce
+      const now = Date.now();
+      if (!forceRefresh && (now - lastRefreshTimeRef.current) < REFRESH_DEBOUNCE_MS) {
+        Logger.info('Skipping recordings refresh (debounced)');
+        return;
+      }
+
+      setIsRefreshingRecordings(true);
+
+      if (recordings == null && recordingsCacheRef.current == null) {
+        const recordingsList = await window.electronAPI.getRecordings();
+        recordingsCacheRef.current = recordingsList;
+        setRecordings(recordingsList);
+        Logger.info(`Loaded ${recordingsList.length} recordings (updated)`);
+        loadRecordingThumbnails(recordingsList);
+      } else {
+        setRecordings(recordingsCacheRef.current);
+        Logger.info(`Loaded ${recordingsCacheRef.current.length} recordings (loaded with cache)`);
+        // loadRecordingThumbnails(recordingsCacheRef.current);
+        const recordingsList = window.electronAPI.getRecordings();
+        recordingsList.then(recordingsList => {
+          // Compare new data with cache to avoid unnecessary re-renders
+          const hasChanges = JSON.stringify(recordingsList) !== JSON.stringify(recordingsCacheRef.current);
+
+          if (hasChanges) {
+            // Update cache and state only if there are changes
+            recordingsCacheRef.current = recordingsList;
+            setRecordings(recordingsList);
+            Logger.info(`Async Loaded ${recordingsList.length} recordings (updated)`);
+            // Load thumbnails for new/changed recordings
+            loadRecordingThumbnails(recordingsList);
+          } else {
+            Logger.info(`Async Loaded ${recordingsList.length} recordings (no changes, skipped update)`);
+          }
+          lastRefreshTimeRef.current = now;
+
+        });
+
+      }
+
+      lastRefreshTimeRef.current = now;
     } catch (error) {
       Logger.error('Error loading recordings:', error);
+    } finally {
+      setIsRefreshingRecordings(false);
     }
   };
 
@@ -334,7 +376,7 @@ function App() {
       const result = await window.electronAPI.deleteRecording(recording.id);
       if (result.success) {
         Logger.info('Recording deleted successfully');
-        loadRecordings(); // Refresh recordings list
+        loadRecordings(true); // Refresh recordings list
         loadFavoriteRecordings(); // Refresh favorites
         if (selectedRecording && selectedRecording.id === recording.id) {
           setSelectedRecording(null);
@@ -394,6 +436,19 @@ function App() {
     }
   }, [selectedRecording, listScrollPosition, activeTab]);
 
+  // Effect to load recordings when switching to recordings tab (with cache)
+  // useEffect(() => {
+  //   if (activeTab === 'recordings' && !selectedRecording) {
+  //     // If we have cached data, show it immediately
+  //     if (recordingsCacheRef.current.length > 0) {
+  //       setRecordings(recordingsCacheRef.current);
+  //     }
+
+  //     // Always refresh when entering the tab (force refresh to bypass debounce)
+  //     loadRecordings(true);
+  //   }
+  // }, [activeTab, selectedRecording]);
+
   const saveFavoriteToDirectory = async (recording) => {
     try {
       const result = await window.electronAPI.saveFavoriteToDirectory(recording.filePath, recording.name);
@@ -436,18 +491,18 @@ function App() {
       }
 
       Logger.info(`Batch delete completed: ${successCount} succeeded, ${failCount} failed`);
-      
+
       // Clear selection and refresh list
       setSelectedRecordings([]);
       setIsSelectMode(false);
-      loadRecordings();
-      
+      loadRecordings(true);
+
       // Clear selected recording if it was deleted
       if (selectedRecording && selectedRecordings.some(r => r.id === selectedRecording.id)) {
         setSelectedRecording(null);
         setRecordingData(null);
       }
-      
+
       alert(`成功删除 ${successCount} 个录像，${failCount} 个删除失败`);
     } catch (error) {
       Logger.error('Error batch deleting recordings:', error);
@@ -468,52 +523,52 @@ function App() {
   // Handle start date change with validation
   const handleStartDateChange = (e) => {
     const newStartDate = e.target.value;
-    
+
     if (endDate && newStartDate > endDate) {
       alert('开始日期不能晚于结束日期！');
       return;
     }
-    
+
     setStartDate(newStartDate);
   };
 
   // Handle end date change with validation
   const handleEndDateChange = (e) => {
     const newEndDate = e.target.value;
-    
+
     if (startDate && newEndDate < startDate) {
       alert('结束日期不能早于开始日期！');
       return;
     }
-    
+
     setEndDate(newEndDate);
   };
 
   // Filter recordings by date range and favorites
   const filteredRecordings = (startDate || endDate || showFavoritesOnly)
     ? recordings.filter(recording => {
-        const recordingDate = new Date(recording.date);
+      const recordingDate = new Date(recording.date);
 
-        // Date range filtering
-        if (startDate) {
-          const startDateObj = new Date(startDate);
-          startDateObj.setHours(0, 0, 0, 0);
-          if (recordingDate < startDateObj) return false;
-        }
+      // Date range filtering
+      if (startDate) {
+        const startDateObj = new Date(startDate);
+        startDateObj.setHours(0, 0, 0, 0);
+        if (recordingDate < startDateObj) return false;
+      }
 
-        if (endDate) {
-          const endDateObj = new Date(endDate);
-          endDateObj.setHours(23, 59, 59, 999);
-          if (recordingDate > endDateObj) return false;
-        }
+      if (endDate) {
+        const endDateObj = new Date(endDate);
+        endDateObj.setHours(23, 59, 59, 999);
+        if (recordingDate > endDateObj) return false;
+      }
 
-        // Favorites filtering
-        if (showFavoritesOnly && !favoriteRecordings.includes(recording.id)) {
-          return false;
-        }
+      // Favorites filtering
+      if (showFavoritesOnly && !favoriteRecordings.includes(recording.id)) {
+        return false;
+      }
 
-        return true;
-      })
+      return true;
+    })
     : recordings;
 
   // Window control functions
@@ -553,7 +608,7 @@ function App() {
       const result = await window.electronAPI.selectRecordingsDir();
       if (result.success) {
         setRecordingsDir(result.recordingsDir);
-        loadRecordings(); // Refresh recordings list
+        loadRecordings(true); // Refresh recordings list
         Logger.info(`Recordings directory changed to: ${result.recordingsDir}`);
       } else if (!result.canceled) {
         Logger.error('Failed to select recordings directory:', result.error);
@@ -953,9 +1008,20 @@ function App() {
               <div className="recordings-list">
                 <div className="recordings-list-header">
                   <h2>录像列表</h2>
+                  {isRefreshingRecordings && (
+                    <span className="refreshing-indicator">🔄 正在刷新...</span>
+                  )}
                   <div className="batch-controls">
                     {!isSelectMode ? (
                       <div className="view-controls">
+                        <button
+                          onClick={() => loadRecordings(true)}
+                          className="refresh-button"
+                          title="刷新列表"
+                          disabled={isRefreshingRecordings}
+                        >
+                          刷新
+                        </button>
                         <button
                           onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
                           className={`favorites-filter-button ${showFavoritesOnly ? 'active' : ''}`}

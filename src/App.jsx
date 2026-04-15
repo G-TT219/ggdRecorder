@@ -42,6 +42,10 @@ function App() {
   const recordingStartTimeRef = useRef(null);
   const timerIntervalRef = useRef(null);
   const recordingsListRef = useRef(null); // Reference to recordings list container
+  const gamesSectionRef = useRef(null); // Reference to games section
+  const settingsSectionRef = useRef(null); // Reference to settings section
+  const entertainmentSectionRef = useRef(null); // Reference to entertainment section
+  const scrollRAFRef = useRef(null); // For scroll event optimization
   const recordingsCacheRef = useRef([]); // Cache for recordings list
   const lastRefreshTimeRef = useRef(0); // Last refresh timestamp
   const REFRESH_DEBOUNCE_MS = 5000; // Minimum time between refreshes (2 seconds)
@@ -705,32 +709,58 @@ function App() {
     }
   };
 
-  // Effect to restore scroll position after returning to list view
+  // 优化：切换标签时重置非活动标签的滚动位置
   useEffect(() => {
-    if (!selectedRecording && activeTab === 'recordings' && listScrollPosition > 0) {
-      const restoreScroll = () => {
-        if (recordingsListRef.current) {
+    // 重置所有 section 的滚动位置
+    const resetScrollPositions = () => {
+      // 重置游戏录制区域（如果不是当前标签）
+      if (activeTab === 'games' && gamesSectionRef.current) {
+        gamesSectionRef.current.scrollTop = 0;
+      }
+      
+      // 重置设置区域（如果不是当前标签）
+      if (activeTab === 'settings' && settingsSectionRef.current) {
+        settingsSectionRef.current.scrollTop = 0;
+      }
+      
+      // 重置娱乐区域（如果不是当前标签）
+      if (activeTab === 'entertainment' && entertainmentSectionRef.current) {
+        entertainmentSectionRef.current.scrollTop = 0;
+      }
+      
+      // 录像列表特殊处理：从其他标签返回时恢复滚动位置
+      if (activeTab === 'recordings' && !selectedRecording && recordingsListRef.current) {
+        // 如果之前有保存的滚动位置，则恢复
+        if (listScrollPosition > 0) {
           recordingsListRef.current.scrollTop = listScrollPosition;
+        } else {
+          // 否则重置为 0
+          recordingsListRef.current.scrollTop = 0;
         }
-      };
-      restoreScroll();
-      // const timer = setTimeout(restoreScroll, 0);
-      // return () => clearTimeout(timer);
+      } else if (activeTab !== 'recordings' && recordingsListRef.current && !selectedRecording) {
+        // 离开录像列表时重置（但不在详情视图）
+        recordingsListRef.current.scrollTop = 0;
+      }
+    };
+
+    // 延迟执行，确保 DOM 已更新
+    const timer = setTimeout(resetScrollPositions, 0);
+    return () => clearTimeout(timer);
+  }, [activeTab, selectedRecording]);
+
+  const handleRecordingsListScroll = (e) => {
+    // 使用 requestAnimationFrame 减少更新频率
+    if (scrollRAFRef.current) {
+      cancelAnimationFrame(scrollRAFRef.current);
     }
-  }, [selectedRecording, listScrollPosition, activeTab]);
-
-  // Effect to load recordings when switching to recordings tab (with cache)
-  // useEffect(() => {
-  //   if (activeTab === 'recordings' && !selectedRecording) {
-  //     // If we have cached data, show it immediately
-  //     if (recordingsCacheRef.current.length > 0) {
-  //       setRecordings(recordingsCacheRef.current);
-  //     }
-
-  //     // Always refresh when entering the tab (force refresh to bypass debounce)
-  //     loadRecordings(true);
-  //   }
-  // }, [activeTab, selectedRecording]);
+    
+    scrollRAFRef.current = requestAnimationFrame(() => {
+      const scrollTop = e.target.scrollTop;
+      if (scrollTop > 0) {
+        setListScrollPosition(scrollTop);
+      }
+    });
+  };
 
   const saveFavoriteToDirectory = async (recording) => {
     try {
@@ -1199,7 +1229,7 @@ function App() {
 
       <main className="app-main">
         {activeTab === 'games' ? (
-          <section className="games-section">
+          <section className="games-section" ref={gamesSectionRef}>
             <section className="recording-controls">
               <h2>录制控制</h2>
               {isFetchingSource ? (
@@ -1256,7 +1286,7 @@ function App() {
             </section>
           </section>
         ) : activeTab === 'recordings' ? (
-          <section className="recordings-section" ref={recordingsListRef}>
+          <section className="recordings-section" ref={recordingsListRef} onScroll={handleRecordingsListScroll}>
             {selectedRecording ? (
               <div className="viewer">
                 <div className="viewer-header">
@@ -1460,7 +1490,7 @@ function App() {
             )}
           </section>
         ) : activeTab === 'entertainment' ? (
-          <section className="entertainment-section">
+          <section className="entertainment-section" ref={entertainmentSectionRef}>
             <h2>娱乐浏览</h2>
             <div className="browser-container">
               <div className="browser-controls">
@@ -1497,7 +1527,7 @@ function App() {
             </div>
           </section>
         ) : (
-          <section className="settings-section">
+          <section className="settings-section" ref={settingsSectionRef}>
             <h2>设置</h2>
             <div className="settings-container">
               <div className="setting-item">

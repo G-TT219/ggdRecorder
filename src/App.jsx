@@ -33,6 +33,9 @@ function App() {
   const [favoriteRecordings, setFavoriteRecordings] = useState([]); // Favorite recordings
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false); // Filter to show only favorites
   const [isRefreshingRecordings, setIsRefreshingRecordings] = useState(false); // Refreshing state
+  const [currentPage, setCurrentPage] = useState(1); // Current page number
+  const [totalPages, setTotalPages] = useState(1); // Total pages count
+  const [recordingsPerPage] = useState(20); // Records per page (configurable)
   const compressVideosRef = useRef(compressVideos);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
@@ -163,6 +166,16 @@ function App() {
         const recordingsList = await window.electronAPI.getRecordings();
         recordingsCacheRef.current = recordingsList;
         setRecordings(recordingsList);
+
+        // Calculate pagination
+        const { total, pages } = calculatePagination(recordingsList, recordingsPerPage);
+        setTotalPages(pages);
+
+        // Reset to first page if current page exceeds new total
+        if (currentPage > pages) {
+          setCurrentPage(1);
+        }
+
         Logger.info(`Loaded ${recordingsList.length} recordings (updated)`);
         loadRecordingThumbnails(recordingsList);
       } else {
@@ -178,6 +191,16 @@ function App() {
             // Update cache and state only if there are changes
             recordingsCacheRef.current = recordingsList;
             setRecordings(recordingsList);
+
+            // Calculate pagination
+            const { total, pages } = calculatePagination(recordingsList, recordingsPerPage);
+            setTotalPages(pages);
+
+            // Reset to first page if current page exceeds new total
+            if (currentPage > pages) {
+              setCurrentPage(1);
+            }
+
             Logger.info(`Async Loaded ${recordingsList.length} recordings (updated)`);
             // Load thumbnails for new/changed recordings
             loadRecordingThumbnails(recordingsList);
@@ -337,6 +360,230 @@ function App() {
     }
   };
 
+  const startMediaRecording_new = async (source) => {
+    if (!source) {
+      Logger.error('No game selected');
+      return;
+    }
+    const { sourceId, sourceName } = source;
+    try {
+      let stream;
+
+      // 尝试使用 getDisplayMedia（现代 API）
+      try {
+        Logger.info('Trying getDisplayMedia API...');
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            width: { ideal: 1920, max: 3840 },
+            height: { ideal: 1080, max: 2160 },
+            frameRate: { ideal: 60, max: 60 },
+            cursor: 'always'
+          },
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
+          }
+        });
+        Logger.info('getDisplayMedia succeeded');
+      } catch (getDisplayError) {
+        // 回退到旧版 getUserMedia API
+        Logger.info('getDisplayMedia failed, falling back to getUserMedia:', getDisplayError.message);
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            mandatory: {
+              chromeMediaSource: 'desktop'
+            }
+          },
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: sourceId,
+              minWidth: 1920,          // 最小宽度 1080p
+              maxWidth: 3840,          // 最大宽度 4K
+              minHeight: 1080,         // 最小高度 1080p
+              maxHeight: 2160,         // 最大高度 4K
+              maxFrameRate: 60,        // 最高帧率
+              minFrameRate: 30         // 最低帧率
+            }
+          }
+        });
+        Logger.info('getUserMedia succeeded with high resolution constraints');
+      }
+
+      // 检查实际获取到的分辨率
+      const videoTrack = stream.getVideoTracks()[0];
+      const settings = videoTrack.getSettings();
+      Logger.info(`Actual recording resolution: ${settings.width}x${settings.height}@${settings.frameRate}fps`);
+
+      // 配置高质量编码器 - 检测浏览器支持的格式
+      const supportedMimeTypes = [
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm'
+      ];
+
+      let mimeType = 'video/webm';
+      for (const type of supportedMimeTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          mimeType = type;
+          Logger.info(`Using codec: ${type}`);
+          break;
+        }
+      }
+
+      // 先尝试带比特率的配置，如果不支持则回退到默认配置
+      let options = { mimeType };
+
+      // 某些浏览器不支持 videoBitsPerSecond，需要检测
+      if (mimeType !== 'video/webm') {
+        try {
+          options = {
+            mimeType,
+            videoBitsPerSecond: 8000000  // 8Mbps 高码率
+          };
+          // 测试配置是否有效
+          new MediaRecorder(stream, options);
+          Logger.info('Using high bitrate: 8Mbps');
+        } catch (e) {
+          Logger.warn('videoBitsPerSecond not supported, using default bitrate');
+          options = { mimeType };
+        }
+      }
+
+      mediaRecorderRef.current = new MediaRecorder(stream, options);
+      recordedChunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorderRef.current.onstop = async () => {
+        const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+        const buffer = await blob.arrayBuffer();
+
+        // Generate filename with timestamp in China timezone
+        const now = new Date();
+        const chinaTime = new Intl.DateTimeFormat('zh-CN', {
+          timeZone: 'Asia/Shanghai',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        }).format(now);
+
+        const filename = `${sourceName}_${chinaTime.replace(/[/: ]/g, '-')}.webm`;
+
+        // Check if compression is enabled in settings
+        const shouldCompress = compressVideosRef.current;
+
+        const result = await window.electronAPI.saveRecording(buffer, filename, shouldCompress);
+        if (result.success) {
+          if (result.warning) {
+            Logger.info(result.warning);
+          }
+          loadRecordings(true); // Refresh recordings list with force
+          Logger.info(`Recording saved: ${filename}`);
+        } else {
+          Logger.error('Failed to save recording:', result.error);
+        }
+
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+      setIsPaused(false);
+      // Start the timer
+      recordingStartTimeRef.current = Date.now();
+      timerIntervalRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - recordingStartTimeRef.current) / 1000);
+        setRecordingTime(elapsed);
+      }, 1000);
+      Logger.info('High-quality media recording started successfully');
+    } catch (error) {
+      Logger.error('Error starting media recording:', error);
+      // 最后的回退：使用原始的低分辨率配置
+      try {
+        Logger.info('Trying fallback with original method...');
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            mandatory: {
+              chromeMediaSource: 'desktop'
+            }
+          },
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: sourceId,
+            }
+          }
+        });
+
+        mediaRecorderRef.current = new MediaRecorder(stream);
+        recordedChunksRef.current = [];
+
+        mediaRecorderRef.current.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            recordedChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorderRef.current.onstop = async () => {
+          const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+          const buffer = await blob.arrayBuffer();
+
+          const now = new Date();
+          const chinaTime = new Intl.DateTimeFormat('zh-CN', {
+            timeZone: 'Asia/Shanghai',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          }).format(now);
+
+          const filename = `${sourceName}_${chinaTime.replace(/[/: ]/g, '-')}.webm`;
+          const shouldCompress = compressVideosRef.current;
+
+          const result = await window.electronAPI.saveRecording(buffer, filename, shouldCompress);
+          if (result.success) {
+            if (result.warning) {
+              Logger.info(result.warning);
+            }
+            loadRecordings(true);
+            Logger.info(`Recording saved (fallback): ${filename}`);
+          } else {
+            Logger.error('Failed to save recording (fallback):', result.error);
+          }
+
+          stream.getTracks().forEach(track => track.stop());
+        };
+
+        mediaRecorderRef.current.start();
+        setIsRecording(true);
+        setIsPaused(false);
+        recordingStartTimeRef.current = Date.now();
+        timerIntervalRef.current = setInterval(() => {
+          const elapsed = Math.floor((Date.now() - recordingStartTimeRef.current) / 1000);
+          setRecordingTime(elapsed);
+        }, 1000);
+        Logger.info('Fallback recording started (standard quality)');
+      } catch (fallbackError) {
+        Logger.error('Fallback recording also failed:', fallbackError);
+      }
+    }
+  };
+
+
 
   const stopRecording = async () => {
     try {
@@ -422,6 +669,42 @@ function App() {
     setRecordingData(null);
   };
 
+  // Pagination functions
+  const calculatePagination = (filteredRecordings, perPage) => {
+    const total = filteredRecordings.length;
+    const pages = Math.max(1, Math.ceil(total / perPage));
+    return { total, pages };
+  };
+
+  const getCurrentPageRecordings = (allRecordings, page, perPage) => {
+    if (showFavoritesOnly) return allRecordings
+    const startIndex = (page - 1) * perPage;
+    const endIndex = startIndex + perPage;
+    return allRecordings.slice(startIndex, endIndex);
+  };
+
+  const goToPage = (pageNumber) => {
+    if (pageNumber >= 1 && pageNumber <= totalPages && pageNumber !== currentPage) {
+      setCurrentPage(pageNumber);
+      // Reset scroll position when changing pages
+      if (recordingsListRef.current) {
+        recordingsListRef.current.scrollTop = 0;
+      }
+    }
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      goToPage(currentPage + 1);
+    }
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      goToPage(currentPage - 1);
+    }
+  };
+
   // Effect to restore scroll position after returning to list view
   useEffect(() => {
     if (!selectedRecording && activeTab === 'recordings' && listScrollPosition > 0) {
@@ -471,8 +754,11 @@ function App() {
       alert('请先选择要删除的录像');
       return;
     }
+    const favoritedRecordings = selectedRecordings.filter(recording => favoriteRecordings.includes(recording.id));
+    const recordingsToDelete = selectedRecordings.filter(recording => !favoriteRecordings.includes(recording.id));
 
-    if (!window.confirm(`确定要删除选中的 ${selectedRecordings.length} 个录像吗？此操作不可恢复。`)) {
+
+    if (!window.confirm(`确定要删除选中的 ${recordingsToDelete.length} 个录像吗？已排除 ${favoritedRecordings.length} 个收藏的录像。此操作不可恢复。`)) {
       return;
     }
 
@@ -480,7 +766,7 @@ function App() {
       let successCount = 0;
       let failCount = 0;
 
-      for (const recording of selectedRecordings) {
+      for (const recording of recordingsToDelete) {
         const result = await window.electronAPI.deleteRecording(recording.id);
         if (result.success) {
           successCount++;
@@ -570,6 +856,11 @@ function App() {
       return true;
     })
     : recordings;
+
+  // Get current page recordings for display
+  const getCurrentPageRecordingsList = () => {
+    return getCurrentPageRecordings(filteredRecordings, currentPage, recordingsPerPage);
+  };
 
   // Window control functions
   const handleMinimize = () => {
@@ -916,7 +1207,7 @@ function App() {
                   <h3>已选择游戏: {selectedGame.name}</h3>
                   <div className="controls">
                     {!isRecording ? (
-                      <button className="record-button" onClick={() => startMediaRecording(source)}>
+                      <button className="record-button" onClick={() => startMediaRecording_new(source)}>
                         开始录制
                       </button>
                     ) : (
@@ -1020,28 +1311,40 @@ function App() {
                           title="刷新列表"
                           disabled={isRefreshingRecordings}
                         >
-                          刷新
+                          🔄 刷新
                         </button>
                         <button
                           onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
                           className={`favorites-filter-button ${showFavoritesOnly ? 'active' : ''}`}
+                          title={showFavoritesOnly ? '仅显示收藏' : '显示收藏'}
                         >
-                          {showFavoritesOnly ? '⭐ 仅显示收藏' : '☆ 显示收藏'}
+                          {showFavoritesOnly ? '⭐ 仅收藏' : '☆ 收藏'}
                         </button>
                         <button onClick={toggleSelectMode} className="select-mode-button">
                           批量操作
                         </button>
                       </div>
                     ) : (
-                      <div className="batch-actions">
-                        <div className="date-range-filter">
+                      <div className="batch-mode-controls">
+                        <div className="batch-actions-row">
+                          <span className="selected-count">已选择 {selectedRecordings.length} / {filteredRecordings.length} 项</span>
+                          <button onClick={selectAllRecordings} className="select-all-button">
+                            {selectedRecordings.length === filteredRecordings.length ? '取消全选' : '全选'}
+                          </button>
+                          <button onClick={batchDeleteRecordings} className="batch-delete-button" disabled={selectedRecordings.length === 0}>
+                            批量删除
+                          </button>
+                          <button onClick={toggleSelectMode} className="cancel-select-button">
+                            取消
+                          </button>
+                        </div>
+                        <div className="batch-date-filter-row">
                           <input
                             type="date"
                             value={startDate}
                             onChange={handleStartDateChange}
                             className="date-filter-input"
                             title="开始日期"
-                            placeholder="开始日期"
                           />
                           <span className="date-separator">至</span>
                           <input
@@ -1050,27 +1353,43 @@ function App() {
                             onChange={handleEndDateChange}
                             className="date-filter-input"
                             title="结束日期"
-                            placeholder="结束日期"
                           />
                         </div>
-                        <span className="selected-count">已选择 {selectedRecordings.length} / {filteredRecordings.length} 项</span>
-                        <button onClick={selectAllRecordings} className="select-all-button">
-                          {selectedRecordings.length === filteredRecordings.length ? '取消全选' : '全选'}
-                        </button>
-                        <button onClick={batchDeleteRecordings} className="batch-delete-button" disabled={selectedRecordings.length === 0}>
-                          批量删除
-                        </button>
-                        <button onClick={toggleSelectMode} className="cancel-select-button">
-                          取消
-                        </button>
                       </div>
                     )}
                   </div>
                 </div>
+
+                {/* Pagination Controls - Outside header */}
+                {filteredRecordings.length > recordingsPerPage && !showFavoritesOnly && (
+                  <div className="pagination-bar">
+                    <div className="pagination-controls">
+                      <button
+                        onClick={goToPreviousPage}
+                        disabled={currentPage === 1}
+                        className="pagination-button"
+                      >
+                        ← 上一页
+                      </button>
+                      <span className="page-info">
+                        {currentPage} / {totalPages}
+                      </span>
+                      <button
+                        onClick={goToNextPage}
+                        disabled={currentPage === totalPages}
+                        className="pagination-button"
+                      >
+                        下一页 →
+                      </button>
+                    </div>
+                    <span className="total-count">共 {filteredRecordings.length} 条</span>
+                  </div>
+                )}
+
                 {recordings.length === 0 ? (
                   <p>暂无录像文件</p>
                 ) : (
-                  filteredRecordings.map(recording => (
+                  getCurrentPageRecordingsList().map(recording => (
                     <div
                       key={recording.id}
                       className={`recording-item ${isSelectMode ? 'clickable' : ''} ${isSelectMode && selectedRecordings.some(r => r.id === recording.id) ? 'selected' : ''} ${favoriteRecordings.includes(recording.id) ? 'favorite' : ''}`}

@@ -100,6 +100,8 @@ const createWindow = () => {
   const mainWindow = new BrowserWindow({
     width: 500,
     height: 800,
+    minWidth: 480,
+    minHeight: 600,
     icon: getAssetPath('recorder.ico'),
     frame: false, // 无边框窗口
     webPreferences: {
@@ -790,7 +792,7 @@ ipcMain.handle('get-game-processes', async () => {
     const processes = await psList.default();
     // Filter for common game processes
     const gameProcessNames = [
-      'duck', 'firefox','csgo', 'dota2', 'valorant', 'fortnite', 'minecraft'
+      'duck', 'firefox','csgo', 'dota2', 'valorant', 'fortnite', 'minecraft','edge'
     ];
 
     const gameProcesses = processes.filter(process =>

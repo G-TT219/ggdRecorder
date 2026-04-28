@@ -41,4 +41,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
   windowMaximize: () => ipcRenderer.invoke('window-maximize'),
   windowClose: () => ipcRenderer.invoke('window-close'),
+  resizeWindow: (width, height) => ipcRenderer.invoke('resize-window', width, height),
+  // Open external URL in system browser
+  openExternal: (url) => shell.openExternal(url),
+  // Fetch match data through main process to avoid CORS
+  fetchMatchData: (matchId) => ipcRenderer.invoke('fetch-match-data', matchId),
+  // Fetch match history list
+  fetchMatchHistory: (userId) => ipcRenderer.invoke('fetch-match-history', userId),
 });

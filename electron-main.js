@@ -10,6 +10,10 @@ const {
 } = require("@google/genai");
 const { setGlobalDispatcher, ProxyAgent } = require("undici");
 const { config } = require("dotenv");
+const { default: Logger } = require('./src/utils/logger');
+
+// 加载 .env 文件中的环境变量
+config();
 
 // 定义全局配置变量
 let globalConfig = null;
@@ -110,8 +114,26 @@ const createWindow = () => {
       contextIsolation: true,
       // Enable media access for desktop capture
       permissions: ['media', 'desktop-capturer'],
-      webSecurity: false // Disable web security to allow loading local files
+      webSecurity: false, // Disable web security to allow loading local files
+      // Allow mixed content and insecure resources
+      allowRunningInsecureContent: true,
+      // 允许加载远程内容
+      sandbox: false
     },
+  });
+
+  // 完全禁用 CSP，移除所有安全限制
+  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    const responseHeaders = { ...details.responseHeaders };
+    
+    // 删除所有可能存在的 CSP 头（包括大小写变体）
+    delete responseHeaders['Content-Security-Policy'];
+    delete responseHeaders['content-security-policy'];
+    delete responseHeaders['Content-Security-Policy-Report-Only'];
+    delete responseHeaders['content-security-policy-report-only'];
+    
+    // 不设置新的 CSP，让页面自由加载资源
+    callback({ responseHeaders });
   });
 
   // Remove default menu bar
@@ -749,6 +771,36 @@ ipcMain.handle('start-game', (event, gamePath) => {
   }
 })
 
+// 调整窗口大小
+ipcMain.handle('resize-window', async (event, width, height) => {
+  try {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) {
+      // 使用动画效果平滑调整
+      const currentBounds = win.getBounds();
+      const steps = 10;
+      const widthStep = (width - currentBounds.width) / steps;
+      const heightStep = (height - currentBounds.height) / steps;
+      
+      for (let i = 1; i <= steps; i++) {
+        await new Promise(resolve => setTimeout(resolve, 20));
+        win.setBounds({
+          x: currentBounds.x,
+          y: currentBounds.y,
+          width: Math.round(currentBounds.width + widthStep * i),
+          height: Math.round(currentBounds.height + heightStep * i)
+        });
+      }
+      
+      return { success: true };
+    }
+    return { success: false, error: 'No window found' };
+  } catch (error) {
+    logger.error('Error resizing window:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('log-info', async (event, message) => {
   logger.info(`[RENDERER] ${message}`);
 });
@@ -1016,5 +1068,267 @@ ipcMain.handle('window-close', (event) => {
   if (window) {
     app.isQuiting = true;
     window.close();
+  }
+});
+
+// Fetch match data through main process to avoid CORS
+ipcMain.handle('fetch-match-data', async (event, matchId) => {
+  try {
+    const https = require('https');
+    const { HttpsProxyAgent } = require('https-proxy-agent');
+    const { SocksProxyAgent } = require('socks-proxy-agent');
+    
+    return new Promise((resolve, reject) => {
+      const url = `https://ggdmatchdata.gaggle.fun/match-timelines/${matchId}.json`;
+      
+      // 检测环境变量中的代理配置
+      const proxyUrl = process.env.https_proxy ||process.env.http_proxy || process.env.all_proxy;
+      
+      let agent = undefined;
+      if (proxyUrl) {
+        // 判断是否为 SOCKS5 代理
+        if (proxyUrl.startsWith('socks5://') || proxyUrl.startsWith('socks://')) {
+          agent = new SocksProxyAgent(proxyUrl);
+          logger.info(`Fetch match data - Using SOCKS5 proxy: ${proxyUrl}`);
+        } else {
+          agent = new HttpsProxyAgent(proxyUrl);
+          logger.info(`Fetch match data - Using HTTP/HTTPS proxy: ${proxyUrl}`);
+        }
+      } else {
+        logger.info('Fetch match data - No proxy configured, using direct connection');
+      }
+      
+      logger.info(`Fetch match data - Match ID: ${matchId}`);
+      logger.info(`Fetch match data - URL: ${url}`)
+      const request = https.get(url, {
+        agent: agent,
+        headers: {
+          'Accept': 'application/json, text/plain, */*',
+          'Referer': 'https://gaggle.fun/',
+          'Origin': 'https://gaggle.fun',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0'
+        }
+      }, (response) => {
+        let data = '';
+        
+        response.on('data', (chunk) => {
+          data += chunk;
+        });
+        
+        response.on('end', () => {
+          try {
+            if (response.statusCode === 200) {
+              const jsonData = JSON.parse(data);
+              logger.info('print http response:', JSON.stringify(jsonData));
+              resolve({ success: true, data: jsonData });
+            } else {
+              resolve({ 
+                success: false, 
+                error: `HTTP Error: ${response.statusCode}`,
+                statusCode: response.statusCode
+              });
+            }
+          } catch (parseError) {
+            resolve({ 
+              success: false, 
+              error: `JSON Parse Error: ${parseError.message}` 
+            });
+          }
+        });
+      });
+      
+      request.on('error', (error) => {
+        resolve({ 
+          success: false, 
+          error: `Network Error: ${error.message}` 
+        });
+      });
+      
+      request.setTimeout(10000, () => {
+        request.destroy();
+        resolve({ 
+          success: false, 
+          error: 'Request timeout' 
+        });
+      });
+    });
+  } catch (error) {
+    return { 
+      success: false, 
+      error: `Unexpected Error: ${error.message}` 
+    };
+  }
+});
+
+// Fetch match history list
+ipcMain.handle('fetch-match-history', async (event, userId) => {
+  try {
+    const https = require('https');
+    const { HttpsProxyAgent } = require('https-proxy-agent');
+    
+    return new Promise((resolve, reject) => {
+      const url = 'https://us-central1-gaggle-staging.cloudfunctions.net/ggdPlayerMatch?action=FetchList';
+      
+      const postData = JSON.stringify({ uid: userId });
+      
+      // 检测环境变量中的代理配置
+      const proxyUrl = process.env.http_proxy || process.env.https_proxy || process.env.all_proxy;
+      
+      let agent = undefined;
+      if (proxyUrl) {
+          agent = new HttpsProxyAgent(proxyUrl);
+          logger.info(`Using HTTP/HTTPS proxy: ${proxyUrl}`);
+      } else {
+        logger.info('No proxy configured, using direct connection');
+      }
+      
+      const options = {
+        method: 'POST',
+        agent: agent,
+        headers: {
+          'Accept': 'application/json, text/plain, */*',
+          'accept-language':'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
+          'cache-control': 'no-cache',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjNiMDk1NzQ3YmY4MzMxZWE0YWQ1M2YzNzBjNjMyNjAxNzliMGQyM2EiLCJ0eXAiOiJKV1QifQ.eyJGcmVlIjp0cnVlLCJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vZ2FnZ2xlLXN0YWdpbmciLCJhdWQiOiJnYWdnbGUtc3RhZ2luZyIsImF1dGhfdGltZSI6MTc3NzM1NzQ4OSwidXNlcl9pZCI6IkVBZVFFT2ZSczFQZUR6SmM3eUtqanZwbURmNDIiLCJzdWIiOiJFQWVRRU9mUnMxUGVEekpjN3lLamp2cG1EZjQyIiwiaWF0IjoxNzc3Mzc2ODAyLCJleHAiOjE3NzczODA0MDIsImVtYWlsIjoiMjMxMjYxMzI0N0BxcS5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiZmlyZWJhc2UiOnsiaWRlbnRpdGllcyI6eyJlbWFpbCI6WyIyMzEyNjEzMjQ3QHFxLmNvbSJdfSwic2lnbl9pbl9wcm92aWRlciI6InBhc3N3b3JkIn19.S_IubCYTSlIBnMbT-qLqDL3IzN9Rs6oGAPIEn8JeW780703ip5kaWJ7RNCmHmft8bzHHzqljKJtNfLiUb8bzaKrNQ2tA3YPpEkHYf44lZsr0KWuyuKb_QAzYp4Vbl8RpMBQYa8XFt40mltdWcBGy726G_FcID6VsYbm-EaSwrtEjrFaBL1DAO5iPivm6y0REpSPy6IPp9dj7obInSww5_-EearcojpvBdXcqoekjfVBpDYoTjzJ9sVyZ9RkT0pdL3LCpDS5kJSpCjGM7d5iPbCwaxSgy2pLWOT_xiexKR_2_iC_Ea6Y2-CzDFdVQ4Sc9wxVQElniJ2Xmrslzn2D4Cg',
+          'Origin': 'https://gaggle.fun',
+          'Referer': 'https://gaggle.fun/',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0',
+          'sec-ch-ua':'"Microsoft Edge";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
+          'sec-ch-ua-mobile': '?0',
+          'sec-ch-ua-platform': '"Windows"',
+          'sec-fetch-dest': 'empty',
+          'sec-fetch-mode': 'cors',
+          'sec-fetch-site': 'cross-site'
+        }
+      };
+      logger.info(`Fetch match history - User ID: ${userId}`);
+      logger.info(`Fetch match history - Request URL: ${url}`);
+      logger.info(`Fetch match history - Request Method: POST`);
+      logger.info(`Fetch match history - Request Body: ${postData}`);
+      
+      // 打印请求头（逐个字段）
+      console.log('\n========== Fetch Match History Request ==========');
+      console.log('URL:', url);
+      console.log('Method: POST');
+      console.log('Body:', postData);
+      console.log('Proxy:', proxyUrl || 'None');
+      console.log('Headers:');
+      Object.keys(options.headers).forEach(key => {
+        const value = key === 'Authorization' ? 'Bearer [HIDDEN]' : options.headers[key];
+        console.log(`  ${key}: ${value}`);
+      });
+      console.log('===============================================\n');
+      
+      const request = https.request(url, options, (response) => {
+        let data = '';
+        
+        response.on('data', (chunk) => {
+          data += chunk;
+        });
+        
+        response.on('end', () => {
+          try {
+            if (response.statusCode === 200) {
+              const jsonData = JSON.parse(data);
+              logger.info(`Fetch match history - Success! Received ${data.length} bytes`);
+              resolve({ success: true, data: jsonData });
+            } else {
+              // 打印详细的错误响应信息
+              console.log('\n========== HTTP Error Response ==========');
+              console.log('Status Code:', response.statusCode);
+              console.log('Status Message:', response.statusMessage);
+              console.log('Response Headers:');
+              Object.keys(response.headers).forEach(key => {
+                console.log(`  ${key}: ${response.headers[key]}`);
+              });
+              console.log('Response Body:', data);
+              console.log('=========================================\n');
+              
+              logger.error(`Fetch match history - HTTP Error ${response.statusCode}: ${response.statusMessage}`);
+              logger.error(`Fetch match history - Response Body: ${data}`);
+              
+              resolve({ 
+                success: false, 
+                error: `HTTP Error: ${response.statusCode} ${response.statusMessage}`,
+                statusCode: response.statusCode,
+                statusMessage: response.statusMessage,
+                responseBody: data,
+                responseHeaders: response.headers
+              });
+            }
+          } catch (parseError) {
+            // JSON 解析失败时也打印详细信息
+            console.log('\n========== JSON Parse Error ==========');
+            console.log('Status Code:', response.statusCode);
+            console.log('Raw Response Data:', data);
+            console.log('Parse Error:', parseError.message);
+            console.log('======================================\n');
+            
+            logger.error(`Fetch match history - JSON Parse Error: ${parseError.message}`);
+            logger.error(`Fetch match history - Raw data: ${data.substring(0, 500)}...`);
+            
+            resolve({ 
+              success: false, 
+              error: `JSON Parse Error: ${parseError.message}`,
+              rawResponse: data
+            });
+          }
+        });
+      });
+      
+      request.on('error', (error) => {
+        // 打印详细的网络错误信息
+        console.log('\n========== Network Error ==========');
+        console.log('Error Type:', error.name || 'Unknown');
+        console.log('Error Message:', error.message);
+        console.log('Error Code:', error.code || 'N/A');
+        console.log('Error Stack:', error.stack || 'No stack trace');
+        console.log('Request URL:', url);
+        console.log('Proxy Used:', proxyUrl || 'None');
+        console.log('===================================\n');
+        
+        logger.error(`Fetch match history - Network Error: ${error.message}`);
+        logger.error(`Fetch match history - Error Code: ${error.code}`);
+        logger.error(`Fetch match history - Error Name: ${error.name}`);
+        if (error.stack) {
+          logger.error(`Fetch match history - Stack Trace:\n${error.stack}`);
+        }
+        
+        resolve({ 
+          success: false, 
+          error: `Network Error: ${error.message}`,
+          errorCode: error.code,
+          errorName: error.name,
+          errorStack: error.stack
+        });
+      });
+      
+      request.setTimeout(10000, () => {
+        request.destroy();
+        
+        console.log('\n========== Request Timeout ==========');
+        console.log('Timeout: 10 seconds');
+        console.log('Request URL:', url);
+        console.log('Proxy Used:', proxyUrl || 'None');
+        console.log('=====================================\n');
+        
+        logger.error('Fetch match history - Request timeout after 10 seconds');
+        
+        resolve({ 
+          success: false, 
+          error: 'Request timeout (10s)',
+          timeout: true
+        });
+      });
+      
+      request.write(postData);
+      request.end();
+    });
+  } catch (error) {
+    return { 
+      success: false, 
+      error: `Unexpected Error: ${error.message}` 
+    };
   }
 });

@@ -19,6 +19,7 @@ function App() {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analyzeStatus, setAnalyzeStatus] = useState('');
   const [apiKey, setApiKey] = useState('');
+  const [ggdToken, setGgdToken] = useState(''); // GGD API Token
   const [gamePath, setGamePath] = useState('');
   const [entertainmentUrl, setEntertainmentUrl] = useState('https://www.bilibili.com');
   const [statsUrl, setStatsUrl] = useState('https://gaggle.fun/dashboard'); // 游戏官方战绩网页
@@ -151,6 +152,7 @@ function App() {
     loadRecordings();
     loadingConfig();
     loadApiKey();
+    loadGgdToken();
 
     // Remove focus from any element on app load to prevent button highlight
     if (document.activeElement) {
@@ -1532,6 +1534,55 @@ function App() {
     }
   };
 
+  // GGD Token 相关函数
+  const saveGgdToken = async () => {
+    try {
+      const result = await window.electronAPI.saveGgdToken(ggdToken);
+      if (result.success) {
+        Logger.info('GGD Token saved successfully');
+        alert('GGD Token保存成功');
+      } else {
+        Logger.error('Failed to save GGD Token:', result.error);
+        alert('GGD Token保存失败: ' + result.error);
+      }
+    } catch (error) {
+      Logger.error('Error saving GGD Token:', error);
+      alert('保存GGD Token时发生错误: ' + error.message);
+    }
+  };
+
+  const clearGgdToken = async () => {
+    if (window.confirm('确定要清除GGD Token吗？此操作不可恢复。')) {
+      try {
+        setGgdToken('');
+        const result = await window.electronAPI.clearGgdToken();
+        if (result.success) {
+          Logger.info('GGD Token cleared successfully');
+          alert('GGD Token已清除');
+        } else {
+          Logger.error('Failed to clear GGD Token:', result.error);
+          alert('清除GGD Token失败: ' + result.error);
+        }
+      } catch (error) {
+        Logger.error('Error clearing GGD Token:', error);
+        alert('清除GGD Token时发生错误: ' + error.message);
+      }
+    }
+  };
+
+  const loadGgdToken = async () => {
+    try {
+      const result = await window.electronAPI.loadGgdToken();
+      if (result.success) {
+        setGgdToken(result.token || '');
+      } else {
+        Logger.error('Failed to load GGD Token:', result.error);
+      }
+    } catch (error) {
+      Logger.error('Error loading GGD Token:', error);
+    }
+  };
+
   useEffect(() => {
     if (selectedRecording) {
       const result = recordingDataBuffers.find(buffer => buffer.filePath === selectedRecording.filePath)
@@ -2047,7 +2098,7 @@ function App() {
               <div className="map-display">
                 <div className="map-header">
                   <div className="map-title">
-                    <img src={`/src/img/${selectedMap}.png`} alt="地图预览" className="map-preview-thumb" />
+                    <img src={`/img/${selectedMap}.png`} alt="地图预览" className="map-preview-thumb" />
                     <h3>{mapNameMapping[selectedMap]}</h3>
                   </div>
                   <div className="map-actions">
@@ -2088,7 +2139,7 @@ function App() {
                   )}
                   
                   <img 
-                    src={`/src/img/${selectedMap}.png`} 
+                    src={`/img/${selectedMap}.png`} 
                     alt={`地图${selectedMap}`} 
                     className="map-image"
                     draggable={false}
@@ -2889,6 +2940,24 @@ function App() {
                 </div>
                 <p className="setting-description">
                   用于AI视频分析功能的API密钥。当前状态: {apiKey ? '已设置' : '未设置'}
+                </p>
+              </div>
+              
+              <div className="setting-item">
+                <label htmlFor="ggd-token">GGD战绩查询Token:</label>
+                <div className="setting-input">
+                  <input
+                    type="password"
+                    id="ggd-token"
+                    value={ggdToken}
+                    onChange={(e) => setGgdToken(e.target.value)}
+                    placeholder="请输入GGD API Token"
+                  />
+                  <button onClick={saveGgdToken}>保存Token</button>
+                  <button onClick={clearGgdToken}>清除Token</button>
+                </div>
+                <p className="setting-description">
+                  用于 Goose Goose Duck 战绩查询API的认证Token。当前状态: {ggdToken ? '已设置' : '未设置'}
                 </p>
               </div>
             </div>

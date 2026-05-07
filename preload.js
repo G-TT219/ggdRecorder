@@ -33,6 +33,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveApiKey: (apiKey) => ipcRenderer.invoke('save-api-key', apiKey),
   loadApiKey: () => ipcRenderer.invoke('load-api-key'),
   clearApiKey: () => ipcRenderer.invoke('clear-api-key'),
+  // GGD Token
+  saveGgdToken: (token) => ipcRenderer.invoke('save-ggd-token', token),
+  loadGgdToken: () => ipcRenderer.invoke('load-ggd-token'),
+  clearGgdToken: () => ipcRenderer.invoke('clear-ggd-token'),
   // Favorite recordings
   getFavoriteRecordings: () => ipcRenderer.invoke('get-favorite-recordings'),
   toggleFavoriteRecording: (recordingId, isFavorite) => ipcRenderer.invoke('toggle-favorite-recording', recordingId, isFavorite),

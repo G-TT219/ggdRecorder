@@ -1,7 +1,8 @@
 const { spawn } = require('child_process');
-const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, shell, globalShortcut, Tray, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, shell, globalShortcut, Tray, Menu, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const logger = require('./logger');
 const {
   GoogleGenAI,
@@ -10,7 +11,6 @@ const {
 } = require("@google/genai");
 const { setGlobalDispatcher, ProxyAgent } = require("undici");
 const { config } = require("dotenv");
-const { default: Logger } = require('./src/utils/logger');
 
 // 加载 .env 文件中的环境变量
 config();
@@ -161,7 +161,9 @@ const createWindow = () => {
     // 生产环境中正确加载打包后的文件
     const indexPath = getAssetPath('dist', 'index.html');
     logger.info('Loading index.html file:' + indexPath);
-    mainWindow.loadFile(indexPath);
+    
+    // 使用 app:// 自定义协议加载，确保资源路径正确
+    mainWindow.loadURL('app://./index.html');
   }
 
   // Open the DevTools.
@@ -227,6 +229,25 @@ const createTray = (mainWindow) => {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
+  // 注册自定义协议来处理静态资源请求
+  protocol.registerFileProtocol('app', (request, callback) => {
+    const url = request.url.replace('app://.', '');
+    const decodedUrl = decodeURIComponent(url);
+    
+    // 构建完整的文件路径
+    const filePath = path.join(__dirname, 'dist', decodedUrl);
+    
+    logger.info(`App protocol serving: ${decodedUrl} -> ${filePath}`);
+    
+    // 检查文件是否存在
+    if (fsSync.existsSync(filePath)) {
+      callback({ path: filePath });
+    } else {
+      logger.error(`File not found: ${filePath}`);
+      callback({ error: -6 }); // net::ERR_FILE_NOT_FOUND
+    }
+  });
+  
   const mainWindow = createWindow();
 
   // 创建系统托盘
@@ -967,6 +988,49 @@ ipcMain.handle('clear-api-key', async () => {
   }
 });
 
+// GGD Token handlers
+ipcMain.handle('save-ggd-token', async (event, token) => {
+  try {
+    globalConfig.ggdToken = token;
+    const result = await saveAppConfig(globalConfig);
+    logger.info('GGD Token saved successfully');
+    return { success: true };
+  } catch (error) {
+    logger.error('Error saving GGD Token:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('load-ggd-token', async () => {
+  try {
+    const token = globalConfig.ggdToken || '';
+    return { success: true, token: token };
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return { success: true, token: '' };
+    } else {
+      logger.error('Error loading GGD Token:', error);
+      return { success: false, error: error.message };
+    }
+  }
+});
+
+ipcMain.handle('clear-ggd-token', async () => {
+  try {
+    globalConfig.ggdToken = '';
+    const result = await saveAppConfig(globalConfig);
+    logger.info('GGD Token cleared successfully');
+    return { success: true };
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return { success: true };
+    } else {
+      logger.error('Error clearing GGD Token:', error);
+      return { success: false, error: error.message };
+    }
+  }
+});
+
 // Favorite recordings handlers
 ipcMain.handle('get-favorite-recordings', async () => {
   try {
@@ -1182,6 +1246,10 @@ ipcMain.handle('fetch-match-history', async (event, userId) => {
         logger.info('No proxy configured, using direct connection');
       }
       
+      // 使用配置的 GGD Token，如果没有则使用默认值
+      const ggdToken = globalConfig.ggdToken || 'eyJhbGciOiJSUzI1NiIsImtpZCI6IjNiMDk1NzQ3YmY4MzMxZWE0YWQ1M2YzNzBjNjMyNjAxNzliMGQyM2EiLCJ0eXAiOiJKV1QifQ.eyJGcmVlIjp0cnVlLCJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vZ2FnZ2xlLXN0YWdpbmciLCJhdWQiOiJnYWdnbGUtc3RhZ2luZyIsImF1dGhfdGltZSI6MTc3NzM1NzQ4OSwidXNlcl9pZCI6IkVBZVFFT2ZSczFQZUR6SmM3eUtqanZwbURmNDIiLCJzdWIiOiJFQWVRRU9mUnMxUGVEekpjN3lLamp2cG1EZjQyIiwiaWF0IjoxNzc3Mzc2ODAyLCJleHAiOjE3NzczODA0MDIsImVtYWlsIjoiMjMxMjYxMzI0N0BxcS5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiZmlyZWJhc2UiOnsiaWRlbnRpdGllcyI6eyJlbWFpbCI6WyIyMzEyNjEzMjQ3QHFxLmNvbSJdfSwic2lnbl9pbl9wcm92aWRlciI6InBhc3N3b3JkIn19.S_IubCYTSlIBnMbT-qLqDL3IzN9Rs6oGAPIEn8JeW780703ip5kaWJ7RNCmHmft8bzHHzqljKJtNfLiUb8bzaKrNQ2tA3YPpEkHYf44lZsr0KWuyuKb_QAzYp4Vbl8RpMBQYa8XFt40mltdWcBGy726G_FcID6VsYbm-EaSwrtEjrFaBL1DAO5iPivm6y0REpSPy6IPp9dj7obInSww5_-EearcojpvBdXcqoekjfVBpDYoTjzJ9sVyZ9RkT0pdL3LCpDS5kJSpCjGM7d5iPbCwaxSgy2pLWOT_xiexKR_2_iC_Ea6Y2-CzDFdVQ4Sc9wxVQElniJ2Xmrslzn2D4Cg';
+      logger.info(`Using GGD Token: ${ggdToken ? 'Custom token configured' : 'Using default token'}`);
+      
       const options = {
         method: 'POST',
         agent: agent,
@@ -1190,7 +1258,7 @@ ipcMain.handle('fetch-match-history', async (event, userId) => {
           'accept-language':'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
           'cache-control': 'no-cache',
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjNiMDk1NzQ3YmY4MzMxZWE0YWQ1M2YzNzBjNjMyNjAxNzliMGQyM2EiLCJ0eXAiOiJKV1QifQ.eyJGcmVlIjp0cnVlLCJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vZ2FnZ2xlLXN0YWdpbmciLCJhdWQiOiJnYWdnbGUtc3RhZ2luZyIsImF1dGhfdGltZSI6MTc3NzM1NzQ4OSwidXNlcl9pZCI6IkVBZVFFT2ZSczFQZUR6SmM3eUtqanZwbURmNDIiLCJzdWIiOiJFQWVRRU9mUnMxUGVEekpjN3lLamp2cG1EZjQyIiwiaWF0IjoxNzc3Mzc2ODAyLCJleHAiOjE3NzczODA0MDIsImVtYWlsIjoiMjMxMjYxMzI0N0BxcS5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiZmlyZWJhc2UiOnsiaWRlbnRpdGllcyI6eyJlbWFpbCI6WyIyMzEyNjEzMjQ3QHFxLmNvbSJdfSwic2lnbl9pbl9wcm92aWRlciI6InBhc3N3b3JkIn19.S_IubCYTSlIBnMbT-qLqDL3IzN9Rs6oGAPIEn8JeW780703ip5kaWJ7RNCmHmft8bzHHzqljKJtNfLiUb8bzaKrNQ2tA3YPpEkHYf44lZsr0KWuyuKb_QAzYp4Vbl8RpMBQYa8XFt40mltdWcBGy726G_FcID6VsYbm-EaSwrtEjrFaBL1DAO5iPivm6y0REpSPy6IPp9dj7obInSww5_-EearcojpvBdXcqoekjfVBpDYoTjzJ9sVyZ9RkT0pdL3LCpDS5kJSpCjGM7d5iPbCwaxSgy2pLWOT_xiexKR_2_iC_Ea6Y2-CzDFdVQ4Sc9wxVQElniJ2Xmrslzn2D4Cg',
+          'Authorization': `Bearer ${ggdToken}`,
           'Origin': 'https://gaggle.fun',
           'Referer': 'https://gaggle.fun/',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0',

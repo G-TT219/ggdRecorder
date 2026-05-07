@@ -12,6 +12,6 @@ export default defineConfig({
     port: 5173,
     strictPort: false
   },
-  // 添加 base 配置，使资源使用相对路径
+  // Electron 生产环境使用相对路径，以便 app:// 协议能正确处理
   base: './'
 })

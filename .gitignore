@@ -9,3 +9,4 @@ dist-electron/
 .env
 package-lock.json
 .claude
+CLAUDE.md

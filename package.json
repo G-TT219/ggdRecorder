@@ -52,9 +52,11 @@
     "dotenv": "^17.2.3",
     "electron-squirrel-startup": "^1.0.1",
     "https-proxy-agent": "^9.0.0",
+    "minizlib": "2.2.0",
     "ps-list": "^9.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "tar": "^7.4.0",
     "undici": "^7.16.0",
     "winston": "^3.18.3",
     "winston-daily-rotate-file": "^5.0.0"

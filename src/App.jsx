@@ -2105,6 +2105,9 @@ function App() {
                     <button onClick={() => setMapMarkers([])} className="action-btn">
                       清除标记
                     </button>
+                    <button onClick={() => setRoleAssignments({})} className="action-btn">
+                      清除身份
+                    </button>
                   </div>
                 </div>
                 

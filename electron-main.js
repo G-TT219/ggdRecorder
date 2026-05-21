@@ -112,12 +112,8 @@ const createWindow = () => {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      // Enable media access for desktop capture
-      permissions: ['media', 'desktop-capturer'],
-      webSecurity: false, // Disable web security to allow loading local files
-      // Allow mixed content and insecure resources
-      allowRunningInsecureContent: true,
-      // 允许加载远程内容
+      // 启用 WebRTC 需要安全上下文 (webSecurity:true)
+      webSecurity: true,
       sandbox: false
     },
   });
@@ -125,15 +121,28 @@ const createWindow = () => {
   // 完全禁用 CSP，移除所有安全限制
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = { ...details.responseHeaders };
-    
+
     // 删除所有可能存在的 CSP 头（包括大小写变体）
     delete responseHeaders['Content-Security-Policy'];
     delete responseHeaders['content-security-policy'];
     delete responseHeaders['Content-Security-Policy-Report-Only'];
     delete responseHeaders['content-security-policy-report-only'];
-    
-    // 不设置新的 CSP，让页面自由加载资源
+
+    // 添加权限策略允许桌面录制和媒体设备访问
+    responseHeaders['Permissions-Policy'] = [
+      'camera=(self)',
+      'microphone=(self)',
+      'display-capture=(self)',
+      'media=(self)'
+    ];
+
     callback({ responseHeaders });
+  });
+
+  // 设置媒体权限自动授予
+  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    const allowedPermissions = ['media', 'mediaKeySystem', 'microphone', 'camera', 'display-capture'];
+    callback(allowedPermissions.includes(permission));
   });
 
   // Remove default menu bar
@@ -228,6 +237,12 @@ const createTray = (mainWindow) => {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
+
+// 注册 app:// 协议为安全协议（需要 webSecurity:true 时才能启用 mediaDevices）
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'app', privileges: { secure: true, standard: true, supportFetchAPI: true } }
+]);
+
 app.whenReady().then(async () => {
   // 注册自定义协议来处理静态资源请求
   protocol.registerFileProtocol('app', (request, callback) => {

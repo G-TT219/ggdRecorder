@@ -1,6 +1,6 @@
 const { spawn } = require('child_process');
 const { randomUUID } = require('crypto');
-const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, shell, globalShortcut, Tray, Menu, protocol } = require('electron');
+const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, shell, globalShortcut, Tray, Menu, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 const fsSync = require('fs');
@@ -261,39 +261,26 @@ protocol.registerSchemesAsPrivileged([
 
 app.whenReady().then(async () => {
   // 注册自定义协议来处理静态资源请求
-  protocol.registerFileProtocol('app', (request, callback) => {
+  protocol.handle('app', (request) => {
     const url = request.url.replace('app://.', '');
     const decodedUrl = decodeURIComponent(url);
-
-    // 构建完整的文件路径
     const filePath = path.join(__dirname, 'dist', decodedUrl);
-
     logger.info(`App protocol serving: ${decodedUrl} -> ${filePath}`);
-
-    // 检查文件是否存在
-    if (fsSync.existsSync(filePath)) {
-      callback({ path: filePath });
-    } else {
-      logger.error(`File not found: ${filePath}`);
-      callback({ error: -6 }); // net::ERR_FILE_NOT_FOUND
-    }
+    return net.fetch('file://' + filePath.replace(/\\/g, '/'));
   });
 
-  protocol.registerFileProtocol('recording', (request, callback) => {
+  protocol.handle('recording', (request) => {
     try {
       const url = new URL(request.url);
       const token = url.pathname.split('/').filter(Boolean)[0];
       const filePath = recordingUrlMap.get(token);
-
       if (filePath && fsSync.existsSync(filePath)) {
-        callback({ path: filePath });
-      } else {
-        callback({ error: -6 });
+        return net.fetch('file://' + filePath.replace(/\\/g, '/'));
       }
     } catch (error) {
       logger.error('Error serving recording:', error);
-      callback({ error: -2 });
     }
+    return new Response(null, { status: 404, statusText: 'Not Found' });
   });
 
   const mainWindow = createWindow();
@@ -463,7 +450,6 @@ ipcMain.handle('get-recordings', async () => {
 // Delete recording
 ipcMain.handle('delete-recording', async (event, filename) => {
   try {
-    // Get the custom recordings directory or use default
     let recordingsDir;
     try {
       recordingsDir = globalConfig.recordingsDir || await createRecordingsDir();
@@ -471,7 +457,7 @@ ipcMain.handle('delete-recording', async (event, filename) => {
       recordingsDir = await createRecordingsDir();
     }
 
-    const filePath = path.join(recordingsDir, filename);
+    const filePath = path.join(recordingsDir, path.basename(filename));
     await fs.unlink(filePath);
 
     // Delete corresponding thumbnail if it exists
@@ -734,12 +720,16 @@ ipcMain.handle('select-recordings-dir', async (event) => {
   }
 });
 
-ipcMain.handle('open-dir', async (event, path) => {
+ipcMain.handle('open-dir', async (event, dirPath) => {
   try {
-    shell.openPath(path);
+    const stat = await fs.stat(dirPath);
+    if (!stat.isDirectory()) {
+      return { success: false, error: 'Path is not a directory' };
+    }
+    shell.openPath(dirPath);
     return { success: true };
   } catch (error) {
-    logger.error('Error opening recordings directory:', error);
+    logger.error('Error opening directory:', error);
     return { success: false, error: error.message };
   }
 });
@@ -1236,9 +1226,8 @@ ipcMain.handle('fetch-match-history', async (event, userId) => {
         logger.info('No proxy configured, using direct connection');
       }
       
-      // 使用配置的 GGD Token，如果没有则使用默认值
-      const ggdToken = globalConfig.ggdToken || 'eyJhbGciOiJSUzI1NiIsImtpZCI6IjNiMDk1NzQ3YmY4MzMxZWE0YWQ1M2YzNzBjNjMyNjAxNzliMGQyM2EiLCJ0eXAiOiJKV1QifQ.eyJGcmVlIjp0cnVlLCJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vZ2FnZ2xlLXN0YWdpbmciLCJhdWQiOiJnYWdnbGUtc3RhZ2luZyIsImF1dGhfdGltZSI6MTc3NzM1NzQ4OSwidXNlcl9pZCI6IkVBZVFFT2ZSczFQZUR6SmM3eUtqanZwbURmNDIiLCJzdWIiOiJFQWVRRU9mUnMxUGVEekpjN3lLamp2cG1EZjQyIiwiaWF0IjoxNzc3Mzc2ODAyLCJleHAiOjE3NzczODA0MDIsImVtYWlsIjoiMjMxMjYxMzI0N0BxcS5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiZmlyZWJhc2UiOnsiaWRlbnRpdGllcyI6eyJlbWFpbCI6WyIyMzEyNjEzMjQ3QHFxLmNvbSJdfSwic2lnbl9pbl9wcm92aWRlciI6InBhc3N3b3JkIn19.S_IubCYTSlIBnMbT-qLqDL3IzN9Rs6oGAPIEn8JeW780703ip5kaWJ7RNCmHmft8bzHHzqljKJtNfLiUb8bzaKrNQ2tA3YPpEkHYf44lZsr0KWuyuKb_QAzYp4Vbl8RpMBQYa8XFt40mltdWcBGy726G_FcID6VsYbm-EaSwrtEjrFaBL1DAO5iPivm6y0REpSPy6IPp9dj7obInSww5_-EearcojpvBdXcqoekjfVBpDYoTjzJ9sVyZ9RkT0pdL3LCpDS5kJSpCjGM7d5iPbCwaxSgy2pLWOT_xiexKR_2_iC_Ea6Y2-CzDFdVQ4Sc9wxVQElniJ2Xmrslzn2D4Cg';
-      logger.info(`Using GGD Token: ${ggdToken ? 'Custom token configured' : 'Using default token'}`);
+      // 使用配置的 GGD Token（无默认值，需用户在设置中填写）
+      const ggdToken = globalConfig.ggdToken || '';
       
       const options = {
         method: 'POST',

@@ -5,7 +5,7 @@ module.exports = {
   packagerConfig: {
     asar: true,
     icon: './recorder.ico',
-    extraResource: ['./dist', './video_analysis.js',
+    extraResource: ['./dist',
       {
         "from": ".env",
         "to": ".env"

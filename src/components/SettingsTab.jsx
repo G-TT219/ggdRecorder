@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Logger from '../utils/logger';
 
 function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirChange, onGamePathChange, onCompressVideosChange }) {

@@ -1386,10 +1386,6 @@ html, body {
 
 /* 大屏幕适配 */
 @media (min-width: 1800px) {
-  .process-item {
-    width: calc(20% - 1rem);
-  }
-  
   .recordings-list {
     grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
   }
@@ -1400,20 +1396,12 @@ html, body {
 }
 
 @media (min-width: 1400px) and (max-width: 1799px) {
-  .process-item {
-    width: calc(25% - 1rem);
-  }
-  
   .recordings-list {
     grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
   }
 }
 
 @media (min-width: 1200px) and (max-width: 1399px) {
-  .process-item {
-    width: calc(33.333% - 1rem);
-  }
-  
   .recordings-list {
     grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
   }
@@ -1423,12 +1411,49 @@ html, body {
   }
 }
 
+/* 游戏进程列表 */
+.process-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.process-item {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  flex: 1 1 200px;
+  min-width: 160px;
+  user-select: none;
+}
+
+.process-item:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+.process-item.selected {
+  background: rgba(0, 212, 255, 0.15);
+  border-color: #00d4ff;
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.15);
+}
+
+.process-item h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: white;
+}
+
 /* 中等屏幕适配 */
 @media (min-width: 769px) and (max-width: 1199px) {
-  .process-item {
-    width: calc(50% - 1rem);
-  }
-  
   .recordings-list {
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   }
@@ -1456,10 +1481,6 @@ html, body {
     padding: 0.5rem;
   }
   
-  .process-item {
-    width: 100%;
-    min-width: auto;
-  }
   
   .recordings-list {
     grid-template-columns: 1fr;

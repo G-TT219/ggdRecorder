@@ -1,4 +1,5 @@
 const { spawn } = require('child_process');
+const { randomUUID } = require('crypto');
 const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, shell, globalShortcut, Tray, Menu, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
@@ -18,6 +19,8 @@ config();
 // 定义全局配置变量
 let globalConfig = null;
 let tray = null;
+const recordingUrlMap = new Map();
+let pendingRecordingTarget = null;
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -38,18 +41,7 @@ try {
 }
 
 // 获取正确的资源路径
-const getAssetPath = (...paths) => {
-  // 检查是否在 electron-builder 环境中
-  const isElectronBuilder = __dirname.includes('app.asar') || __dirname.includes('resources');
-
-  if (isElectronBuilder) {
-    // electron-builder 打包后的路径
-    return path.join(__dirname, ...paths);
-  } else {
-    // electron-forge 或开发环境路径
-    return path.join(__dirname, ...paths);
-  }
-};
+const getAssetPath = (...paths) => path.join(__dirname, ...paths);
 
 // Get recordings directory path
 const getRecordingsDir = () => {
@@ -66,6 +58,13 @@ const createRecordingsDir = async () => {
     await fs.mkdir(recordingsDir, { recursive: true });
   }
   return recordingsDir;
+};
+
+const isPathInside = (parentPath, childPath) => {
+  const parent = path.resolve(parentPath);
+  const child = path.resolve(childPath);
+  const relative = path.relative(parent, child);
+  return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative));
 };
 
 // Compress video using ffmpeg
@@ -143,6 +142,22 @@ const createWindow = () => {
   mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
     const allowedPermissions = ['media', 'mediaKeySystem', 'microphone', 'camera', 'display-capture'];
     callback(allowedPermissions.includes(permission));
+  });
+
+  // getDisplayMedia 时自动匹配已选游戏窗口，不弹出系统选择器
+  mainWindow.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
+    desktopCapturer.getSources({ types: ['window', 'screen'] }).then(sources => {
+      let source;
+      if (pendingRecordingTarget) {
+        source = sources.find(src =>
+          src.name.toLowerCase().includes(pendingRecordingTarget.toLowerCase())
+        );
+        pendingRecordingTarget = null;
+      }
+      if (!source) source = sources.find(src => src.type === 'screen');
+      if (!source) source = sources[0];
+      callback({ video: source || request.requestedVideoSources?.[0], audio: 'loopback' });
+    }).catch(() => callback({ video: request.requestedVideoSources?.[0] }));
   });
 
   // Remove default menu bar
@@ -240,7 +255,8 @@ const createTray = (mainWindow) => {
 
 // 注册 app:// 协议为安全协议（需要 webSecurity:true 时才能启用 mediaDevices）
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'app', privileges: { secure: true, standard: true, supportFetchAPI: true } }
+  { scheme: 'app', privileges: { secure: true, standard: true, supportFetchAPI: true } },
+  { scheme: 'recording', privileges: { secure: true, standard: true, supportFetchAPI: true, stream: true } }
 ]);
 
 app.whenReady().then(async () => {
@@ -248,12 +264,12 @@ app.whenReady().then(async () => {
   protocol.registerFileProtocol('app', (request, callback) => {
     const url = request.url.replace('app://.', '');
     const decodedUrl = decodeURIComponent(url);
-    
+
     // 构建完整的文件路径
     const filePath = path.join(__dirname, 'dist', decodedUrl);
-    
+
     logger.info(`App protocol serving: ${decodedUrl} -> ${filePath}`);
-    
+
     // 检查文件是否存在
     if (fsSync.existsSync(filePath)) {
       callback({ path: filePath });
@@ -262,7 +278,24 @@ app.whenReady().then(async () => {
       callback({ error: -6 }); // net::ERR_FILE_NOT_FOUND
     }
   });
-  
+
+  protocol.registerFileProtocol('recording', (request, callback) => {
+    try {
+      const url = new URL(request.url);
+      const token = url.pathname.split('/').filter(Boolean)[0];
+      const filePath = recordingUrlMap.get(token);
+
+      if (filePath && fsSync.existsSync(filePath)) {
+        callback({ path: filePath });
+      } else {
+        callback({ error: -6 });
+      }
+    } catch (error) {
+      logger.error('Error serving recording:', error);
+      callback({ error: -2 });
+    }
+  });
+
   const mainWindow = createWindow();
 
   // 创建系统托盘
@@ -277,9 +310,6 @@ app.whenReady().then(async () => {
     // Initialize with default config
     globalConfig = { recordingsDir: null };
   }
-
-  // Initialize game monitoring
-  initializeGameMonitoring();
 
   app.on('activate', () => {
     // On OS X it's common to re-create a window in the app when the
@@ -325,71 +355,10 @@ app.on('before-quit', (event) => {
   tray.destroy();
 });
 
-// Add handler for desktop capturer sources
-ipcMain.handle('get-sources', async (event, options) => {
-  try {
-    const sources = await desktopCapturer.getSources(options);
-    return sources;
-  } catch (error) {
-    logger.error('Error getting sources:', error);
-    return [];
-  }
+ipcMain.handle('set-recording-target', async (event, gameName) => {
+  pendingRecordingTarget = gameName;
+  return { success: true };
 });
-
-// IPC handlers for recording functionality
-let mediaRecorder;
-let recordedChunks = [];
-
-ipcMain.handle('pre-fetch-source', async (event, options) => {
-  try {
-    const sources = await desktopCapturer.getSources({
-      types: ['window', 'screen'],
-      thumbnailSize: { width: 150, height: 150 }
-    });
-    let source;
-    if (options.gameName) {
-      // Look for a window source that matches the game name
-      source = sources.find(src =>
-        src.name.toLowerCase().includes(options.gameName.toLowerCase())
-      );
-
-      // If we didn't find a specific window, try to find any game-like window
-      if (!source) {
-        const gameIndicators = ['game', 'minecraft', 'fortnite', 'valorant', 'overwatch', 'csgo', 'dota'];
-        source = sources.find(src =>
-          src.type === 'window' &&
-          gameIndicators.some(indicator =>
-            src.name.toLowerCase().includes(indicator.toLowerCase())
-          )
-        );
-      }
-    }
-
-    // Fallback to entire screen if no specific window found
-    if (!source) {
-      source = sources.find(src => src.name === 'Entire Screen' || src.name === 'Screen 1');
-      if (!source) source = sources.find(src => src.type === 'screen');
-    }
-
-    // Final fallback to first source
-    if (!source) source = sources[0];
-
-    if (!source) {
-      throw new Error('No suitable source found for recording');
-    }
-    return {
-      success: true,
-      message: 'Recording started',
-      source: {
-        sourceId: source.id,
-        sourceName: source.name
-      }
-    };
-  } catch (error) {
-    logger.error('Error get source:', error);
-    return { success: false, message: error.message };
-  }
-})
 
 ipcMain.handle('stop-recording', async (event) => {
   try {
@@ -522,14 +491,29 @@ ipcMain.handle('delete-recording', async (event, filename) => {
   }
 });
 
-// Read recording file as base64
-ipcMain.handle('read-recording', async (event, filePath) => {
+ipcMain.handle('get-recording-url', async (event, filePath) => {
   try {
-    const data = await fs.readFile(filePath);
-    const base64Data = data.toString('base64');
-    return { success: true, data: base64Data };
+    const recordingsDir = globalConfig.recordingsDir || await createRecordingsDir();
+    const resolvedFilePath = path.resolve(filePath);
+
+    if (!isPathInside(recordingsDir, resolvedFilePath)) {
+      return { success: false, error: 'Recording path is outside recordings directory' };
+    }
+
+    if (!resolvedFilePath.endsWith('.webm') && !resolvedFilePath.endsWith('.mp4')) {
+      return { success: false, error: 'Unsupported recording file type' };
+    }
+
+    await fs.access(resolvedFilePath);
+    const token = randomUUID();
+    recordingUrlMap.set(token, resolvedFilePath);
+
+    return {
+      success: true,
+      url: `recording://local/${token}/${encodeURIComponent(path.basename(resolvedFilePath))}`
+    };
   } catch (error) {
-    logger.error('Error reading recording:', error);
+    logger.error('Error creating recording URL:', error);
     return { success: false, error: error.message };
   }
 });
@@ -844,15 +828,6 @@ ipcMain.handle('log-info', async (event, message) => {
 ipcMain.handle('log-error', async (event, message) => {
   logger.error(`[RENDERER] ${message}`);
 });
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and import them here.
-
-// Game monitoring functionality
-function initializeGameMonitoring() {
-  // This would be where we implement game process monitoring
-  logger.info('Initializing game monitoring...');
-}
 
 let psList;
 

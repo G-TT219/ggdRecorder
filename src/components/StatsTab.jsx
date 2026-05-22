@@ -364,7 +364,7 @@ function StatsTab() {
               <h4>角色分布</h4>
               <div className="role-stats">
                 <div className="role-stat-item goose">
-                  <span className="role-label">🪿 鹅</span>
+                  <span className="role-label"><span className="role-dot good"></span> 鹅</span>
                   <span className="role-detail">
                     {playerStats.rolesBreakdown.goose.timesPlayed}场 / {playerStats.rolesBreakdown.goose.winRate}%胜率
                   </span>
@@ -376,7 +376,7 @@ function StatsTab() {
                   </span>
                 </div>
                 <div className="role-stat-item neutral">
-                  <span className="role-label">🎭 中立</span>
+                  <span className="role-label"><span className="role-dot neutral"></span> 中立</span>
                   <span className="role-detail">
                     {playerStats.rolesBreakdown.neutral.timesPlayed}场 / {playerStats.rolesBreakdown.neutral.winRate}%胜率
                   </span>
@@ -416,7 +416,7 @@ function StatsTab() {
                   >
                     <div className="match-role-info">
                       <div className="role-avatar">
-                        <span className="role-icon">🎭</span>
+                        <span className="role-initial">{getRoleName(match.role)?.charAt(0) || '?'}</span>
                       </div>
                       <div className="role-details">
                         <span className="role-name">{getRoleName(match.role) || '未知角色'}</span>

@@ -321,37 +321,49 @@ function RecordingsTab({
       {selectedRecording ? (
         <div className="viewer">
           <div className="viewer-header">
-            <button onClick={handleReturnToList}>
-              ← 返回列表
+            <button className="back-btn" onClick={handleReturnToList}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+              返回列表
             </button>
             <h3>{selectedRecording.name}</h3>
           </div>
           <div className="video-container">
             {recordingUrl ? (
               <>
-                <video controls autoPlay src={recordingUrl}>
-                  您的浏览器不支持视频播放。
-                </video>
-                <div className="analysis-controls">
-                  <button onClick={() => analyzeRecording(selectedRecording)}>分析录像</button>
+                <div className="video-player-card">
+                  <video controls autoPlay src={recordingUrl}>
+                    您的浏览器不支持视频播放。
+                  </video>
+                </div>
+                <div className="analysis-bar">
+                  <button className="analyze-btn" onClick={() => analyzeRecording(selectedRecording)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z"/>
+                      <path d="M12 6v6l4 2"/>
+                    </svg>
+                    分析录像
+                  </button>
                   {analyzeStatus === 'analyzing' && (
-                    <p>正在分析录像...</p>
-                  )}
-                  {analysisResult && analysisResult.recording.id === selectedRecording.id && (
-                    <div className="analysis-result">
-                      <h4>分析结果:</h4>
-                      <textarea
-                        value={analysisResult.text}
-                        readOnly
-                        rows={6}
-                        className="analysis-textarea"
-                      />
-                    </div>
+                    <span className="analyze-status">AI 分析中</span>
                   )}
                 </div>
+                {analysisResult && analysisResult.recording.id === selectedRecording.id && (
+                  <div className="analysis-result">
+                    <h4>分析结果</h4>
+                    <textarea
+                      value={analysisResult.text}
+                      readOnly
+                      rows={4}
+                      className="analysis-textarea"
+                    />
+                  </div>
+                )}
               </>
             ) : (
-              <p>正在加载录像...</p>
+              <div className="player-loading">
+                <div className="loading-spinner"></div>
+                <span>正在加载录像...</span>
+              </div>
             )}
           </div>
         </div>

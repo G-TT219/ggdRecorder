@@ -358,43 +358,34 @@ function RecordingsTab({
       ) : (
         <div className="recordings-list">
           <div className="recordings-list-header">
-            <h2>录像列表</h2>
+            <h2 data-count={recordings.length}>录像列表</h2>
             <div className="batch-controls">
               {!isSelectMode ? (
                 <div className="view-controls">
-                  <button
-                    onClick={() => onRefreshRecordings()}
-                    className="refresh-button"
-                    title="刷新列表"
-                  >
-                    <><Icon name="refresh" size={16} /> 刷新</>
+                  <button onClick={() => onRefreshRecordings()} title="刷新列表">
+                    <Icon name="refresh" size={14} /> 刷新
                   </button>
                   <button
                     onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-                    className={`favorites-filter-button ${showFavoritesOnly ? 'active' : ''}`}
+                    className={showFavoritesOnly ? 'active' : ''}
                     title={showFavoritesOnly ? '仅显示收藏' : '显示收藏'}
                   >
-                    <><Icon name={showFavoritesOnly ? 'starFilled' : 'star'} size={16} /> {showFavoritesOnly ? '仅收藏' : '收藏'}</>
+                    <Icon name={showFavoritesOnly ? 'starFilled' : 'star'} size={14} /> {showFavoritesOnly ? '仅收藏' : '收藏'}
                   </button>
                   <button onClick={toggleSelectMode} className="select-mode-button">
                     批量操作
                   </button>
                 </div>
               ) : (
-                <div className="batch-mode-controls">
-                  <div className="batch-actions-row">
-                    <span className="selected-count">已选择 {selectedRecordings.length} / {filteredRecordings.length} 项</span>
-                    <button onClick={selectAllRecordings} className="select-all-button">
-                      {selectedRecordings.length === filteredRecordings.length ? '取消全选' : '全选'}
-                    </button>
-                    <button onClick={batchDeleteRecordings} className="batch-delete-button" disabled={selectedRecordings.length === 0}>
-                      批量删除
-                    </button>
-                    <button onClick={toggleSelectMode} className="cancel-select-button">
-                      取消
-                    </button>
-                  </div>
-                  <div className="batch-date-filter-row">
+                <div className="batch-mode-inner">
+                  <span className="selected-count">已选择 {selectedRecordings.length} / {filteredRecordings.length} 项</span>
+                  <button onClick={selectAllRecordings} className="select-all-button">
+                    {selectedRecordings.length === filteredRecordings.length ? '取消全选' : '全选'}
+                  </button>
+                  <button onClick={batchDeleteRecordings} className="batch-delete-button" disabled={selectedRecordings.length === 0}>
+                    批量删除
+                  </button>
+                  <div className="date-filter-row">
                     <input
                       type="date"
                       value={startDate}
@@ -411,6 +402,9 @@ function RecordingsTab({
                       title="结束日期"
                     />
                   </div>
+                  <button onClick={toggleSelectMode} className="cancel-select-button">
+                    取消
+                  </button>
                 </div>
               )}
             </div>

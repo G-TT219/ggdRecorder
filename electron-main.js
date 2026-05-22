@@ -2,6 +2,7 @@ const { spawn } = require('child_process');
 const { randomUUID } = require('crypto');
 const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, shell, globalShortcut, Tray, Menu, protocol, net } = require('electron');
 const path = require('path');
+const { Readable } = require('stream');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const logger = require('./logger');
@@ -127,20 +128,21 @@ const createWindow = () => {
     delete responseHeaders['Content-Security-Policy-Report-Only'];
     delete responseHeaders['content-security-policy-report-only'];
 
-    // 添加权限策略允许桌面录制和媒体设备访问
+    // 添加权限策略允许桌面录制、媒体设备和全屏
     responseHeaders['Permissions-Policy'] = [
       'camera=(self)',
       'microphone=(self)',
       'display-capture=(self)',
-      'media=(self)'
+      'media=(self)',
+      'fullscreen=(self)'
     ];
 
     callback({ responseHeaders });
   });
 
-  // 设置媒体权限自动授予
+  // 设置权限自动授予
   mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
-    const allowedPermissions = ['media', 'mediaKeySystem', 'microphone', 'camera', 'display-capture'];
+    const allowedPermissions = ['media', 'mediaKeySystem', 'microphone', 'camera', 'display-capture', 'fullscreen'];
     callback(allowedPermissions.includes(permission));
   });
 
@@ -269,18 +271,49 @@ app.whenReady().then(async () => {
     return net.fetch('file://' + filePath.replace(/\\/g, '/'));
   });
 
-  protocol.handle('recording', (request) => {
+  protocol.handle('recording', async (request) => {
     try {
       const url = new URL(request.url);
       const token = url.pathname.split('/').filter(Boolean)[0];
       const filePath = recordingUrlMap.get(token);
       if (filePath && fsSync.existsSync(filePath)) {
-        return net.fetch('file://' + filePath.replace(/\\/g, '/'));
+        const ext = path.extname(filePath).toLowerCase();
+        const mime = ext === '.mp4' ? 'video/mp4' : 'video/webm';
+        const stat = fsSync.statSync(filePath);
+        const fileSize = stat.size;
+        const range = request.headers.get('range');
+
+        if (range) {
+          const parts = range.replace(/bytes=/, '').split('-');
+          const start = parseInt(parts[0], 10);
+          const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+          const nodeStream = fsSync.createReadStream(filePath, { start, end });
+          const webStream = Readable.toWeb(nodeStream);
+          return new Response(webStream, {
+            status: 206,
+            headers: {
+              'Content-Type': mime,
+              'Content-Range': 'bytes ' + start + '-' + end + '/' + fileSize,
+              'Content-Length': String(end - start + 1),
+              'Accept-Ranges': 'bytes'
+            }
+          });
+        }
+
+        const nodeStream = fsSync.createReadStream(filePath);
+        const webStream = Readable.toWeb(nodeStream);
+        return new Response(webStream, {
+          headers: {
+            'Content-Type': mime,
+            'Content-Length': String(fileSize),
+            'Accept-Ranges': 'bytes'
+          }
+        });
       }
     } catch (error) {
       logger.error('Error serving recording:', error);
     }
-    return new Response(null, { status: 404, statusText: 'Not Found' });
+    return new Response(null, { status: 404 });
   });
 
   const mainWindow = createWindow();

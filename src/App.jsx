@@ -108,6 +108,13 @@ function App() {
   const loadGameProcesses = async () => {
     try {
       const processes = await window.electronAPI.getGameProcesses();
+      processes.sort((a, b) => {
+        const aIsGGD = a.name.toLowerCase().includes('duck');
+        const bIsGGD = b.name.toLowerCase().includes('duck');
+        if (aIsGGD && !bIsGGD) return -1;
+        if (!aIsGGD && bIsGGD) return 1;
+        return 0;
+      });
       setGameProcesses(processes);
       Logger.info(`Loaded ${processes.length} game processes`);
     } catch (error) {
@@ -214,6 +221,7 @@ function App() {
     }
     const sourceName = game.name;
     try {
+      window.electronAPI.setRecordingTarget(game.name);
       Logger.info('Trying getDisplayMedia API...');
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
@@ -221,7 +229,8 @@ function App() {
           height: { ideal: 1080, max: 2160 },
           frameRate: { ideal: 60, max: 60 },
           cursor: 'always'
-        }
+        },
+        audio: true
       });
       Logger.info('getDisplayMedia succeeded');
 

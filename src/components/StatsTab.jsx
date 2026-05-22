@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Logger from '../utils/logger';
+import Icon from './Icon';
 
 const mapNameMapping = {
   1: '地下室',
@@ -261,7 +262,7 @@ function StatsTab() {
             onClick={openStatsInBrowser}
             title="在系统浏览器中打开官网"
           >
-            🌐 打开官网
+            <><Icon name="globe" size={16} /> 打开官网</>
           </button>
         </div>
 
@@ -316,7 +317,7 @@ function StatsTab() {
         {/* 历史错误提示 */}
         {matchHistoryError && !matchHistoryLoading && (
           <div className="error-state">
-            <div className="error-icon">⚠️</div>
+            <div className="error-icon"><Icon name="warning" size={28} /></div>
             <p>{matchHistoryError}</p>
           </div>
         )}
@@ -369,7 +370,7 @@ function StatsTab() {
                   </span>
                 </div>
                 <div className="role-stat-item duck">
-                  <span className="role-label">🦆 鸭</span>
+                  <span className="role-label"><span className="role-dot evil"></span> 鸭</span>
                   <span className="role-detail">
                     {playerStats.rolesBreakdown.duck.timesPlayed}场 / {playerStats.rolesBreakdown.duck.winRate}%胜率
                   </span>
@@ -389,7 +390,7 @@ function StatsTab() {
         {matchHistory.length > 0 && !matchHistoryLoading && !matchData && (
           <div className="match-history-section">
             <div className="match-history-header">
-              <h3>📋 最近20场对局</h3>
+              <h3><Icon name="clipboard" size={18} /> 最近20场对局</h3>
               <span className="match-count">共 {matchHistory.length} 场</span>
             </div>
             <div className="match-history-list">
@@ -466,7 +467,7 @@ function StatsTab() {
         {/* 对局详情错误提示 */}
         {matchError && !matchLoading && (
           <div className="error-state">
-            <div className="error-icon">⚠️</div>
+            <div className="error-icon"><Icon name="warning" size={28} /></div>
             <p>{matchError}</p>
           </div>
         )}
@@ -491,7 +492,7 @@ function StatsTab() {
 
             {/* 对局基本信息 */}
             <div className="match-info-card">
-              <h3>📊 对局信息</h3>
+              <h3><Icon name="chart" size={18} /> 对局信息</h3>
               <div className="info-grid">
                 <div className="info-item">
                   <span className="info-label">对局ID:</span>
@@ -541,9 +542,9 @@ function StatsTab() {
                         </span>
                       </div>
                       <div className="player-status">
-                        {player.isGhost && <span className="status-ghost">👻 已死亡</span>}
-                        {!player.isGhost && <span className="status-alive">✅ 存活</span>}
-                        {player.win && <span className="status-win">🏆 胜利</span>}
+                        {player.isGhost && <span className="status-ghost"><Icon name="ghost" size={14} /> 已死亡</span>}
+                        {!player.isGhost && <span className="status-alive"><Icon name="check" size={14} /> 存活</span>}
+                        {player.win && <span className="status-win"><Icon name="trophy" size={14} /> 胜利</span>}
                       </div>
                     </div>
                     <div className="player-stats">
@@ -620,9 +621,9 @@ function StatsTab() {
                           <div className="meeting-result-section">
                             <div className="result-label">投票结果</div>
                             <div className={`result-value ${round.meetingInfo.result === 'skip' ? 'skip' : ''}`}>
-                              {round.meetingInfo.result === 'skip' ? '⏭️ 平票/跳过' :
+                              {round.meetingInfo.result === 'skip' ? <><Icon name="skip" size={16} /> 平票/跳过</> :
                                <>
-                                 <span className="result-icon">🗳️</span>
+                                 <span className="result-icon"><Icon name="vote" size={16} /></span>
                                  <span
                                    className={`player-name-tag faction-${matchData.playerData[round.meetingInfo.result]?.faction || 0}`}
                                  >
@@ -637,7 +638,7 @@ function StatsTab() {
                           {round.meetingInfo.votes && (
                             <div className="votes-detail-enhanced">
                               <div className="votes-header">
-                                <span className="votes-title">📊 投票详情</span>
+                                <span className="votes-title"><Icon name="chart" size={16} /> 投票详情</span>
                                 <span className="votes-count">
                                   共 {Object.keys(round.meetingInfo.votes).length} 人投票
                                 </span>
@@ -664,11 +665,11 @@ function StatsTab() {
                                           </span>
                                         </div>
                                         <div className="vote-arrow-container">
-                                          <span className="vote-arrow">▶</span>
+                                          <span className="vote-arrow"><Icon name="arrowRight" size={14} /></span>
                                         </div>
                                         <div className="target-section">
                                           {isSkip ? (
-                                            <span className="target-skip">⏭️ 跳过</span>
+                                            <span className="target-skip"><Icon name="skip" size={14} /> 跳过</span>
                                           ) : (
                                             <>
                                               <span
@@ -704,7 +705,7 @@ function StatsTab() {
         {/* 空状态 */}
         {!matchData && !matchLoading && !matchError && (
           <div className="empty-state">
-            <div className="empty-icon">🎮</div>
+            <div className="empty-icon"><Icon name="gamepad" size={42} /></div>
             <h3>请输入对局ID或用户ID查询战绩</h3>
             <p>• 输入用户ID查询历史对局列表<br/>• 直接输入对局ID快速查询详细数据<br/>• 或从历史列表中点击对局查看详情</p>
           </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import Logger from '../utils/logger';
+import Icon from './Icon';
 
 function RecordingsTab({
   recordings,
@@ -87,7 +88,7 @@ function RecordingsTab({
     try {
       const isFavorite = favoriteRecordings.includes(recording.id);
       if (isFavorite) {
-        const confirmed = window.confirm(`⚠️ ${recording.name} 已被收藏\n\n确定要删除这个收藏的录像吗？此操作不可恢复。`);
+        const confirmed = window.confirm(`${recording.name} 已被收藏\n\n确定要删除这个收藏的录像吗？此操作不可恢复。`);
         if (!confirmed) {
           return;
         }
@@ -366,14 +367,14 @@ function RecordingsTab({
                     className="refresh-button"
                     title="刷新列表"
                   >
-                    🔄 刷新
+                    <><Icon name="refresh" size={16} /> 刷新</>
                   </button>
                   <button
                     onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
                     className={`favorites-filter-button ${showFavoritesOnly ? 'active' : ''}`}
                     title={showFavoritesOnly ? '仅显示收藏' : '显示收藏'}
                   >
-                    {showFavoritesOnly ? '⭐ 仅收藏' : '☆ 收藏'}
+                    <><Icon name={showFavoritesOnly ? 'starFilled' : 'star'} size={16} /> {showFavoritesOnly ? '仅收藏' : '收藏'}</>
                   </button>
                   <button onClick={toggleSelectMode} className="select-mode-button">
                     批量操作
@@ -466,10 +467,10 @@ function RecordingsTab({
                       className="recording-thumbnail-image"
                     />
                   ) : (
-                    <div className="play-icon">▶</div>
+                    <div className="play-icon"><Icon name="play" size={44} /></div>
                   )}
                   {favoriteRecordings.includes(recording.id) && (
-                    <div className="favorite-indicator">⭐</div>
+                    <div className="favorite-indicator"><Icon name="starFilled" size={16} /></div>
                   )}
                 </div>
                 <div className="recording-info" onClick={(e) => e.stopPropagation()}>
@@ -488,7 +489,7 @@ function RecordingsTab({
                         onClick={() => toggleFavoriteRecording(recording)}
                         title={favoriteRecordings.includes(recording.id) ? '取消收藏' : '添加收藏'}
                       >
-                        {favoriteRecordings.includes(recording.id) ? '★' : '☆'}
+                        <Icon name={favoriteRecordings.includes(recording.id) ? 'starFilled' : 'star'} size={16} />
                       </button>
                       {favoriteRecordings.includes(recording.id) && (
                         <button

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Logger from '../utils/logger';
+import Icon from './Icon';
 
 const mapNameMapping = {
   1: '地下室',
@@ -336,7 +337,7 @@ function MapTab() {
                 ref={deleteZoneRef}
                 className={`delete-zone ${isInDeleteZone ? 'active' : ''}`}
               >
-                <span className="delete-icon">🗑️</span>
+                <span className="delete-icon"><Icon name="trash" size={20} /></span>
                 <span className="delete-text">拖拽到此删除</span>
               </div>
             )}
@@ -546,19 +547,19 @@ function MapTab() {
                     className="role-btn good"
                     onClick={() => handleSetRole('good')}
                   >
-                    🦆 好鹅
+                    <span className="role-dot good"></span> 好鹅
                   </button>
                   <button
                     className="role-btn neutral"
                     onClick={() => handleSetRole('neutral')}
                   >
-                    🐤 中立
+                    <span className="role-dot neutral"></span> 中立
                   </button>
                   <button
                     className="role-btn evil"
                     onClick={() => handleSetRole('evil')}
                   >
-                    👻 坏鹅
+                    <span className="role-dot evil"></span> 坏鹅
                   </button>
                 </div>
                 <button
@@ -575,26 +576,27 @@ function MapTab() {
                   <div className="assigned-roles">
                     {Object.entries(roleAssignments).map(([number, role]) => {
                       const roleInfo = {
-                        good: { label: '好鹅', icon: '🦆', color: '#4caf50' },
-                        neutral: { label: '中立', icon: '🐤', color: '#ff9800' },
-                        evil: { label: '坏鹅', icon: '👻', color: '#f44336' }
+                        good: { label: '好鹅', color: '#4caf50' },
+                        neutral: { label: '中立', color: '#ff9800' },
+                        evil: { label: '坏鹅', color: '#f44336' }
                       };
                       const info = roleInfo[role];
                       return (
                         <div key={number} className="role-item">
                           <span className="role-number">{number}</span>
                           <span className="role-info" style={{ color: info.color }}>
-                            {info.icon} {info.label}
+                            <span className={`role-dot ${role}`}></span> {info.label}
                           </span>
                           <button
                             className="remove-role"
+                            title="清除身份"
                             onClick={() => {
                               const newAssignments = { ...roleAssignments };
                               delete newAssignments[number];
                               setRoleAssignments(newAssignments);
                             }}
                           >
-                            ×
+                            <Icon name="x" size={14} strokeWidth={2.4} />
                           </button>
                         </div>
                       );

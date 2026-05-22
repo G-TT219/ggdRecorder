@@ -1112,22 +1112,24 @@ html, body {
 .remove-role {
   width: 28px;
   height: 28px;
-  background: rgba(244, 67, 54, 0.2);
-  color: #f44336;
-  border: 1px solid #f44336;
+  background: rgba(244, 67, 54, 0.12);
+  color: #ff7b86;
+  border: 1px solid rgba(244, 67, 54, 0.35);
   border-radius: 50%;
   cursor: pointer;
-  font-size: 1.2rem;
-  font-weight: 700;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: all 0.18s ease;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
 }
 
 .remove-role:hover {
-  background: rgba(244, 67, 54, 0.4);
-  transform: scale(1.1);
+  background: rgba(244, 67, 54, 0.22);
+  border-color: rgba(255, 123, 134, 0.75);
+  color: #fff;
+  transform: translateY(-1px) scale(1.05);
+  box-shadow: 0 8px 18px rgba(244, 67, 54, 0.22), inset 0 1px 0 rgba(255,255,255,0.12);
 }
 
 .empty-state {
@@ -3347,4 +3349,380 @@ html, body {
   background: rgba(136, 146, 176, 0.1);
   border-radius: 6px;
   border: 1px dashed #8892b0;
+}
+/* Visual refinement layer */
+:root {
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 18px;
+  --glass-bg: rgba(12, 18, 34, 0.36);
+  --glass-bg-strong: rgba(18, 27, 48, 0.58);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  --glass-border-strong: rgba(255, 255, 255, 0.32);
+  --shadow-soft: 0 10px 30px rgba(11, 16, 31, 0.22);
+  --shadow-lift: 0 16px 42px rgba(9, 14, 28, 0.34);
+  --accent-cyan: #00d4ff;
+  --accent-violet: #8d7cff;
+  --accent-green: #35d07f;
+  --accent-red: #ff4d63;
+}
+
+.app {
+  background:
+    radial-gradient(circle at 14% 8%, rgba(0, 212, 255, 0.22), transparent 28%),
+    radial-gradient(circle at 84% 16%, rgba(141, 124, 255, 0.24), transparent 30%),
+    linear-gradient(135deg, #5366c9 0%, #6d4a99 48%, #3d2b68 100%);
+}
+
+.app::before {
+  content: '';
+  position: fixed;
+  inset: 32px 0 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent 75%);
+  z-index: 0;
+}
+
+.custom-titlebar,
+.app-header,
+.recording-item,
+.selected-game,
+.setting-item,
+.pagination-bar,
+.pagination-controls,
+.player-stats-card,
+.match-history-section,
+.match-info-card,
+.players-card,
+.rounds-card {
+  border-radius: var(--radius-lg);
+}
+
+.custom-titlebar,
+.app-header {
+  border-radius: 0;
+}
+
+.app-header {
+  background: rgba(13, 19, 39, 0.34);
+  backdrop-filter: blur(18px) saturate(1.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 12px 28px rgba(6, 10, 22, 0.16);
+}
+
+.app-header h1 {
+  letter-spacing: 0.03em;
+}
+
+.tabs {
+  gap: 0.35rem;
+  padding: 0.35rem;
+  margin: 1rem auto 0;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-xl);
+  background: rgba(4, 9, 21, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+.tabs button {
+  position: relative;
+  overflow: hidden;
+  min-width: 86px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+  padding: 0.62rem 1.05rem;
+}
+
+.tabs button::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 5px;
+  width: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--accent-cyan);
+  transform: translateX(-50%);
+  transition: width 0.22s ease;
+}
+
+.tabs button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+.tabs button:hover::after {
+  width: 18px;
+}
+
+.tabs button.active {
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.24), rgba(141, 124, 255, 0.3));
+  border-color: rgba(255, 255, 255, 0.24);
+  box-shadow: 0 10px 24px rgba(0, 212, 255, 0.16), inset 0 1px 0 rgba(255,255,255,0.16);
+}
+
+.tabs button.active::after {
+  width: 28px;
+}
+
+.games-section,
+.recordings-section,
+.settings-section,
+.stats-section {
+  padding: 2rem;
+  animation: sectionReveal 260ms ease-out both;
+}
+
+.entertainment-section {
+  animation: sectionReveal 260ms ease-out both;
+}
+
+.recordings-list,
+.process-list {
+  gap: 1rem;
+}
+
+.recording-item,
+.process-item,
+.selected-game,
+.setting-item {
+  background: var(--glass-bg);
+  border-color: var(--glass-border);
+  box-shadow: var(--shadow-soft), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+.recording-item {
+  min-height: 136px;
+}
+
+.recording-item:hover,
+.process-item:hover,
+.setting-item:hover {
+  background: var(--glass-bg-strong);
+  border-color: var(--glass-border-strong);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lift), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+.process-item {
+  border-radius: var(--radius-lg);
+  padding: 1.15rem 1.35rem;
+  min-height: 54px;
+}
+
+.process-item.selected {
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(141, 124, 255, 0.18));
+  border-color: rgba(0, 212, 255, 0.65);
+  box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.16), 0 16px 34px rgba(0, 212, 255, 0.18);
+}
+
+.recording-info {
+  padding: 1.15rem;
+  gap: 0.35rem;
+}
+
+.recording-actions,
+.batch-controls,
+.view-controls,
+.batch-mode-controls,
+.setting-input {
+  gap: 0.7rem;
+}
+
+button,
+.play-button,
+.delete-button,
+.record-button,
+.stop-button,
+.pause-button,
+.favorite-button,
+.save-favorite-button,
+.refresh-button,
+.select-mode-button,
+.query-button,
+.open-browser-btn,
+.action-btn,
+.pagination-button,
+.setting-input button {
+  border-radius: var(--radius-md);
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease, opacity 160ms ease;
+}
+
+button:hover,
+.play-button:hover,
+.delete-button:hover,
+.record-button:hover,
+.stop-button:hover,
+.pause-button:hover,
+.favorite-button:hover,
+.save-favorite-button:hover,
+.refresh-button:hover,
+.select-mode-button:hover,
+.query-button:hover,
+.open-browser-btn:hover,
+.action-btn:hover,
+.pagination-button:hover,
+.setting-input button:hover {
+  transform: translateY(-2px);
+}
+
+button:active,
+.play-button:active,
+.delete-button:active,
+.record-button:active,
+.stop-button:active,
+.pause-button:active,
+.favorite-button:active,
+.save-favorite-button:active,
+.refresh-button:active,
+.select-mode-button:active,
+.query-button:active,
+.open-browser-btn:active,
+.action-btn:active,
+.pagination-button:active,
+.setting-input button:active {
+  transform: translateY(0) scale(0.98);
+}
+
+button:focus-visible,
+.play-button:focus-visible,
+.delete-button:focus-visible,
+.record-button:focus-visible,
+.stop-button:focus-visible,
+.pause-button:focus-visible,
+.favorite-button:focus-visible,
+.save-favorite-button:focus-visible,
+.refresh-button:focus-visible,
+.select-mode-button:focus-visible,
+.query-button:focus-visible,
+.open-browser-btn:focus-visible,
+.action-btn:focus-visible,
+.pagination-button:focus-visible,
+.setting-input button:focus-visible {
+  outline: 2px solid rgba(0, 212, 255, 0.75);
+  outline-offset: 2px;
+}
+
+.record-button,
+.stop-button {
+  box-shadow: 0 10px 24px rgba(235, 51, 73, 0.24);
+}
+
+.pause-button {
+  box-shadow: 0 10px 24px rgba(243, 156, 18, 0.24);
+}
+
+.pause-button.resume,
+.play-button {
+  box-shadow: 0 10px 24px rgba(17, 153, 142, 0.24);
+}
+
+.recording-thumbnail {
+  border-right: 1px solid rgba(255,255,255,0.12);
+}
+
+.recording-thumbnail-image {
+  transition: transform 260ms ease, filter 260ms ease;
+}
+
+.recording-item:hover .recording-thumbnail-image {
+  transform: scale(1.04);
+  filter: saturate(1.08) contrast(1.04);
+}
+
+@keyframes sectionReveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.996);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+
+/* SVG icon refinement */
+.app-icon {
+  display: inline-block;
+  vertical-align: -0.18em;
+  flex-shrink: 0;
+}
+
+button .app-icon,
+h3 .app-icon,
+.status-ghost .app-icon,
+.status-alive .app-icon,
+.status-win .app-icon,
+.votes-title .app-icon,
+.target-skip .app-icon {
+  margin-right: 0.35rem;
+}
+
+.favorite-button,
+.refresh-button,
+.favorites-filter-button,
+.open-browser-btn,
+.query-button,
+.save-favorite-button,
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.play-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.favorite-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffd166;
+}
+
+.role-dot {
+  display: inline-block;
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 999px;
+  margin-right: 0.45rem;
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.08);
+}
+
+.role-dot.good {
+  background: #4caf50;
+}
+
+.role-dot.neutral {
+  background: #ffb020;
+}
+
+.role-dot.evil {
+  background: #f44336;
+}
+
+.role-info {
+  display: inline-flex;
+  align-items: center;
+}
+
+.role-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
 }

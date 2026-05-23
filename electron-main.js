@@ -5,6 +5,9 @@ const path = require('path');
 const { Readable } = require('stream');
 const fs = require('fs').promises;
 const fsSync = require('fs');
+const https = require('https');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+const { SocksProxyAgent } = require('socks-proxy-agent');
 const logger = require('./logger');
 const {
   GoogleGenAI,
@@ -866,12 +869,7 @@ let psList;
 ipcMain.handle('get-game-processes', async () => {
   // Logic to get list of running game processes
   if (!psList) {
-    // Return mock data if ps-list is not available
-    return [
-      { pid: 1234, name: 'Minecraft', path: 'C:\\Program Files\\Minecraft\\Minecraft.exe' },
-      { pid: 5678, name: 'Fortnite', path: 'C:\\Games\\Fortnite\\Fortnite.exe' },
-      { pid: 9012, name: 'Valorant', path: 'C:\\Riot Games\\Valorant\\Valorant.exe' }
-    ];
+    return [];
   }
 
   try {
@@ -1151,16 +1149,12 @@ ipcMain.handle('window-close', (event) => {
 // Fetch match data through main process to avoid CORS
 ipcMain.handle('fetch-match-data', async (event, matchId) => {
   try {
-    const https = require('https');
-    const { HttpsProxyAgent } = require('https-proxy-agent');
-    const { SocksProxyAgent } = require('socks-proxy-agent');
-    
     return new Promise((resolve, reject) => {
       const url = `https://ggdmatchdata.gaggle.fun/match-timelines/${matchId}.json`;
-      
+
       // 检测环境变量中的代理配置
       const proxyUrl = process.env.https_proxy ||process.env.http_proxy || process.env.all_proxy;
-      
+
       let agent = undefined;
       if (proxyUrl) {
         // 判断是否为 SOCKS5 代理
@@ -1240,9 +1234,6 @@ ipcMain.handle('fetch-match-data', async (event, matchId) => {
 // Fetch match history list
 ipcMain.handle('fetch-match-history', async (event, userId) => {
   try {
-    const https = require('https');
-    const { HttpsProxyAgent } = require('https-proxy-agent');
-    
     return new Promise((resolve, reject) => {
       const url = 'https://us-central1-gaggle-staging.cloudfunctions.net/ggdPlayerMatch?action=FetchList';
       
@@ -1287,19 +1278,9 @@ ipcMain.handle('fetch-match-history', async (event, userId) => {
       logger.info(`Fetch match history - Request Method: POST`);
       logger.info(`Fetch match history - Request Body: ${postData}`);
       
-      // 打印请求头（逐个字段）
-      console.log('\n========== Fetch Match History Request ==========');
-      console.log('URL:', url);
-      console.log('Method: POST');
-      console.log('Body:', postData);
-      console.log('Proxy:', proxyUrl || 'None');
-      console.log('Headers:');
-      Object.keys(options.headers).forEach(key => {
-        const value = key === 'Authorization' ? 'Bearer [HIDDEN]' : options.headers[key];
-        console.log(`  ${key}: ${value}`);
-      });
-      console.log('===============================================\n');
-      
+      // 打印请求头
+      logger.info(`Request headers: ${Object.keys(options.headers).length} fields`);
+
       const request = https.request(url, options, (response) => {
         let data = '';
         
@@ -1314,19 +1295,9 @@ ipcMain.handle('fetch-match-history', async (event, userId) => {
               logger.info(`Fetch match history - Success! Received ${data.length} bytes`);
               resolve({ success: true, data: jsonData });
             } else {
-              // 打印详细的错误响应信息
-              console.log('\n========== HTTP Error Response ==========');
-              console.log('Status Code:', response.statusCode);
-              console.log('Status Message:', response.statusMessage);
-              console.log('Response Headers:');
-              Object.keys(response.headers).forEach(key => {
-                console.log(`  ${key}: ${response.headers[key]}`);
-              });
-              console.log('Response Body:', data);
-              console.log('=========================================\n');
-              
               logger.error(`Fetch match history - HTTP Error ${response.statusCode}: ${response.statusMessage}`);
               logger.error(`Fetch match history - Response Body: ${data}`);
+              logger.error(`Fetch match history - Response Headers: ${JSON.stringify(response.headers)}`);
               
               resolve({ 
                 success: false, 
@@ -1338,15 +1309,9 @@ ipcMain.handle('fetch-match-history', async (event, userId) => {
               });
             }
           } catch (parseError) {
-            // JSON 解析失败时也打印详细信息
-            console.log('\n========== JSON Parse Error ==========');
-            console.log('Status Code:', response.statusCode);
-            console.log('Raw Response Data:', data);
-            console.log('Parse Error:', parseError.message);
-            console.log('======================================\n');
-            
             logger.error(`Fetch match history - JSON Parse Error: ${parseError.message}`);
             logger.error(`Fetch match history - Raw data: ${data.substring(0, 500)}...`);
+            logger.error(`Fetch match history - Status Code: ${response.statusCode}`);
             
             resolve({ 
               success: false, 
@@ -1358,16 +1323,6 @@ ipcMain.handle('fetch-match-history', async (event, userId) => {
       });
       
       request.on('error', (error) => {
-        // 打印详细的网络错误信息
-        console.log('\n========== Network Error ==========');
-        console.log('Error Type:', error.name || 'Unknown');
-        console.log('Error Message:', error.message);
-        console.log('Error Code:', error.code || 'N/A');
-        console.log('Error Stack:', error.stack || 'No stack trace');
-        console.log('Request URL:', url);
-        console.log('Proxy Used:', proxyUrl || 'None');
-        console.log('===================================\n');
-        
         logger.error(`Fetch match history - Network Error: ${error.message}`);
         logger.error(`Fetch match history - Error Code: ${error.code}`);
         logger.error(`Fetch match history - Error Name: ${error.name}`);
@@ -1386,14 +1341,8 @@ ipcMain.handle('fetch-match-history', async (event, userId) => {
       
       request.setTimeout(10000, () => {
         request.destroy();
-        
-        console.log('\n========== Request Timeout ==========');
-        console.log('Timeout: 10 seconds');
-        console.log('Request URL:', url);
-        console.log('Proxy Used:', proxyUrl || 'None');
-        console.log('=====================================\n');
-        
-        logger.error('Fetch match history - Request timeout after 10 seconds');
+
+        logger.error(`Fetch match history - Request timeout after 10 seconds (URL: ${url}, Proxy: ${proxyUrl || 'None'})`);
         
         resolve({ 
           success: false, 

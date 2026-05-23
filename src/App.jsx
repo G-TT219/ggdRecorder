@@ -182,15 +182,19 @@ function App() {
     const missingRecordings = recordingsList.filter(recording => !recordingThumbnails[recording.id]);
     if (missingRecordings.length === 0) return;
 
+    const results = await Promise.allSettled(
+      missingRecordings.map(recording =>
+        window.electronAPI.generateThumbnail(recording.filePath)
+          .then(result => ({ id: recording.id, result }))
+      )
+    );
+
     const loadedThumbnails = {};
-    for (const recording of missingRecordings) {
-      try {
-        const result = await window.electronAPI.generateThumbnail(recording.filePath);
-        if (result.success) {
-          loadedThumbnails[recording.id] = result.data;
-        }
-      } catch (error) {
-        Logger.error('Error loading thumbnail for:', recording.id, error);
+    for (const item of results) {
+      if (item.status === 'fulfilled' && item.value.result.success) {
+        loadedThumbnails[item.value.id] = item.value.result.data;
+      } else if (item.status === 'rejected') {
+        Logger.error('Error loading thumbnail:', item.reason);
       }
     }
 
@@ -343,9 +347,8 @@ function App() {
     }
   };
 
-  // 优化：切换标签时重置非活动标签的滚动位置
+  // 切换标签时 yield 给浏览器事件循环，让 DOM 先刷完
   useEffect(() => {
-    // 延迟执行，确保 DOM 已更新
     const timer = setTimeout(() => {}, 0);
     return () => clearTimeout(timer);
   }, [activeTab]);

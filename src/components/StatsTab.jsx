@@ -275,7 +275,7 @@ function StatsTab() {
               value={userIdInput}
               onChange={(e) => setUserIdInput(e.target.value)}
               placeholder="输入用户ID (例如: EAeQEOfRs1PeDzJc7yKjjvpmDf42)"
-              onKeyPress={(e) => e.key === 'Enter' && fetchMatchHistory(userIdInput)}
+              onKeyDown={(e) => e.key === 'Enter' && fetchMatchHistory(userIdInput)}
             />
             <button
               className="query-button"
@@ -294,7 +294,7 @@ function StatsTab() {
               value={matchIdInput}
               onChange={(e) => setMatchIdInput(e.target.value)}
               placeholder="或直接输入对局ID快速查询 (例如: V05628042026637780784)"
-              onKeyPress={(e) => e.key === 'Enter' && fetchMatchData(matchIdInput)}
+              onKeyDown={(e) => e.key === 'Enter' && fetchMatchData(matchIdInput)}
             />
             <button
               className="query-button"

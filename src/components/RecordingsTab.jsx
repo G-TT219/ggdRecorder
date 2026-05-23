@@ -360,6 +360,7 @@ function RecordingsTab({
                 )}
               </>
             ) : (
+              // 人生也常常在加载中，但至少播放器还有进度条
               <div className="player-loading">
                 <div className="loading-spinner"></div>
                 <span>正在加载录像...</span>

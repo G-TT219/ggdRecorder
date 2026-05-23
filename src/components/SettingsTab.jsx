@@ -73,7 +73,7 @@ function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirC
   };
 
   const getDirname = (path) => {
-    const lastSlashIndex = path.lastIndexOf('\\') || path.lastIndexOf('/');
+    const lastSlashIndex = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'));
     return lastSlashIndex !== -1 ? path.substring(0, lastSlashIndex) : '';
   };
 

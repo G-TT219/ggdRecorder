@@ -9,7 +9,7 @@ import MapTab from './components/MapTab';
 import StatsTab from './components/StatsTab';
 import type { GameProcess, Recording, RecordingThumbnails, FavoriteGroup, RecordingNotes, FavoriteRecordingGroups } from './types/electron-api';
 
-type ActiveTab = 'games' | 'recordings' | 'settings' | 'entertainment' | 'stats';
+type ActiveTab = 'games' | 'recordings' | 'settings' | 'entertainment' | 'stats' | 'review';
 
 function App() {
   const [gameProcesses, setGameProcesses] = useState<GameProcess[]>([]);
@@ -361,7 +361,9 @@ function App() {
 
   // 切换到娱乐（地图辅助工具）或战绩查询界面时调整窗口大小
   useEffect(() => {
-    if (activeTab === 'entertainment') {
+    if (activeTab === 'review') {
+      window.electronAPI.resizeWindow(1500, 900);
+    } else if (activeTab === 'entertainment') {
       // 调整为适合地图工具的窗口大小（更宽更高）
       window.electronAPI.resizeWindow(1400, 900);
     } else if (activeTab === 'stats') {
@@ -497,6 +499,12 @@ function App() {
             设置
           </button>
         </div>
+        {activeTab === 'review' && (
+          <button className="back-btn" onClick={() => setActiveTab('recordings')}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+            退出复盘
+          </button>
+        )}
         {isRecording && (
           <div className="recording-indicator">
             <span className="recording-dot"></span>
@@ -505,9 +513,26 @@ function App() {
         )}
       </header>
 
-      <main className="app-main">
-        <div className={`tab-pane ${activeTab === 'entertainment' ? 'active' : 'hidden'}`}>
+      <main className={`app-main ${activeTab === 'review' ? 'review-mode' : ''}`}>
+        <div className={`tab-pane map-pane ${activeTab === 'entertainment' || activeTab === 'review' ? 'active' : 'hidden'}`}>
           <MapTab />
+        </div>
+        <div className={`tab-pane recordings-pane ${activeTab === 'recordings' || activeTab === 'review' ? 'active' : 'hidden'}`}>
+          <RecordingsTab
+            recordings={recordings}
+            recordingThumbnails={recordingThumbnails}
+            favoriteRecordings={favoriteRecordings}
+            recordingNotes={recordingNotes}
+            favoriteGroups={favoriteGroups}
+            favoriteRecordingGroups={favoriteRecordingGroups}
+            onLoadThumbnails={loadRecordingThumbnails}
+            onRefreshRecordings={() => loadRecordings(true)}
+            onRefreshFavorites={() => loadFavoriteRecordings()}
+            onEnterReview={() => setActiveTab('review')}
+          />
+        </div>
+        <div className={`tab-pane ${activeTab === 'stats' ? 'active' : 'hidden'}`}>
+          <StatsTab />
         </div>
         {activeTab === 'games' ? (
           <GameTab
@@ -523,20 +548,6 @@ function App() {
             onPauseResume={togglePauseResume}
             onStartGame={startGame}
           />
-        ) : activeTab === 'recordings' ? (
-          <RecordingsTab
-            recordings={recordings}
-            recordingThumbnails={recordingThumbnails}
-            favoriteRecordings={favoriteRecordings}
-            recordingNotes={recordingNotes}
-            favoriteGroups={favoriteGroups}
-            favoriteRecordingGroups={favoriteRecordingGroups}
-            onLoadThumbnails={loadRecordingThumbnails}
-            onRefreshRecordings={() => loadRecordings(true)}
-            onRefreshFavorites={() => loadFavoriteRecordings()}
-          />
-        ) : activeTab === 'stats' ? (
-          <StatsTab />
         ) : activeTab === 'settings' ? (
           <SettingsTab
             recordingsDir={recordingsDir}

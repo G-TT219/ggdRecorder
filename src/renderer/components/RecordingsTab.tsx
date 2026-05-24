@@ -30,7 +30,8 @@ function RecordingsTab({
   onLoadThumbnails,
   onRefreshRecordings,
   onRefreshFavorites,
-}: RecordingsTabProps) {
+  onEnterReview,
+}: RecordingsTabProps & { onEnterReview?: () => void }) {
   const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
@@ -455,6 +456,15 @@ function RecordingsTab({
               返回列表
             </button>
             <h3>{selectedRecording.name}</h3>
+            {onEnterReview && (
+              <button className="back-btn" onClick={onEnterReview} style={{ marginLeft: 'auto' }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
+                  <rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+                </svg>
+                进入复盘
+              </button>
+            )}
           </div>
           <div className="video-container">
             {recordingUrl ? (

@@ -250,11 +250,53 @@ html, body {
 .tab-pane.active {
   display: flex;
   flex: 1;
+  width: 100%;
+  min-width: 0;
   min-height: 0;
+}
+
+.tab-pane.active > * {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
 }
 
 .tab-pane.hidden {
   display: none;
+}
+
+.app-main.review-mode {
+  display: grid;
+  grid-template-columns: minmax(420px, 32%) 1fr;
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.app-main.review-mode .tab-pane.active {
+  min-height: 0;
+  height: 100%;
+}
+
+.app-main.review-mode .recordings-pane {
+  order: 1;
+}
+
+.app-main.review-mode .map-pane {
+  order: 2;
+}
+
+.app-main.review-mode .recordings-section,
+.app-main.review-mode .entertainment-section {
+  padding: 0;
+  min-width: 0;
+}
+
+.app-main.review-mode .recordings-list {
+  grid-template-columns: 1fr;
+}
+
+.app-main.review-mode .map-right-panel {
+  width: 230px;
 }
 
 .recordings-section {
@@ -1406,10 +1448,6 @@ html, body {
     height: 180px;
   }
   
-  .app-main {
-    padding: 0.75rem;
-  }
-  
   .selected-game {
     max-width: 100%; /* Allow full width */
   }
@@ -1421,11 +1459,6 @@ html, body {
 
 /* 小屏幕适配 */
 @media (max-width: 768px) {
-  .app-main {
-    padding: 0.5rem;
-  }
-  
-  
   .recordings-list {
     grid-template-columns: 1fr;
     gap: 1rem;
@@ -3188,11 +3221,12 @@ h3 .app-icon,
 
 /* === Recordings toolbar redesign === */
 .recordings-list-header {
+  grid-column: 1 / -1;
   display: flex;
   align-items: stretch;
   gap: 1rem;
   margin-bottom: 1.25rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .recordings-list-header h2 {
@@ -3218,6 +3252,7 @@ h3 .app-icon,
 
 .batch-controls {
   flex: 1;
+  min-width: 0;
   display: flex;
   justify-content: flex-end;
   align-items: stretch;
@@ -3382,6 +3417,7 @@ h3 .app-icon,
 
 /* Pagination */
 .pagination-bar {
+  grid-column: 1 / -1;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -4189,6 +4225,7 @@ h3 .app-icon,
 
 /* Favorites tools */
 .favorites-tools {
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
@@ -4215,6 +4252,12 @@ h3 .app-icon,
 .favorite-group-filter:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+.favorite-group-filter option,
+.recording-group-select option {
+  background: #1a2332;
+  color: #ffffff;
 }
 
 .favorite-group-name-input {

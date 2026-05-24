@@ -14,7 +14,7 @@ export const createWindow = (): BrowserWindow => {
     icon: getAssetPath('recorder.ico'),
     frame: false,
     webPreferences: {
-      preload: path.join(__dirname, '..', 'preload', 'preload.js'),
+      preload: path.join(__dirname, '..', 'preload', 'index.js'),
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,

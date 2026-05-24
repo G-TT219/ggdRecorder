@@ -1,3 +1,19 @@
+import type { GameProcess } from '../types/electron-api';
+
+type GameTabProps = {
+  gameProcesses: GameProcess[];
+  selectedGame: GameProcess | null;
+  isRecording: boolean;
+  isPaused: boolean;
+  gamePath: string;
+  onSelectGame: (game: GameProcess) => void;
+  onRefreshProcesses: () => void;
+  onStartRecording: (game: GameProcess) => void;
+  onStopRecording: () => void;
+  onPauseResume: () => void;
+  onStartGame: () => void;
+};
+
 function GameTab({
   gameProcesses,
   selectedGame,
@@ -10,7 +26,7 @@ function GameTab({
   onStopRecording,
   onPauseResume,
   onStartGame
-}) {
+}: GameTabProps) {
   return (
     <section className="games-section">
       <section className="recording-controls">

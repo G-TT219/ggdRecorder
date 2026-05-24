@@ -5,7 +5,7 @@ module.exports = {
   packagerConfig: {
     asar: true,
     icon: './recorder.ico',
-    extraResource: ['./dist',
+    extraResource: ['./dist', './dist-main',
       {
         "from": ".env",
         "to": ".env"

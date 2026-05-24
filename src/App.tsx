@@ -7,34 +7,35 @@ import GameTab from './components/GameTab';
 import RecordingsTab from './components/RecordingsTab';
 import MapTab from './components/MapTab';
 import StatsTab from './components/StatsTab';
+import type { GameProcess, Recording, RecordingThumbnails, FavoriteGroup, RecordingNotes, FavoriteRecordingGroups } from './types/electron-api';
+
+type ActiveTab = 'games' | 'recordings' | 'settings' | 'entertainment' | 'stats';
 
 function App() {
-  const [gameProcesses, setGameProcesses] = useState([]);
-  const [selectedGame, setSelectedGame] = useState(null);
+  const [gameProcesses, setGameProcesses] = useState<GameProcess[]>([]);
+  const [selectedGame, setSelectedGame] = useState<GameProcess | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [recordings, setRecordings] = useState([]);
-  const [activeTab, setActiveTab] = useState('games'); // 'games', 'recordings', 'settings', 'entertainment', or 'stats'
+  const [recordings, setRecordings] = useState<Recording[]>([]);
+  const [activeTab, setActiveTab] = useState<ActiveTab>('games');
   const [recordingsDir, setRecordingsDir] = useState('');
   const [recordingTime, setRecordingTime] = useState(0);
-  // apiKey and ggdToken moved to SettingsTab
   const [gamePath, setGamePath] = useState('');
   const [compressVideos, setCompressVideos] = useState(false);
-  const [recordingThumbnails, setRecordingThumbnails] = useState({}); // New state for thumbnails
-  const [isMaximized, setIsMaximized] = useState(false); // Window maximized state
-  const [favoriteRecordings, setFavoriteRecordings] = useState([]); // Favorite recordings
-  const [recordingNotes, setRecordingNotes] = useState({});
-  const [favoriteGroups, setFavoriteGroups] = useState([]);
-  const [favoriteRecordingGroups, setFavoriteRecordingGroups] = useState({});
+  const [recordingThumbnails, setRecordingThumbnails] = useState<RecordingThumbnails>({});
+  const [isMaximized, setIsMaximized] = useState(false);
+  const [favoriteRecordings, setFavoriteRecordings] = useState<string[]>([]);
+  const [recordingNotes, setRecordingNotes] = useState<RecordingNotes>({});
+  const [favoriteGroups, setFavoriteGroups] = useState<FavoriteGroup[]>([]);
+  const [favoriteRecordingGroups, setFavoriteRecordingGroups] = useState<FavoriteRecordingGroups>({});
   const compressVideosRef = useRef(compressVideos);
-  const mediaRecorderRef = useRef(null);
-  const recordedChunksRef = useRef([]);
-  const recordingStartTimeRef = useRef(null);
-  const timerIntervalRef = useRef(null);
-  const recordingsCacheRef = useRef([]); // Cache for recordings list
-  const lastRefreshTimeRef = useRef(0); // Last refresh timestamp
-  const REFRESH_DEBOUNCE_MS = 5000; // Minimum time between refreshes (2 seconds)
-  // Refs for states that will be accessed in callbacks to avoid stale closures
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingStartTimeRef = useRef<number | null>(null);
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordingsCacheRef = useRef<Recording[]>([]);
+  const lastRefreshTimeRef = useRef(0);
+  const REFRESH_DEBOUNCE_MS = 5000;
   const isRecordingRef = useRef(isRecording);
   const isPausedRef = useRef(isPaused);
 
@@ -52,7 +53,7 @@ function App() {
   }, [compressVideos]);
 
   // Format time for display (seconds to HH:mm:ss)
-  const formatTime = (seconds) => {
+  const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
@@ -70,7 +71,7 @@ function App() {
     loadingConfig();
 
     // Remove focus from any element on app load to prevent button highlight
-    if (document.activeElement) {
+    if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
 
@@ -184,7 +185,7 @@ function App() {
     }
   };
 
-  const loadRecordingThumbnails = useCallback(async (recordingsList) => {
+  const loadRecordingThumbnails = useCallback(async (recordingsList: Recording[]) => {
     const missingRecordings = recordingsList.filter(recording => !recordingThumbnails[recording.id]);
     if (missingRecordings.length === 0) return;
 
@@ -239,7 +240,7 @@ function App() {
           height: { ideal: 1080, max: 2160 },
           frameRate: { ideal: 60, max: 60 },
           cursor: 'always'
-        },
+        } as MediaTrackConstraints,
         audio: true
       });
       Logger.info('getDisplayMedia succeeded');
@@ -263,14 +264,14 @@ function App() {
         }
       }
 
-      let options = { mimeType };
+      let options: MediaRecorderOptions = { mimeType };
       if (mimeType !== 'video/webm') {
         try {
           options = { mimeType, videoBitsPerSecond: 8000000 };
           new MediaRecorder(stream, options);
           Logger.info('Using high bitrate: 8Mbps');
         } catch (e) {
-          Logger.warn('videoBitsPerSecond not supported, using default bitrate');
+          Logger.info('videoBitsPerSecond not supported, using default bitrate');
           options = { mimeType };
         }
       }
@@ -338,7 +339,6 @@ function App() {
         }
         setIsRecording(false);
         setIsPaused(false);
-        // Clear the timer
         if (timerIntervalRef.current) {
           clearInterval(timerIntervalRef.current);
           timerIntervalRef.current = null;
@@ -346,7 +346,7 @@ function App() {
         setRecordingTime(0);
         Logger.info('Recording stopped');
       } else {
-        Logger.error('Failed to stop recording:', result.message);
+        Logger.error('Failed to stop recording');
       }
     } catch (error) {
       Logger.error('Error stopping recording:', error);
@@ -392,7 +392,7 @@ function App() {
       const result = await window.electronAPI.startGame(gamePath);
       if (!result.success) {
         alert('请先在设置中选择正确的游戏程序路径');
-        Logger.error('Failed to start game:', result.message);
+        Logger.error('Failed to start game');
       } else {
         Logger.info('Game started successfully');
       }
@@ -410,8 +410,8 @@ function App() {
 
   // Add tooltip to indicate shortcut keys
   useEffect(() => {
-    const recordButton = document.querySelector('.record-button');
-    const stopButton = document.querySelector('.stop-button');
+    const recordButton = document.querySelector<HTMLElement>('.record-button');
+    const stopButton = document.querySelector<HTMLElement>('.stop-button');
 
     if (recordButton) {
       recordButton.title = '快捷键: Ctrl+Shift+S';

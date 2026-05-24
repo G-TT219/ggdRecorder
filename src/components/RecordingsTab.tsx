@@ -1,6 +1,24 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, type ChangeEvent } from 'react';
 import Logger from '../utils/logger';
 import Icon from './Icon';
+import type { Recording, RecordingNotes, FavoriteGroup, FavoriteRecordingGroups, RecordingThumbnails } from '../types/electron-api';
+
+type AnalysisResult = {
+  recording: Recording;
+  text: string;
+};
+
+type RecordingsTabProps = {
+  recordings: Recording[];
+  recordingThumbnails: RecordingThumbnails;
+  favoriteRecordings: string[];
+  recordingNotes: RecordingNotes;
+  favoriteGroups: FavoriteGroup[];
+  favoriteRecordingGroups: FavoriteRecordingGroups;
+  onLoadThumbnails: (recordings: Recording[]) => void;
+  onRefreshRecordings: () => void;
+  onRefreshFavorites: () => Promise<void> | void;
+};
 
 function RecordingsTab({
   recordings,
@@ -12,12 +30,12 @@ function RecordingsTab({
   onLoadThumbnails,
   onRefreshRecordings,
   onRefreshFavorites,
-}) {
-  const [selectedRecording, setSelectedRecording] = useState(null);
-  const [recordingUrl, setRecordingUrl] = useState(null);
-  const [analysisResult, setAnalysisResult] = useState(null);
+}: RecordingsTabProps) {
+  const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analyzeStatus, setAnalyzeStatus] = useState('');
-  const [selectedRecordings, setSelectedRecordings] = useState([]);
+  const [selectedRecordings, setSelectedRecordings] = useState<Recording[]>([]);
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -31,9 +49,9 @@ function RecordingsTab({
   const [totalPages, setTotalPages] = useState(1);
   const [recordingsPerPage] = useState(20);
 
-  const recordingsListRef = useRef(null);
+  const recordingsListRef = useRef<HTMLElement | null>(null);
 
-  const loadRecordingUrl = async (filePath) => {
+  const loadRecordingUrl = async (filePath: string) => {
     try {
       const result = await window.electronAPI.getRecordingUrl(filePath);
       if (result.success) {
@@ -402,9 +420,10 @@ function RecordingsTab({
   };
 
   // Analyze recording
-  const analyzeRecording = async (recording) => {
-    const analyzeResult = {
-      recording: recording
+  const analyzeRecording = async (recording: Recording) => {
+    const analyzeResult: AnalysisResult = {
+      recording: recording,
+      text: ''
     };
     try {
       setAnalyzeStatus('analyzing');
@@ -421,7 +440,7 @@ function RecordingsTab({
       }
     } catch (error) {
       Logger.error('Error analyzing recording:', error);
-      analyzeResult.text = `分析过程中出现错误: ${error.message}`;
+      analyzeResult.text = `分析过程中出现错误: ${error instanceof Error ? error.message : String(error)}`;
       setAnalysisResult(analyzeResult);
     }
   };

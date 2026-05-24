@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import Logger from '../utils/logger';
 import Icon from './Icon';
+import type { IconName } from './Icon';
 
-const mapNameMapping = {
+const mapNameMapping: Record<number, string> = {
   1: '地下室',
   2: '鹅教堂',
   3: '马拉德庄园',
@@ -18,18 +19,90 @@ const mapNameMapping = {
   13: '绿头鸭',
 };
 
+type MatchHistoryItem = {
+  matchId: string;
+  role: number;
+  faction: number;
+  map: number;
+  mode: number;
+  win: boolean;
+  startAt: string;
+  endAt: string;
+  playerCount: number;
+  turnsSurvived: number;
+  kills: number;
+  votingAccuracy: number;
+  winningFaction: number;
+  rawData: unknown;
+  timestamp?: string;
+  playerData?: Record<string, unknown>;
+};
+
+type PlayerStats = {
+  winRate: number;
+  votingAccuracy: number;
+  turnsSurvived: number;
+  kills: number;
+  rolesBreakdown: {
+    goose: { timesPlayed: number; winRate: number };
+    duck: { timesPlayed: number; winRate: number };
+    neutral: { timesPlayed: number; winRate: number };
+  };
+  totalGamePlayed: number;
+  achievement: { completed: number; total: number };
+  playerLv: number;
+  hasMore: boolean;
+};
+
+type PlayerData = {
+  nickname: string;
+  userId: string;
+  role: number;
+  faction: number;
+  win: boolean;
+  isGhost: boolean;
+  kills: number;
+  tasks: number;
+  correctVotes: number;
+  turnsSurvived: number;
+  discussions: number;
+  sabotages: number;
+};
+
+type RoundData = {
+  startAt: string;
+  endAt: string;
+  meetingInfo?: {
+    type: string;
+    starter: string;
+    result: string;
+    votes?: Record<string, string>;
+  };
+};
+
+type MatchData = {
+  matchId: string;
+  map: number;
+  mode: number;
+  winningFaction: number;
+  startAt: string;
+  endAt: string;
+  playerData: Record<string, PlayerData>;
+  rounds?: RoundData[];
+};
+
 function StatsTab() {
   const [statsUrl] = useState('https://gaggle.fun/dashboard');
-  const [matchData, setMatchData] = useState(null);
+  const [matchData, setMatchData] = useState<MatchData | null>(null);
   const [matchLoading, setMatchLoading] = useState(false);
   const [matchError, setMatchError] = useState('');
   const [matchIdInput, setMatchIdInput] = useState('');
-  const [matchHistory, setMatchHistory] = useState([]);
+  const [matchHistory, setMatchHistory] = useState<MatchHistoryItem[]>([]);
   const [matchHistoryLoading, setMatchHistoryLoading] = useState(false);
   const [matchHistoryError, setMatchHistoryError] = useState('');
   const [userIdInput, setUserIdInput] = useState('');
-  const [selectedMatchId, setSelectedMatchId] = useState(null);
-  const [playerStats, setPlayerStats] = useState(null);
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null);
 
   // 在外部浏览器中打开战绩网页
   const openStatsInBrowser = () => {
@@ -54,24 +127,27 @@ function StatsTab() {
       const result = await window.electronAPI.fetchMatchData(matchId.trim());
 
       if (result.success) {
-        Logger.info(`Fetch match data - Match ID: ${result.data?.matchId || 'N/A'}`);
-        Logger.info(`Fetch match data - Map: ${result.data?.map || 'N/A'}`);
-        Logger.info(`Fetch match data - Has playerData: ${!!result.data?.playerData}`);
+        const data = result.data as MatchData;
 
-        setMatchData(result.data);
-        setSelectedMatchId(result.data.matchId);
+        Logger.info(`Fetch match data - Match ID: ${data.matchId || 'N/A'}`);
+        Logger.info(`Fetch match data - Map: ${data.map || 'N/A'}`);
+        Logger.info(`Fetch match data - Has playerData: ${!!data.playerData}`);
 
-        Logger.info(`Fetch match data - Success: ${result.data.matchId}`);
-        Logger.info(`Match info - Map: ${result.data.map}, Mode: ${result.data.mode}`);
-        if (result.data.playerData) {
-          Logger.info(`Player count: ${Object.keys(result.data.playerData).length}`);
+        setMatchData(data);
+        setSelectedMatchId(data.matchId);
+
+        Logger.info(`Fetch match data - Success: ${data.matchId}`);
+        Logger.info(`Match info - Map: ${data.map}, Mode: ${data.mode}`);
+        if (data.playerData) {
+          Logger.info(`Player count: ${Object.keys(data.playerData).length}`);
         }
       } else {
         throw new Error(result.error);
       }
     } catch (error) {
-      Logger.error(`Failed to fetch match data: ${error.message}`);
-      setMatchError(`查询失败: ${error.message}`);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      Logger.error(`Failed to fetch match data: ${errMsg}`);
+      setMatchError(`查询失败: ${errMsg}`);
 
       // 开发测试：如果没有API，使用本地示例数据
       if (process.env.NODE_ENV === 'development') {
@@ -97,9 +173,18 @@ function StatsTab() {
       const result = await window.electronAPI.fetchMatchHistory(userId.trim());
 
       if (result.success) {
-        const apiData = result.data;
+        const apiData = result.data as { isSuccess: boolean; statusText?: string; body: {
+          latestMatches?: Array<{
+            matchId: string; role: number; faction: number; map: number; mode: number;
+            win: boolean; startAt: string; endAt: string; numOfPlayers: number;
+            turnsSurvived: number; kills: number; votingAccuracy: number; winningFaction: number;
+          }>;
+          winRate: number; votingAccuracy: number; turnsSurvived: number; kills: number;
+          rolesBreakdown: { goose: { timesPlayed: number; winRate: number }; duck: { timesPlayed: number; winRate: number }; neutral: { timesPlayed: number; winRate: number } };
+          totalGamePlayed: number; achievement: { completed: number; total: number };
+          playerLv: number; hasMore: boolean;
+        } };
 
-        // 检查 API 返回结构
         if (!apiData.isSuccess) {
           throw new Error(apiData.statusText || 'API 请求失败');
         }
@@ -150,7 +235,7 @@ function StatsTab() {
       }
     } catch (error) {
       Logger.error('Failed to fetch match history:', error);
-      setMatchHistoryError(`获取历史失败: ${error.message}`);
+      setMatchHistoryError(`获取历史失败: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setMatchHistoryLoading(false);
     }

@@ -1,10 +1,19 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import Logger from '../utils/logger';
 
-function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirChange, onGamePathChange, onCompressVideosChange }) {
+type SettingsTabProps = {
+  recordingsDir: string;
+  gamePath: string;
+  compressVideos: boolean;
+  onRecordingsDirChange: (dir: string) => void;
+  onGamePathChange: (path: string) => void;
+  onCompressVideosChange: (checked: boolean) => void;
+};
+
+function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirChange, onGamePathChange, onCompressVideosChange }: SettingsTabProps) {
   const [apiKey, setApiKey] = useState('');
   const [ggdToken, setGgdToken] = useState('');
-  const sectionRef = useRef(null);
+  const sectionRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     loadApiKey();
@@ -19,12 +28,12 @@ function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirC
 
   const selectRecordingsDir = async () => {
     try {
-      const result = await window.electronAPI.selectRecordingsDir();
-      if (result.success) {
-        onRecordingsDirChange(result.recordingsDir);
-        Logger.info('Recordings directory changed to: ' + result.recordingsDir);
-      } else if (!result.canceled) {
-        Logger.error('Failed to select recordings directory:', result.error);
+      const r = await window.electronAPI.selectRecordingsDir();
+      if (!r.success && !r.canceled) {
+        Logger.error('Failed to select recordings directory:', r.error);
+      } else if (r.success) {
+        onRecordingsDirChange(r.recordingsDir);
+        Logger.info('Recordings directory changed to: ' + r.recordingsDir);
       }
     } catch (error) {
       Logger.error('Error selecting recordings directory:', error);
@@ -33,12 +42,12 @@ function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirC
 
   const selectGamePath = async () => {
     try {
-      const result = await window.electronAPI.selectGamePath();
-      if (result.success) {
-        onGamePathChange(result.gamePath);
-        Logger.info('Game path selected: ' + result.gamePath);
-      } else if (!result.canceled) {
-        Logger.error('Failed to select game path:', result.error);
+      const r = await window.electronAPI.selectGamePath();
+      if (!r.success && !r.canceled) {
+        Logger.error('Failed to select game path:', r.error);
+      } else if (r.success) {
+        onGamePathChange(r.gamePath);
+        Logger.info('Game path selected: ' + r.gamePath);
       }
     } catch (error) {
       Logger.error('Error selecting game path:', error);
@@ -50,7 +59,7 @@ function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirC
       const result = await window.electronAPI.startGame(gamePath);
       if (!result.success) {
         alert('请先在设置中选择正确的游戏程序路径');
-        Logger.error('Failed to start game:', result.message);
+        Logger.error('Failed to start game');
       } else {
         Logger.info('Game started successfully');
       }
@@ -59,7 +68,7 @@ function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirC
     }
   };
 
-  const openDir = async (path) => {
+  const openDir = async (path: string) => {
     try {
       const result = await window.electronAPI.openDir(path);
       if (!result.success) {
@@ -72,12 +81,12 @@ function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirC
     }
   };
 
-  const getDirname = (path) => {
+  const getDirname = (path: string) => {
     const lastSlashIndex = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'));
     return lastSlashIndex !== -1 ? path.substring(0, lastSlashIndex) : '';
   };
 
-  const handleCompressVideosChange = (e) => {
+  const handleCompressVideosChange = (e: ChangeEvent<HTMLInputElement>) => {
     onCompressVideosChange(e.target.checked);
     window.electronAPI.setCompressVideosConfig(e.target.checked);
     Logger.info('Compress videos config set to: ' + e.target.checked);
@@ -95,7 +104,7 @@ function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirC
       }
     } catch (error) {
       Logger.error('Error saving API key:', error);
-      alert('保存API密钥时发生错误: ' + error.message);
+      alert('保存API密钥时发生错误: ' + String(error));
     }
   };
 
@@ -113,7 +122,7 @@ function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirC
         }
       } catch (error) {
         Logger.error('Error clearing API key:', error);
-        alert('清除API密钥时发生错误: ' + error.message);
+        alert('清除API密钥时发生错误: ' + String(error));
       }
     }
   };
@@ -143,7 +152,7 @@ function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirC
       }
     } catch (error) {
       Logger.error('Error saving GGD Token:', error);
-      alert('保存GGD Token时发生错误: ' + error.message);
+      alert('保存GGD Token时发生错误: ' + String(error));
     }
   };
 
@@ -161,7 +170,7 @@ function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirC
         }
       } catch (error) {
         Logger.error('Error clearing GGD Token:', error);
-        alert('保存GGD Token时发生错误: ' + error.message);
+        alert('保存GGD Token时发生错误: ' + String(error));
       }
     }
   };
@@ -301,7 +310,7 @@ function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirC
               <input
                 type="password"
                 value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setApiKey(e.target.value)}
                 placeholder="输入 Google Gemini API 密钥"
                 className="settings-text-input"
               />
@@ -344,7 +353,7 @@ function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirC
               <input
                 type="password"
                 value={ggdToken}
-                onChange={(e) => setGgdToken(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setGgdToken(e.target.value)}
                 placeholder="输入 GGD API Token"
                 className="settings-text-input"
               />

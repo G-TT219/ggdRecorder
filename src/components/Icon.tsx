@@ -1,5 +1,16 @@
-function Icon({ name, size = 18, strokeWidth = 2, className = '' }) {
-  const common = {
+import type { ReactElement, SVGProps } from 'react';
+
+export type IconName = 'refresh' | 'star' | 'starFilled' | 'play' | 'trash' | 'x' | 'warning' | 'globe' | 'clipboard' | 'chart' | 'trophy' | 'check' | 'ghost' | 'skip' | 'vote' | 'gamepad' | 'arrowRight';
+
+type IconProps = {
+  name: IconName;
+  size?: number;
+  strokeWidth?: number;
+  className?: string;
+};
+
+function Icon({ name, size = 18, strokeWidth = 2, className = '' }: IconProps): ReactElement | null {
+  const common: SVGProps<SVGSVGElement> = {
     width: size,
     height: size,
     viewBox: '0 0 24 24',
@@ -12,7 +23,7 @@ function Icon({ name, size = 18, strokeWidth = 2, className = '' }) {
     'aria-hidden': true,
   };
 
-  const icons = {
+  const icons: Record<IconName, ReactElement> = {
     refresh: (
       <svg {...common}><path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 5v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2M20 19v-4h-4" /></svg>
     ),

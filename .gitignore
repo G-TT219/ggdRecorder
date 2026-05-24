@@ -2,6 +2,7 @@ node_modules/
 public/
 out/
 dist/
+dist-main/
 game-record/
 logs/
 dist-electron/

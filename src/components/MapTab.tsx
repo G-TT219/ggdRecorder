@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type MouseEvent, type DragEvent } from 'react';
 import Logger from '../utils/logger';
 import Icon from './Icon';
 
-const mapNameMapping = {
+const mapNameMapping: Record<number, string> = {
   1: '地下室',
   2: '鹅教堂',
   3: '马拉德庄园',
@@ -18,30 +18,47 @@ const mapNameMapping = {
   13: '绿头鸭',
 };
 
+type Position = { x: number; y: number };
+
+type MapMarker = {
+  x: number;
+  y: number;
+  number: number;
+  sequence: number;
+  id: number;
+};
+
+type RoleKey = 'good' | 'neutral' | 'evil';
+
+type Connection = {
+  from: number;
+  to: number;
+};
+
 function MapTab() {
   // 地图辅助工具状态
   const [selectedMap, setSelectedMap] = useState(1);
   const [currentSequence, setCurrentSequence] = useState(1);
-  const [mapMarkers, setMapMarkers] = useState([]);
-  const [draggedNumber, setDraggedNumber] = useState(null);
+  const [mapMarkers, setMapMarkers] = useState<MapMarker[]>([]);
+  const [draggedNumber, setDraggedNumber] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [draggingMarkerId, setDraggingMarkerId] = useState(null);
-  const [markerOffset, setMarkerOffset] = useState({ x: 0, y: 0 });
-  const [mouseDownPos, setMouseDownPos] = useState({ x: 0, y: 0 });
+  const [draggingMarkerId, setDraggingMarkerId] = useState<number | null>(null);
+  const [markerOffset, setMarkerOffset] = useState<Position>({ x: 0, y: 0 });
+  const [mouseDownPos, setMouseDownPos] = useState<Position>({ x: 0, y: 0 });
   const [hasMoved, setHasMoved] = useState(false);
   const [isInDeleteZone, setIsInDeleteZone] = useState(false);
-  const [selectedNumberForRole, setSelectedNumberForRole] = useState(null);
-  const [roleAssignments, setRoleAssignments] = useState({});
-  const [connections, setConnections] = useState([]);
-  const [drawingConnection, setDrawingConnection] = useState(null);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [hoveredConnection, setHoveredConnection] = useState(null);
+  const [selectedNumberForRole, setSelectedNumberForRole] = useState<number | null>(null);
+  const [roleAssignments, setRoleAssignments] = useState<Record<string, RoleKey>>({});
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [drawingConnection, setDrawingConnection] = useState<{ markerId: number; x: number; y: number } | null>(null);
+  const [mousePos, setMousePos] = useState<Position>({ x: 0, y: 0 });
+  const [hoveredConnection, setHoveredConnection] = useState<number | null>(null);
 
-  const mapContainerRef = useRef(null);
-  const deleteZoneRef = useRef(null);
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const deleteZoneRef = useRef<HTMLDivElement | null>(null);
 
   // 地图标记拖拽处理
-  const handleMarkerMouseDown = (e, markerId) => {
+  const handleMarkerMouseDown = (e: MouseEvent, markerId: number) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -64,7 +81,7 @@ function MapTab() {
     }
   };
 
-  const handleMapMouseMove = (e) => {
+  const handleMapMouseMove = (e: MouseEvent) => {
     if (!draggingMarkerId || !mapContainerRef.current) return;
 
     const moveDistance = Math.sqrt(
@@ -123,7 +140,7 @@ function MapTab() {
   };
 
   // 设置角色身份
-  const handleSetRole = (role) => {
+  const handleSetRole = (role: RoleKey) => {
     if (selectedNumberForRole !== null) {
       setRoleAssignments({
         ...roleAssignments,
@@ -134,7 +151,7 @@ function MapTab() {
   };
 
   // 开始绘制连线（右键按下）
-  const handleConnectionStart = (e, markerId, markerX, markerY) => {
+  const handleConnectionStart = (e: MouseEvent, markerId: number, markerX: number, markerY: number) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -149,7 +166,7 @@ function MapTab() {
   };
 
   // 更新鼠标位置（用于绘制临时连线）
-  const handleConnectionMouseMove = (e) => {
+  const handleConnectionMouseMove = (e: MouseEvent) => {
     if (drawingConnection && mapContainerRef.current) {
       const rect = mapContainerRef.current.getBoundingClientRect();
       setMousePos({
@@ -160,7 +177,7 @@ function MapTab() {
   };
 
   // 完成连线（右键释放）
-  const handleConnectionEnd = (e, targetMarkerId) => {
+  const handleConnectionEnd = (e: MouseEvent, targetMarkerId: number) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -359,9 +376,10 @@ function MapTab() {
                   const existingMarker = mapMarkers.find(
                     m => m.number === draggedNumber && m.sequence === currentSequence
                   );
+                  const target = e.target as Element;
 
                   if (existingMarker) {
-                    const rect = e.target.getBoundingClientRect();
+                    const rect = target.getBoundingClientRect();
                     const x = ((e.clientX - rect.left) / rect.width) * 100;
                     const y = ((e.clientY - rect.top) / rect.height) * 100;
                     setMapMarkers(
@@ -370,7 +388,7 @@ function MapTab() {
                       )
                     );
                   } else {
-                    const rect = e.target.getBoundingClientRect();
+                    const rect = target.getBoundingClientRect();
                     const x = ((e.clientX - rect.left) / rect.width) * 100;
                     const y = ((e.clientY - rect.top) / rect.height) * 100;
                     setMapMarkers([

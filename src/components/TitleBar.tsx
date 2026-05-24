@@ -1,4 +1,11 @@
-function TitleBar({ isMaximized, onMinimize, onMaximize, onClose }) {
+type TitleBarProps = {
+  isMaximized: boolean;
+  onMinimize: () => void;
+  onMaximize: () => void;
+  onClose: () => void;
+};
+
+function TitleBar({ isMaximized, onMinimize, onMaximize, onClose }: TitleBarProps) {
   return (
     <div className="custom-titlebar">
       <div className="titlebar-drag-region">

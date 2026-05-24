@@ -53,6 +53,8 @@ function MapTab() {
   const [drawingConnection, setDrawingConnection] = useState<{ markerId: number; x: number; y: number } | null>(null);
   const [mousePos, setMousePos] = useState<Position>({ x: 0, y: 0 });
   const [hoveredConnection, setHoveredConnection] = useState<number | null>(null);
+  const [drawingTrailMarkerId, setDrawingTrailMarkerId] = useState<number | null>(null);
+  const [markerTrails, setMarkerTrails] = useState<Record<number, Position[]>>({});
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const deleteZoneRef = useRef<HTMLDivElement | null>(null);
@@ -346,6 +348,17 @@ function MapTab() {
               handleMapMouseUp();
               handleConnectionCancel();
             }}
+            onClick={(e) => {
+              if (drawingTrailMarkerId !== null && mapContainerRef.current) {
+                const rect = mapContainerRef.current.getBoundingClientRect();
+                const x = ((e.clientX - rect.left) / rect.width) * 100;
+                const y = ((e.clientY - rect.top) / rect.height) * 100;
+                setMarkerTrails(prev => ({
+                  ...prev,
+                  [drawingTrailMarkerId]: [...(prev[drawingTrailMarkerId] || []), { x, y }]
+                }));
+              }
+            }}
             onContextMenu={(e) => e.preventDefault()}
           >
             {/* 删除区域（右上角）- 仅在拖拽时显示 */}
@@ -491,6 +504,34 @@ function MapTab() {
                 );
               })}
 
+              {/* 移动轨迹 */}
+              {mapMarkers.filter(m => m.sequence === currentSequence).map(marker => {
+                const trail = markerTrails[marker.id];
+                if (!trail || trail.length < 2) return null;
+                return (
+                  <g key={`trail-${marker.id}`}>
+                    <polyline
+                      points={trail.map(p => `${p.x}%,${p.y}%`).join(' ')}
+                      fill="none"
+                      stroke="#ffd700"
+                      strokeWidth="2"
+                      strokeDasharray="5,3"
+                      opacity="0.7"
+                    />
+                    {trail.map((p, i) => (
+                      <circle
+                        key={i}
+                        cx={`${p.x}%`}
+                        cy={`${p.y}%`}
+                        r="4"
+                        fill="#ffd700"
+                        opacity="0.5"
+                      />
+                    ))}
+                  </g>
+                );
+              })}
+
               {/* 正在绘制的临时连线 */}
               {drawingConnection && (
                 <line
@@ -557,34 +598,68 @@ function MapTab() {
           <div className="role-assignment">
             <h3>角色身份设置</h3>
 
-            {selectedNumberForRole !== null ? (
+            {drawingTrailMarkerId !== null ? (
+              <div className="role-selection-active">
+                <p className="selection-hint">
+                  正在为数字 <strong>{mapMarkers.find(m => m.id === drawingTrailMarkerId)?.number ?? '?'}</strong> 绘制路径
+                </p>
+                <p className="trail-instruction">左键点击地图添加途经点</p>
+                <div className="trail-points-list">
+                  {(markerTrails[drawingTrailMarkerId] || []).map((_, i) => (
+                    <span key={i} className="trail-point-chip">{i + 1}</span>
+                  ))}
+                </div>
+                <div className="trail-actions">
+                  <button
+                    className="action-btn primary"
+                    onClick={() => {
+                      setMarkerTrails(prev => {
+                        const next = { ...prev };
+                        delete next[drawingTrailMarkerId];
+                        return next;
+                      });
+                      setDrawingTrailMarkerId(null);
+                    }}
+                  >
+                    清除路径
+                  </button>
+                  <button
+                    className="cancel-btn"
+                    onClick={() => setDrawingTrailMarkerId(null)}
+                  >
+                    完成
+                  </button>
+                </div>
+              </div>
+            ) : selectedNumberForRole !== null ? (
               <div className="role-selection-active">
                 <p className="selection-hint">为数字 <strong>{selectedNumberForRole}</strong> 选择身份：</p>
                 <div className="role-buttons">
-                  <button
-                    className="role-btn good"
-                    onClick={() => handleSetRole('good')}
-                  >
+                  <button className="role-btn good" onClick={() => handleSetRole('good')}>
                     <span className="role-dot good"></span> 好鹅
                   </button>
-                  <button
-                    className="role-btn neutral"
-                    onClick={() => handleSetRole('neutral')}
-                  >
+                  <button className="role-btn neutral" onClick={() => handleSetRole('neutral')}>
                     <span className="role-dot neutral"></span> 中立
                   </button>
-                  <button
-                    className="role-btn evil"
-                    onClick={() => handleSetRole('evil')}
-                  >
+                  <button className="role-btn evil" onClick={() => handleSetRole('evil')}>
                     <span className="role-dot evil"></span> 坏鹅
                   </button>
                 </div>
-                <button
-                  className="cancel-btn"
-                  onClick={() => setSelectedNumberForRole(null)}
-                >
+                <button className="cancel-btn" onClick={() => setSelectedNumberForRole(null)}>
                   取消
+                </button>
+                <hr className="panel-divider" />
+                <button
+                  className="action-btn primary"
+                  onClick={() => {
+                    const currentMarkers = mapMarkers.filter(m => m.sequence === currentSequence);
+                    const marker = currentMarkers.find(m => m.number === selectedNumberForRole);
+                    setSelectedNumberForRole(null);
+                    if (marker) setDrawingTrailMarkerId(marker.id);
+                  }}
+                  style={{ width: '100%', marginTop: '0' }}
+                >
+                  绘制路径
                 </button>
               </div>
             ) : (
@@ -593,7 +668,7 @@ function MapTab() {
                 {Object.keys(roleAssignments).length > 0 ? (
                   <div className="assigned-roles">
                     {Object.entries(roleAssignments).map(([number, role]) => {
-                      const roleInfo = {
+                      const roleInfo: Record<RoleKey, { label: string; color: string }> = {
                         good: { label: '好鹅', color: '#4caf50' },
                         neutral: { label: '中立', color: '#ff9800' },
                         evil: { label: '坏鹅', color: '#f44336' }

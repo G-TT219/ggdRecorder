@@ -1,11 +1,16 @@
 import { ipcMain } from 'electron';
 import Logger from './logger';
 
-type PsListModule = { default: Array<{ pid: number; name: string; cmd?: string }> };
-let psList: PsListModule | undefined;
+type PsListFn = () => Promise<Array<{ pid: number; name: string; cmd?: string }>>;
+type PsListModule = { default: PsListFn };
+let psList: PsListFn | undefined;
 (async () => {
-  try { psList = await import('ps-list') as unknown as PsListModule; }
-  catch { Logger.error('Failed to load ps-list'); }
+  try {
+    const mod = await import('ps-list') as PsListModule;
+    psList = mod.default;
+  } catch (e) {
+    Logger.error('Failed to load ps-list:', e);
+  }
 })();
 
 export const registerMiscHandlers = (): void => {
@@ -20,7 +25,7 @@ export const registerMiscHandlers = (): void => {
   ipcMain.handle('get-game-processes', async () => {
     if (!psList) return [];
     try {
-      const processes = await psList.default;
+      const processes = await psList();
       const gameNames = ['duck', 'firefox', 'csgo', 'dota2', 'valorant', 'fortnite', 'minecraft', 'edge'];
       return processes
         .filter(p => gameNames.some(g => p.name.toLowerCase().includes(g)))

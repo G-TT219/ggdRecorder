@@ -1,141 +1,128 @@
 # ggdRecorder 鹅鸭杀游戏录制助手
 
-一款基于 React 和 Electron 构建的桌面应用程序，主要用于录制鹅鸭杀（ggd）游戏画面，并支持快捷的视频播放和视频文件管理功能。通过即时录制游戏画面并快速回看，使你从此无遗局内信息，让你在会议上大杀四方。当然，开发的目的虽然是方便鹅鸭杀对局，但你可以使用它来记录任何游戏进程。
+一款基于 React + Electron + TypeScript 的桌面应用，专为鹅鸭杀（Goose Goose Duck）对局录制与复盘设计。
 
 ## 功能特性
 
-- 监控正在运行的游戏进程
-- 选择要录制的游戏
-- 开始/停止录制游戏窗口
-- 查看和回放录制的视频
-- 视频压缩功能以节省存储空间
+### 录制
+- 自动检测运行中的游戏进程（GGD 自动置顶）
+- `getDisplayMedia` 高画质录制（支持 60fps + 音频）
+- 暂停/继续录制
+- 可选 ffmpeg 自动压缩
 - 可自定义录像保存路径
-- 内置娱乐浏览器
-- 支持打开指定游戏程序
-- AI视频分析功能：通过大语言模型分析录制的视频，提供角色行动轨迹、玩家互动等详细分析报告，并生成会议发言稿
+- 快捷键：`Ctrl+Shift+S` 开始 / `Ctrl+Shift+D` 停止
 
+### 录像管理
+- 录像列表 + 缩略图 + 分页（惰性加载缩略图）
+- 内嵌视频播放器（自定义 `recording://` 流式协议，支持进度拖拽）
+- 日期筛选 / 收藏筛选 / 批量删除
+- 收藏分组（精彩局 / 需要复盘 / 搞笑局…）
+- 手动复盘备注（每局可记录思路与操作）
+- AI 视频分析（Google Gemini API，自动生成行动轨迹 + 会议发言稿）
+- 收藏录像另存到指定目录
+
+### 战绩查询
+- 通过 User ID 拉取 `gaggle.fun` 对局历史
+- 玩家统计卡片（胜率 / 投票准确率 / 存活回合 / 击杀）
+- 角色分布（鹅/鸭/中立）
+- 单局详情（玩家列表、回合信息、投票详情）
+- 自动适配 SOCKS5 / HTTP 代理
+
+### 地图辅助工具
+- 13 张内置地图
+- 数字标记（拖拽放置 + 移动）
+- 连线绘制（右键连线 + 悬停删除）
+- 角色身份设置（好鹅/中立/坏鹅 + 颜色区分）
+- 轮次管理（多轮独立标记）
+- 标记删除区（拖至右上角删除）
+- 全部状态跨 tab 保持（不丢失）
+
+### 设置
+- 录像保存路径选择
+- 视频压缩开关
+- 游戏程序路径 + 一键启动
+- Google Gemini API Key 管理
+- GGD Token 管理
 
 ## 技术架构
 
-该项目使用以下技术栈：
-
-- 前端框架：React
-- 桌面应用框架：Electron
-- 构建工具：Vite
-- 日志系统：Winston
-- 进程监控：ps-list
-- AI分析：Google Gemini API，用于视频内容分析(需自备Gemini APIKey)
-
-## 使用说明
-
-1. 在"游戏录制"选项卡中，应用会自动检测正在运行的游戏进程
-2. 从列表中选择要录制的游戏
-3. 点击"开始录制"按钮开始录制
-4. 点击"停止录制"按钮结束录制
-5. 在"录像回放"选项卡中查看和管理录制的视频
-6. 在"设置"选项卡中配置录像保存路径和视频压缩选项
-7. 在"娱乐"选项卡中可以浏览网页
-8. AI分析功能：
-   - 在录像回放界面，点击"分析录像"按钮
-   - 应用将调用AI模型分析视频内容
-   - 分析结果将显示在视频下方的文本框中
-   - 结果包括角色行动轨迹、玩家互动分析和会议发言稿建议
-
-## 注意事项
-
-- 应用需要访问屏幕录制权限
-- 视频压缩功能和生成视频缩略图需要系统中安装 ffmpeg
-- 录制的视频默认保存在系统的 Videos/GameRecorder 目录中
-- 应用支持 Windows 和 Linux 平台
-- 如果要使用AI分析功能，需要自备Google Gemini APIkey
-- 为了使用Gemini，部分地区可能需要使用VPN。用户可以自行在安装根目录下resources文件夹里修改.env文件的代理配置。
-- AI生成的结果完全依赖Gemini的能力，有时候不一定适用，仅供参考。
-
-## 安装依赖
-
-确保您已安装 Node.js，然后安装所需依赖：
-
 ```
+src/
+├── main/          # 主进程 (TypeScript, tsc → dist-main/)
+│   ├── index.ts          # 入口
+│   ├── window.ts         # 窗口 / 托盘 / 权限
+│   ├── protocol.ts       # app:// + recording:// 协议
+│   ├── config.ts         # 配置 / 收藏 持久化
+│   ├── utils.ts          # 工具函数
+│   ├── logger.ts         # Winston 日志
+│   ├── ipc-recording.ts  # 录制相关 IPC
+│   ├── ipc-favorites.ts  # 收藏/备注/分组 IPC
+│   ├── ipc-config.ts     # 设置页面 IPC
+│   ├── ipc-window.ts     # 窗口控制 IPC
+│   ├── ipc-misc.ts       # 进程 / 日志 IPC
+│   ├── ipc-stats.ts      # 战绩查询 IPC
+│   └── services/
+│       ├── ffmpeg.ts     # 视频压缩 + 缩略图
+│       └── gemini.ts     # Gemini AI 分析
+├── preload/
+│   └── index.ts          # contextBridge 桥接
+├── renderer/     # React 前端 (Vite → dist/)
+│   ├── main.tsx
+│   ├── App.tsx + App.css
+│   ├── index.html
+│   ├── components/       # 7 个 TSX 组件
+│   ├── utils/            # logger + IPC 守卫
+│   ├── types/            # 类型声明
+│   └── public/img/       # 13 张地图图片
+└── shared/
+    └── types.ts          # main + renderer 共享类型
+```
+
+### 技术栈
+
+| 层 | 技术 |
+|---|---|
+| 框架 | React 18 + Electron 39 |
+| 语言 | TypeScript（全部 Renderer + Main + Preload） |
+| 构建 | Vite（Renderer）+ tsc（Main/Preload） |
+| 录制 | `navigator.mediaDevices.getDisplayMedia()` |
+| 流式播放 | 自定义 `recording://` 协议 + `Readable.toWeb()` |
+| 日志 | Winston + DailyRotateFile |
+| AI 分析 | Google Gemini API（@google/genai） |
+| 打包 | Electron Forge + Electron Builder |
+
+## 开始使用
+
+```bash
+# 安装依赖
 npm install
-```
 
-## 开发模式
-
-有两种方式可以在开发模式下运行应用程序：
-
-### 方法一：分别启动
-
-1. 启动 Vite 开发服务器：
-   ```
-   npm run dev
-   ```
-
-2. 在另一个终端中启动 Electron 应用：
-   ```
-   npm start
-   ```
-
-### 方法二：同时启动（推荐）
-
-```
+# 开发模式（同时启动 Vite + Electron）
 npm run dev-electron
-```
 
-此命令会同时启动 Vite 开发服务器和 Electron 应用。
-
-## 构建和打包
-
-### 构建前端资源
-
-```
+# 生产构建
 npm run build
+
+# 打包分发
+npm run dist:win     # Windows NSIS 安装包
+npm run dist:linux   # Linux .deb
 ```
 
-### 使用 Electron Forge 打包
+## 前提条件
 
-```
-npm run make
-```
+- **Node.js** 18+
+- **ffmpeg**（可选，用于视频压缩和缩略图生成）
+- **Google Gemini API Key**（可选，用于 AI 分析）
+- 部分地区使用 Gemini 可能需要配置代理（修改 `.env` 中的 `https_proxy`）
 
-### 使用 Electron Builder 打包
+## 快捷键
 
-1. 打包应用目录：
-   ```
-   npm run pack-app
-   ```
+| 快捷键 | 功能 |
+|---|---|
+| `Ctrl+Shift+S` | 开始录制 |
+| `Ctrl+Shift+D` | 停止录制 |
+| `Ctrl+Shift+I` / `F12` | 打开 DevTools |
 
-2. 生成完整的分发版本：
-   ```
-   npm run dist
-   ```
+## 关于
 
-3. 仅构建 Windows 平台安装程序：
-   ```
-   npm run dist:win
-   ```
-
-4. 仅构建 Linux 平台 .deb 包：
-   ```
-   npm run dist:linux
-   ```
-
-## 应用结构
-
-该应用程序由两个主要部分组成：
-
-1. **Electron 主进程** ([electron-main.js](electron-main.js))：处理系统级操作，例如：
-   - 监控运行中的进程
-   - 屏幕录制功能
-   - 窗口管理
-   - 文件系统操作
-   - 应用配置管理
-
-2. **React 渲染进程** ([src/App.jsx](src/App.jsx))：提供用户界面：
-   - 显示运行中的游戏
-   - 控制录制会话
-   - 查看录制的视频
-   - 应用设置管理
-   - 娱乐浏览功能
-
-主进程和渲染进程之间的通信通过 [preload.js](preload.js) 脚本使用 Electron 的 contextBridge 进行安全处理。
-
+项目地址：[G-TT219/ggdRecorder](https://github.com/G-TT219/ggdRecorder)

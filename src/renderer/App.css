@@ -605,6 +605,7 @@ html, body {
 .number-icon {
   width: 100%;
   aspect-ratio: 1;
+  position: relative;
   background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
   color: #0f1923;
   border-radius: 8px;
@@ -630,9 +631,18 @@ html, body {
 }
 
 .number-icon.selected {
-  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
-  box-shadow: 0 0 20px rgba(255, 107, 107, 0.8);
-  animation: pulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.7), 0 0 20px rgba(0, 212, 255, 0.4) !important;
+  animation: none;
+  transform: scale(1.08);
+}
+
+.dead-x-overlay {
+  position: absolute;
+  font-size: 1.2rem;
+  font-weight: 900;
+  color: #ff4757;
+  text-shadow: 0 0 6px rgba(255, 71, 87, 0.8);
+  pointer-events: none;
 }
 
 @keyframes pulse {
@@ -732,6 +742,16 @@ html, body {
 .action-btn:hover {
   background: #3a4f6f;
   transform: translateY(-2px);
+}
+
+.action-btn.danger {
+  background: rgba(244, 67, 54, 0.2);
+  color: #ff7b86;
+  border-color: rgba(244, 67, 54, 0.35);
+}
+
+.action-btn.danger:hover {
+  background: rgba(244, 67, 54, 0.35);
 }
 
 .action-btn.primary {
@@ -857,6 +877,25 @@ html, body {
 
 .map-marker-number.role-evil:hover {
   box-shadow: 0 5px 15px rgba(244, 67, 54, 0.7);
+}
+
+.map-marker-number.dead {
+  opacity: 0.4;
+  filter: grayscale(0.8);
+  border-color: #666 !important;
+  box-shadow: 0 0 0 2px rgba(255, 71, 87, 0.6), 0 3px 10px rgba(0, 0, 0, 0.5) !important;
+  cursor: default;
+}
+
+.map-marker-number.dead::after {
+  content: '✕';
+  position: absolute;
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: #ff4757;
+  text-shadow: 0 0 6px rgba(255, 71, 87, 0.8);
+  opacity: 1;
+  pointer-events: none;
 }
 
 /* 拖拽放置区域高亮 */

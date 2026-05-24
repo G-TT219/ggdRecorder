@@ -27,18 +27,7 @@ export const registerWindowHandlers = (): void => {
     try {
       const win = BrowserWindow.getFocusedWindow();
       if (win) {
-        const steps = 10;
-        const currentBounds = win.getBounds();
-        const widthStep = (width - currentBounds.width) / steps;
-        const heightStep = (height - currentBounds.height) / steps;
-        for (let i = 1; i <= steps; i++) {
-          await new Promise(resolve => setTimeout(resolve, 20));
-          win.setBounds({
-            x: currentBounds.x, y: currentBounds.y,
-            width: Math.round(currentBounds.width + widthStep * i),
-            height: Math.round(currentBounds.height + heightStep * i),
-          });
-        }
+        win.setBounds({ width, height });
       }
       return { success: true };
     } catch { return { success: false, error: 'resize failed' }; }

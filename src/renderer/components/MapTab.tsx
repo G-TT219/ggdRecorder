@@ -55,6 +55,14 @@ function MapTab() {
   const [hoveredConnection, setHoveredConnection] = useState<number | null>(null);
   const [drawingTrailMarkerId, setDrawingTrailMarkerId] = useState<number | null>(null);
   const [markerTrails, setMarkerTrails] = useState<Record<number, Position[]>>({});
+  const [deadMarkers, setDeadMarkers] = useState<Record<string, boolean>>({});
+
+  const isDead = (seq: number, num: number): boolean => {
+    for (let s = 1; s <= seq; s++) {
+      if (deadMarkers[`${s}-${num}`]) return true;
+    }
+    return false;
+  };
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const deleteZoneRef = useRef<HTMLDivElement | null>(null);
@@ -106,13 +114,20 @@ function MapTab() {
       setIsInDeleteZone(inDeleteZone);
     }
 
-    if (hasMoved) {
+    if (hasMoved || moveDistance > 5) {
       const containerRect = mapContainerRef.current.getBoundingClientRect();
       const x = ((e.clientX - containerRect.left - markerOffset.x) / containerRect.width) * 100;
       const y = ((e.clientY - containerRect.top - markerOffset.y) / containerRect.height) * 100;
 
       const clampedX = Math.max(0, Math.min(100, x));
       const clampedY = Math.max(0, Math.min(100, y));
+
+      // 直接操作 DOM，跳过 React 异步批处理
+      const markerEl = mapContainerRef.current.querySelector(`[data-marker-id="${draggingMarkerId}"]`) as HTMLElement;
+      if (markerEl) {
+        markerEl.style.left = `${clampedX}%`;
+        markerEl.style.top = `${clampedY}%`;
+      }
 
       setMapMarkers(
         mapMarkers.map(m =>
@@ -307,6 +322,9 @@ function MapTab() {
                     title={`数字 ${num}${role ? ` - ${role === 'good' ? '好鹅' : role === 'neutral' ? '中立' : '坏鸭'}` : ' - 拖拽到地图，点击设置身份'}`}
                   >
                     {num}
+                    {isDead(currentSequence, num) && (
+                      <span className="dead-x-overlay">✕</span>
+                    )}
                   </div>
                 );
               })}
@@ -325,7 +343,7 @@ function MapTab() {
               <button onClick={() => setMapMarkers([])} className="action-btn">
                 清除标记
               </button>
-              <button onClick={() => setRoleAssignments({})} className="action-btn">
+              <button onClick={() => { setRoleAssignments({}); setDeadMarkers({}); }} className="action-btn">
                 清除身份
               </button>
             </div>
@@ -507,20 +525,26 @@ function MapTab() {
               {/* 移动轨迹 */}
               {mapMarkers.filter(m => m.sequence === currentSequence).map(marker => {
                 const trail = markerTrails[marker.id];
-                if (!trail || trail.length < 2) return null;
+                if (!trail || trail.length === 0) return null;
+                const allPoints = [{ x: marker.x, y: marker.y }, ...trail];
                 return (
                   <g key={`trail-${marker.id}`}>
-                    <polyline
-                      points={trail.map(p => `${p.x}%,${p.y}%`).join(' ')}
-                      fill="none"
-                      stroke="#ffd700"
-                      strokeWidth="2"
-                      strokeDasharray="5,3"
-                      opacity="0.7"
-                    />
+                    {allPoints.slice(0, -1).map((p, i) => (
+                      <line
+                        key={`l-${i}`}
+                        x1={`${p.x}%`}
+                        y1={`${p.y}%`}
+                        x2={`${allPoints[i + 1].x}%`}
+                        y2={`${allPoints[i + 1].y}%`}
+                        stroke="#ffd700"
+                        strokeWidth="2"
+                        strokeDasharray="5,3"
+                        opacity="0.7"
+                      />
+                    ))}
                     {trail.map((p, i) => (
                       <circle
-                        key={i}
+                        key={`c-${i}`}
                         cx={`${p.x}%`}
                         cy={`${p.y}%`}
                         r="4"
@@ -564,7 +588,8 @@ function MapTab() {
               return (
                 <div
                   key={marker.id}
-                  className={markerClass}
+                  data-marker-id={marker.id}
+                  className={`${markerClass} ${isDead(currentSequence, marker.number) ? 'dead' : ''}`}
                   style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
                   onMouseDown={(e) => {
                     if (e.button === 0) {
@@ -645,9 +670,34 @@ function MapTab() {
                     <span className="role-dot evil"></span> 坏鹅
                   </button>
                 </div>
-                <button className="cancel-btn" onClick={() => setSelectedNumberForRole(null)}>
-                  取消
-                </button>
+                <div className="trail-actions">
+                  <button
+                    className={`action-btn ${isDead(currentSequence, selectedNumberForRole!) ? 'danger' : ''}`}
+                    onClick={() => {
+                      const num = selectedNumberForRole!;
+                      setDeadMarkers(prev => {
+                        const already = isDead(currentSequence, num);
+                        if (already) {
+                          // 复活：清除当前及之后所有轮次的死亡标记
+                          const next = { ...prev };
+                          for (let s = currentSequence; s <= 10; s++) {
+                            delete next[`${s}-${num}`];
+                          }
+                          return next;
+                        } else {
+                          // 标记死亡：仅当前轮次
+                          return { ...prev, [`${currentSequence}-${num}`]: true };
+                        }
+                      });
+                    }}
+                    style={{ flex: 1 }}
+                  >
+                    <Icon name="ghost" size={14} /> {isDead(currentSequence, selectedNumberForRole!) ? '复活' : '标记死亡'}
+                  </button>
+                  <button className="cancel-btn" onClick={() => setSelectedNumberForRole(null)} style={{ flex: 0 }}>
+                    取消
+                  </button>
+                </div>
                 <hr className="panel-divider" />
                 <button
                   className="action-btn primary"

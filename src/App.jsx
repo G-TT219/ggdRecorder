@@ -23,6 +23,9 @@ function App() {
   const [recordingThumbnails, setRecordingThumbnails] = useState({}); // New state for thumbnails
   const [isMaximized, setIsMaximized] = useState(false); // Window maximized state
   const [favoriteRecordings, setFavoriteRecordings] = useState([]); // Favorite recordings
+  const [recordingNotes, setRecordingNotes] = useState({});
+  const [favoriteGroups, setFavoriteGroups] = useState([]);
+  const [favoriteRecordingGroups, setFavoriteRecordingGroups] = useState({});
   const compressVideosRef = useRef(compressVideos);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
@@ -172,6 +175,9 @@ function App() {
       const result = await window.electronAPI.getFavoriteRecordings();
       if (result.success) {
         setFavoriteRecordings(result.favorites || []);
+        setRecordingNotes(result.notes || {});
+        setFavoriteGroups(result.groups || []);
+        setFavoriteRecordingGroups(result.recordingGroups || {});
       }
     } catch (error) {
       Logger.error('Error loading favorite recordings:', error);
@@ -500,6 +506,9 @@ function App() {
       </header>
 
       <main className="app-main">
+        <div className={`tab-pane ${activeTab === 'entertainment' ? 'active' : 'hidden'}`}>
+          <MapTab />
+        </div>
         {activeTab === 'games' ? (
           <GameTab
             gameProcesses={gameProcesses}
@@ -519,15 +528,16 @@ function App() {
             recordings={recordings}
             recordingThumbnails={recordingThumbnails}
             favoriteRecordings={favoriteRecordings}
+            recordingNotes={recordingNotes}
+            favoriteGroups={favoriteGroups}
+            favoriteRecordingGroups={favoriteRecordingGroups}
             onLoadThumbnails={loadRecordingThumbnails}
             onRefreshRecordings={() => loadRecordings(true)}
             onRefreshFavorites={() => loadFavoriteRecordings()}
           />
-        ) : activeTab === 'entertainment' ? (
-          <MapTab />
         ) : activeTab === 'stats' ? (
           <StatsTab />
-        ) : (
+        ) : activeTab === 'settings' ? (
           <SettingsTab
             recordingsDir={recordingsDir}
             gamePath={gamePath}
@@ -536,7 +546,7 @@ function App() {
             onGamePathChange={(path) => setGamePath(path)}
             onCompressVideosChange={(checked) => setCompressVideos(checked)}
           />
-        )}
+        ) : null}
       </main>
     </div>
   );

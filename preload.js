@@ -40,6 +40,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Favorite recordings
   getFavoriteRecordings: () => ipcRenderer.invoke('get-favorite-recordings'),
   toggleFavoriteRecording: (recordingId, isFavorite) => ipcRenderer.invoke('toggle-favorite-recording', recordingId, isFavorite),
+  saveRecordingNote: (recordingId, note) => ipcRenderer.invoke('save-recording-note', recordingId, note),
+  createFavoriteGroup: (name) => ipcRenderer.invoke('create-favorite-group', name),
+  renameFavoriteGroup: (groupId, name) => ipcRenderer.invoke('rename-favorite-group', groupId, name),
+  deleteFavoriteGroup: (groupId) => ipcRenderer.invoke('delete-favorite-group', groupId),
+  setRecordingFavoriteGroup: (recordingId, groupId) => ipcRenderer.invoke('set-recording-favorite-group', recordingId, groupId),
   saveFavoriteToDirectory: (filePath, recordingName) => ipcRenderer.invoke('save-favorite-to-directory', filePath, recordingName),
   // Window controls
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),

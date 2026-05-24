@@ -10,7 +10,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    strictPort: false
+    strictPort: true
   },
   // Electron 生产环境使用相对路径，以便 app:// 协议能正确处理
   base: './'

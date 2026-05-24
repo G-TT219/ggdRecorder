@@ -7,7 +7,6 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const https = require('https');
 const { HttpsProxyAgent } = require('https-proxy-agent');
-const { SocksProxyAgent } = require('socks-proxy-agent');
 const logger = require('./logger');
 const {
   GoogleGenAI,
@@ -493,18 +492,25 @@ ipcMain.handle('delete-recording', async (event, filename) => {
       recordingsDir = await createRecordingsDir();
     }
 
-    const filePath = path.join(recordingsDir, path.basename(filename));
+    const recordingId = path.basename(filename);
+    const filePath = path.join(recordingsDir, recordingId);
     await fs.unlink(filePath);
 
     // Delete corresponding thumbnail if it exists
     const cacheDir = path.join(app.getPath('userData'), 'cache', 'thumbnails');
-    const thumbnailPath = path.join(cacheDir, filename.replace(/\.[^/.]+$/, '_thumb.png'));
+    const thumbnailPath = path.join(cacheDir, recordingId.replace(/\.[^/.]+$/, '_thumb.png'));
     try {
       await fs.unlink(thumbnailPath);
     } catch (error) {
       // Thumbnail may not exist, that's okay
       logger.info('Thumbnail not found or already deleted:', thumbnailPath);
     }
+
+    const favorites = await getFavoritesConfig();
+    favorites.favorites = favorites.favorites.filter(id => id !== recordingId);
+    delete favorites.notes[recordingId];
+    delete favorites.recordingGroups[recordingId];
+    await saveFavoritesConfig(favorites);
 
     return { success: true };
   } catch (error) {
@@ -628,15 +634,29 @@ const getAppConfig = async () => {
   }
 };
 
+const normalizeFavoritesConfig = (config = {}) => ({
+  version: 2,
+  favorites: Array.isArray(config.favorites) ? config.favorites : [],
+  notes: config.notes && typeof config.notes === 'object' ? config.notes : {},
+  groups: Array.isArray(config.groups) ? config.groups : [],
+  recordingGroups: config.recordingGroups && typeof config.recordingGroups === 'object' ? config.recordingGroups : {}
+});
+
+const getFavoritesResponse = (config) => ({
+  favorites: config.favorites,
+  notes: config.notes,
+  groups: config.groups,
+  recordingGroups: config.recordingGroups
+});
+
 // Get favorites configuration
 const getFavoritesConfig = async () => {
   try {
     const favoritesPath = getFavoritesConfigPath();
     const data = await fs.readFile(favoritesPath, 'utf8');
-    return JSON.parse(data);
+    return normalizeFavoritesConfig(JSON.parse(data));
   } catch (error) {
-    // Return empty favorites if file doesn't exist or is invalid
-    return { favorites: [] };
+    return normalizeFavoritesConfig();
   }
 };
 
@@ -644,7 +664,7 @@ const getFavoritesConfig = async () => {
 const saveFavoritesConfig = async (favorites) => {
   try {
     const favoritesPath = getFavoritesConfigPath();
-    await fs.writeFile(favoritesPath, JSON.stringify(favorites, null, 2));
+    await fs.writeFile(favoritesPath, JSON.stringify(normalizeFavoritesConfig(favorites), null, 2));
     return { success: true };
   } catch (error) {
     logger.error('Error saving favorites config:', error);
@@ -1046,39 +1066,161 @@ ipcMain.handle('clear-ggd-token', async () => {
 ipcMain.handle('get-favorite-recordings', async () => {
   try {
     const favorites = await getFavoritesConfig();
-    return { success: true, favorites: favorites.favorites || [] };
+    return { success: true, ...getFavoritesResponse(favorites) };
   } catch (error) {
     logger.error('Error getting favorite recordings:', error);
-    return { success: true, favorites: [] };
+    return { success: true, ...getFavoritesResponse(normalizeFavoritesConfig()) };
   }
 });
 
 ipcMain.handle('toggle-favorite-recording', async (event, recordingId, isFavorite) => {
   try {
     const favorites = await getFavoritesConfig();
-    const favoriteList = favorites.favorites || [];
 
     if (isFavorite) {
-      // Add to favorites
-      if (!favoriteList.includes(recordingId)) {
-        favoriteList.push(recordingId);
+      if (!favorites.favorites.includes(recordingId)) {
+        favorites.favorites.push(recordingId);
       }
     } else {
-      // Remove from favorites
-      const index = favoriteList.indexOf(recordingId);
-      if (index > -1) {
-        favoriteList.splice(index, 1);
-      }
+      favorites.favorites = favorites.favorites.filter(id => id !== recordingId);
+      delete favorites.recordingGroups[recordingId];
     }
 
-    const result = await saveFavoritesConfig({ favorites: favoriteList });
+    const result = await saveFavoritesConfig(favorites);
     if (result.success) {
-      return { success: true, favorites: favoriteList };
+      return { success: true, ...getFavoritesResponse(favorites) };
     } else {
       return { success: false, error: result.error };
     }
   } catch (error) {
     logger.error('Error toggling favorite recording:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('save-recording-note', async (event, recordingId, note) => {
+  try {
+    if (!recordingId || typeof recordingId !== 'string') {
+      return { success: false, error: 'Invalid recording ID' };
+    }
+
+    const noteText = String(note || '').slice(0, 10000);
+    const favorites = await getFavoritesConfig();
+    if (noteText.trim()) {
+      favorites.notes[recordingId] = noteText;
+    } else {
+      delete favorites.notes[recordingId];
+    }
+
+    const result = await saveFavoritesConfig(favorites);
+    if (result.success) {
+      return { success: true, ...getFavoritesResponse(favorites) };
+    } else {
+      return { success: false, error: result.error };
+    }
+  } catch (error) {
+    logger.error('Error saving recording note:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('create-favorite-group', async (event, name) => {
+  try {
+    const groupName = String(name || '').trim().slice(0, 30);
+    if (!groupName) {
+      return { success: false, error: 'Group name is required' };
+    }
+
+    const favorites = await getFavoritesConfig();
+    const now = new Date().toISOString();
+    favorites.groups.push({ id: randomUUID(), name: groupName, createdAt: now, updatedAt: now });
+
+    const result = await saveFavoritesConfig(favorites);
+    if (result.success) {
+      return { success: true, ...getFavoritesResponse(favorites) };
+    } else {
+      return { success: false, error: result.error };
+    }
+  } catch (error) {
+    logger.error('Error creating favorite group:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('rename-favorite-group', async (event, groupId, name) => {
+  try {
+    const groupName = String(name || '').trim().slice(0, 30);
+    if (!groupName) {
+      return { success: false, error: 'Group name is required' };
+    }
+
+    const favorites = await getFavoritesConfig();
+    const group = favorites.groups.find(item => item.id === groupId);
+    if (!group) {
+      return { success: false, error: 'Group not found' };
+    }
+
+    group.name = groupName;
+    group.updatedAt = new Date().toISOString();
+
+    const result = await saveFavoritesConfig(favorites);
+    if (result.success) {
+      return { success: true, ...getFavoritesResponse(favorites) };
+    } else {
+      return { success: false, error: result.error };
+    }
+  } catch (error) {
+    logger.error('Error renaming favorite group:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('delete-favorite-group', async (event, groupId) => {
+  try {
+    const favorites = await getFavoritesConfig();
+    favorites.groups = favorites.groups.filter(group => group.id !== groupId);
+    for (const [recordingId, currentGroupId] of Object.entries(favorites.recordingGroups)) {
+      if (currentGroupId === groupId) {
+        delete favorites.recordingGroups[recordingId];
+      }
+    }
+
+    const result = await saveFavoritesConfig(favorites);
+    if (result.success) {
+      return { success: true, ...getFavoritesResponse(favorites) };
+    } else {
+      return { success: false, error: result.error };
+    }
+  } catch (error) {
+    logger.error('Error deleting favorite group:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('set-recording-favorite-group', async (event, recordingId, groupId) => {
+  try {
+    const favorites = await getFavoritesConfig();
+
+    if (!favorites.favorites.includes(recordingId)) {
+      return { success: false, error: 'Recording is not favorited' };
+    }
+
+    if (!groupId) {
+      delete favorites.recordingGroups[recordingId];
+    } else if (favorites.groups.some(group => group.id === groupId)) {
+      favorites.recordingGroups[recordingId] = groupId;
+    } else {
+      return { success: false, error: 'Group not found' };
+    }
+
+    const result = await saveFavoritesConfig(favorites);
+    if (result.success) {
+      return { success: true, ...getFavoritesResponse(favorites) };
+    } else {
+      return { success: false, error: result.error };
+    }
+  } catch (error) {
+    logger.error('Error setting recording favorite group:', error);
     return { success: false, error: error.message };
   }
 });
@@ -1159,8 +1301,15 @@ ipcMain.handle('fetch-match-data', async (event, matchId) => {
       if (proxyUrl) {
         // 判断是否为 SOCKS5 代理
         if (proxyUrl.startsWith('socks5://') || proxyUrl.startsWith('socks://')) {
-          agent = new SocksProxyAgent(proxyUrl);
-          logger.info(`Fetch match data - Using SOCKS5 proxy: ${proxyUrl}`);
+          try {
+            const { SocksProxyAgent } = require('socks-proxy-agent');
+            agent = new SocksProxyAgent(proxyUrl);
+            logger.info(`Fetch match data - Using SOCKS5 proxy: ${proxyUrl}`);
+          } catch (error) {
+            logger.error('SOCKS proxy requires socks-proxy-agent dependency:', error);
+            resolve({ success: false, error: 'SOCKS proxy is not available in this build' });
+            return;
+          }
         } else {
           agent = new HttpsProxyAgent(proxyUrl);
           logger.info(`Fetch match data - Using HTTP/HTTPS proxy: ${proxyUrl}`);

@@ -6,6 +6,9 @@ function RecordingsTab({
   recordings,
   recordingThumbnails,
   favoriteRecordings,
+  recordingNotes = {},
+  favoriteGroups = [],
+  favoriteRecordingGroups = {},
   onLoadThumbnails,
   onRefreshRecordings,
   onRefreshFavorites,
@@ -19,6 +22,11 @@ function RecordingsTab({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [favoriteGroupFilter, setFavoriteGroupFilter] = useState('all');
+  const [newGroupName, setNewGroupName] = useState('');
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [recordingsPerPage] = useState(20);
@@ -41,10 +49,14 @@ function RecordingsTab({
   useEffect(() => {
     if (selectedRecording) {
       loadRecordingUrl(selectedRecording.filePath);
+      setNoteDraft(recordingNotes[selectedRecording.id] || '');
     } else {
       setRecordingUrl(null);
+      setNoteDraft('');
     }
-  }, [selectedRecording]);
+  }, [selectedRecording, recordingNotes]);
+
+  const selectedFavoriteGroup = favoriteGroups.find(group => group.id === favoriteGroupFilter);
 
   // Computed: filtered recordings with useMemo
   const filteredRecordings = useMemo(() => {
@@ -66,13 +78,15 @@ function RecordingsTab({
         if (recordingDate > endDateObj) return false;
       }
 
-      if (showFavoritesOnly && !favoriteRecordings.includes(recording.id)) {
-        return false;
+      if (showFavoritesOnly) {
+        if (!favoriteRecordings.includes(recording.id)) return false;
+        if (favoriteGroupFilter === 'ungrouped') return !favoriteRecordingGroups[recording.id];
+        if (favoriteGroupFilter !== 'all') return favoriteRecordingGroups[recording.id] === favoriteGroupFilter;
       }
 
       return true;
     });
-  }, [recordings, startDate, endDate, showFavoritesOnly, favoriteRecordings]);
+  }, [recordings, startDate, endDate, showFavoritesOnly, favoriteRecordings, favoriteGroupFilter, favoriteRecordingGroups]);
 
   // Effect: recompute pagination when recordings or filter changes
   useEffect(() => {
@@ -125,6 +139,102 @@ function RecordingsTab({
       }
     } catch (error) {
       Logger.error('Error toggling favorite recording:', error);
+    }
+  };
+
+  const saveRecordingNote = async () => {
+    if (!selectedRecording) return;
+
+    try {
+      setNoteSaving(true);
+      const result = await window.electronAPI.saveRecordingNote(selectedRecording.id, noteDraft);
+      if (result.success) {
+        onRefreshFavorites();
+        Logger.info('Recording note saved');
+      } else {
+        Logger.error('Failed to save note:', result.error);
+        alert('保存备注失败: ' + result.error);
+      }
+    } catch (error) {
+      Logger.error('Error saving recording note:', error);
+      alert('保存备注时发生错误: ' + error.message);
+    } finally {
+      setNoteSaving(false);
+    }
+  };
+
+  const createFavoriteGroup = async () => {
+    const groupName = newGroupName.trim();
+    if (!groupName) {
+      alert('请先输入分组名称');
+      return;
+    }
+
+    try {
+      setIsCreatingGroup(true);
+      const result = await window.electronAPI.createFavoriteGroup(groupName);
+      if (result.success) {
+        setNewGroupName('');
+        setShowFavoritesOnly(true);
+        await onRefreshFavorites();
+      } else {
+        alert('创建分组失败: ' + result.error);
+      }
+    } catch (error) {
+      Logger.error('Error creating favorite group:', error);
+      alert('创建分组时发生错误: ' + error.message);
+    } finally {
+      setIsCreatingGroup(false);
+    }
+  };
+
+  const renameFavoriteGroup = async () => {
+    if (!selectedFavoriteGroup) return;
+    const name = window.prompt('输入新的分组名称', selectedFavoriteGroup.name);
+    if (!name || !name.trim()) return;
+
+    try {
+      const result = await window.electronAPI.renameFavoriteGroup(selectedFavoriteGroup.id, name.trim());
+      if (result.success) {
+        onRefreshFavorites();
+      } else {
+        alert('重命名分组失败: ' + result.error);
+      }
+    } catch (error) {
+      Logger.error('Error renaming favorite group:', error);
+      alert('重命名分组时发生错误: ' + error.message);
+    }
+  };
+
+  const deleteFavoriteGroup = async () => {
+    if (!selectedFavoriteGroup) return;
+    if (!window.confirm(`确定要删除收藏分组「${selectedFavoriteGroup.name}」吗？分组内录像仍会保持收藏。`)) return;
+
+    try {
+      const result = await window.electronAPI.deleteFavoriteGroup(selectedFavoriteGroup.id);
+      if (result.success) {
+        setFavoriteGroupFilter('all');
+        onRefreshFavorites();
+      } else {
+        alert('删除分组失败: ' + result.error);
+      }
+    } catch (error) {
+      Logger.error('Error deleting favorite group:', error);
+      alert('删除分组时发生错误: ' + error.message);
+    }
+  };
+
+  const setRecordingFavoriteGroup = async (recording, groupId) => {
+    try {
+      const result = await window.electronAPI.setRecordingFavoriteGroup(recording.id, groupId || null);
+      if (result.success) {
+        onRefreshFavorites();
+      } else {
+        alert('设置分组失败: ' + result.error);
+      }
+    } catch (error) {
+      Logger.error('Error setting recording favorite group:', error);
+      alert('设置分组时发生错误: ' + error.message);
     }
   };
 
@@ -335,6 +445,21 @@ function RecordingsTab({
                     您的浏览器不支持视频播放。
                   </video>
                 </div>
+                <div className="manual-note-card">
+                  <div className="manual-note-header">
+                    <h4>手动备注</h4>
+                    <button onClick={saveRecordingNote} disabled={noteSaving}>
+                      {noteSaving ? '保存中...' : '保存备注'}
+                    </button>
+                  </div>
+                  <textarea
+                    value={noteDraft}
+                    onChange={(e) => setNoteDraft(e.target.value)}
+                    rows={3}
+                    className="manual-note-textarea"
+                    placeholder="记录这一局的关键操作、失误或复盘想法..."
+                  />
+                </div>
                 <div className="analysis-bar">
                   <button className="analyze-btn" onClick={() => analyzeRecording(selectedRecording)}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -379,7 +504,11 @@ function RecordingsTab({
                     <Icon name="refresh" size={14} /> 刷新
                   </button>
                   <button
-                    onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                    onClick={() => {
+                      const nextShowFavoritesOnly = !showFavoritesOnly;
+                      setShowFavoritesOnly(nextShowFavoritesOnly);
+                      if (!nextShowFavoritesOnly) setFavoriteGroupFilter('all');
+                    }}
                     className={showFavoritesOnly ? 'active' : ''}
                     title={showFavoritesOnly ? '仅显示收藏' : '显示收藏'}
                   >
@@ -421,6 +550,45 @@ function RecordingsTab({
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="favorites-tools">
+            <select
+              value={favoriteGroupFilter}
+              onChange={(e) => {
+                setFavoriteGroupFilter(e.target.value);
+                setShowFavoritesOnly(true);
+              }}
+              className="favorite-group-filter"
+              title="收藏分组筛选"
+            >
+              <option value="all">全部收藏</option>
+              <option value="ungrouped">未分组</option>
+              {favoriteGroups.map(group => (
+                <option key={group.id} value={group.id}>{group.name}</option>
+              ))}
+            </select>
+            <input
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && createFavoriteGroup()}
+              className="favorite-group-name-input"
+              placeholder="新分组名"
+              maxLength={30}
+            />
+            <button
+              onClick={createFavoriteGroup}
+              className="favorite-group-action"
+              disabled={isCreatingGroup}
+            >
+              {isCreatingGroup ? '创建中...' : '+ 分组'}
+            </button>
+            {selectedFavoriteGroup && showFavoritesOnly && (
+              <>
+                <button onClick={renameFavoriteGroup} className="favorite-group-action">改名</button>
+                <button onClick={deleteFavoriteGroup} className="favorite-group-action danger">删除</button>
+              </>
+            )}
           </div>
 
           {/* Pagination Controls - Outside header */}
@@ -483,6 +651,26 @@ function RecordingsTab({
                 <div className="recording-info" onClick={(e) => e.stopPropagation()}>
                   <h3>{recording.name}</h3>
                   <p>{new Date(recording.date).toLocaleString('zh-CN')}</p>
+                  {recordingNotes[recording.id] && (
+                    <p className="recording-note-preview" title={recordingNotes[recording.id]}>
+                      备注：{recordingNotes[recording.id]}
+                    </p>
+                  )}
+                  {favoriteRecordings.includes(recording.id) && favoriteGroups.length > 0 && !isSelectMode && (
+                    <div className="recording-group-row">
+                      <span>分组：</span>
+                      <select
+                        value={favoriteRecordingGroups[recording.id] || ''}
+                        onChange={(e) => setRecordingFavoriteGroup(recording, e.target.value)}
+                        className="recording-group-select"
+                      >
+                        <option value="">未分组</option>
+                        {favoriteGroups.map(group => (
+                          <option key={group.id} value={group.id}>{group.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   {!isSelectMode && (
                     <div className="recording-actions">
                       <button

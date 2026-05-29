@@ -8,6 +8,7 @@ import GameTab from './components/GameTab';
 import RecordingsTab from './components/RecordingsTab';
 import MapTab from './components/MapTab';
 import StatsTab from './components/StatsTab';
+import type { Connection, MapMarker, Position, RoleKey } from './components/MapTab';
 import type { GameProcess, Recording, RecordingThumbnails, FavoriteGroup, RecordingNotes, FavoriteRecordingGroups } from './types/electron-api';
 
 type ActiveTab = 'games' | 'recordings' | 'settings' | 'entertainment' | 'stats' | 'review';
@@ -31,6 +32,13 @@ function App() {
   const [recordingNotes, setRecordingNotes] = useState<RecordingNotes>({});
   const [favoriteGroups, setFavoriteGroups] = useState<FavoriteGroup[]>([]);
   const [favoriteRecordingGroups, setFavoriteRecordingGroups] = useState<FavoriteRecordingGroups>({});
+  const [sharedMapId, setSharedMapId] = useState(1);
+  const [sharedMapSequence, setSharedMapSequence] = useState(1);
+  const [sharedMapMarkersByMap, setSharedMapMarkersByMap] = useState<Record<number, MapMarker[]>>({});
+  const [sharedRoleAssignments, setSharedRoleAssignments] = useState<Record<string, RoleKey>>({});
+  const [sharedConnectionsByMap, setSharedConnectionsByMap] = useState<Record<number, Connection[]>>({});
+  const [sharedMarkerTrailsByMap, setSharedMarkerTrailsByMap] = useState<Record<number, Record<number, Position[][]>>>({});
+  const [sharedDeadMarkers, setSharedDeadMarkers] = useState<Record<string, boolean>>({});
   const compressVideosRef = useRef(compressVideos);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -520,7 +528,22 @@ function App() {
       <ErrorBoundary>
       <main className={`app-main ${activeTab === 'review' ? 'review-mode' : ''}`}>
         <div className={`tab-pane map-pane ${activeTab === 'entertainment' || activeTab === 'review' ? 'active' : 'hidden'}`}>
-          <MapTab />
+          <MapTab
+            selectedMap={sharedMapId}
+            setSelectedMap={setSharedMapId}
+            currentSequence={sharedMapSequence}
+            setCurrentSequence={setSharedMapSequence}
+            mapMarkersByMap={sharedMapMarkersByMap}
+            setMapMarkersByMap={setSharedMapMarkersByMap}
+            roleAssignments={sharedRoleAssignments}
+            setRoleAssignments={setSharedRoleAssignments}
+            connectionsByMap={sharedConnectionsByMap}
+            setConnectionsByMap={setSharedConnectionsByMap}
+            markerTrailsByMap={sharedMarkerTrailsByMap}
+            setMarkerTrailsByMap={setSharedMarkerTrailsByMap}
+            deadMarkers={sharedDeadMarkers}
+            setDeadMarkers={setSharedDeadMarkers}
+          />
         </div>
         <div className={`tab-pane recordings-pane ${activeTab === 'recordings' || activeTab === 'review' ? 'active' : 'hidden'}`}>
           <RecordingsTab

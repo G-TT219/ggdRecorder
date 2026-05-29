@@ -341,19 +341,23 @@ function StatsTab() {
     <section className="stats-section">
       <div className="stats-container">
         <div className="stats-header">
-          <h2>战绩查询</h2>
+          <div className="stats-title-group">
+            <span className="stats-kicker">Gaggle Dashboard</span>
+            <h2>战绩查询</h2>
+          </div>
           <button
             className="open-browser-btn"
             onClick={openStatsInBrowser}
             title="在系统浏览器中打开官网"
           >
-            <><Icon name="globe" size={16} /> 打开官网</>
+            <Icon name="globe" size={16} /> 打开官网
           </button>
         </div>
 
         {/* 用户ID输入区域 */}
         <div className="match-query-section">
-          <div className="query-input-group">
+          <div className="query-input-group history-query">
+            <span className="query-label">用户历史</span>
             <input
               type="text"
               className="match-id-input"
@@ -367,12 +371,13 @@ function StatsTab() {
               onClick={() => fetchMatchHistory(userIdInput)}
               disabled={matchHistoryLoading}
             >
-              {matchHistoryLoading ? '加载中...' : '查询历史'}
+              {matchHistoryLoading ? '加载中...' : <><Icon name="clipboard" size={16} /> 查询历史</>}
             </button>
           </div>
 
           {/* 对局ID快速查询 */}
-          <div className="query-input-group" style={{ marginTop: '10px' }}>
+          <div className="query-input-group match-query">
+            <span className="query-label">对局详情</span>
             <input
               type="text"
               className="match-id-input"
@@ -386,7 +391,7 @@ function StatsTab() {
               onClick={() => fetchMatchData(matchIdInput)}
               disabled={matchLoading}
             >
-              {matchLoading ? '加载中...' : '查询对局'}
+              {matchLoading ? '加载中...' : <><Icon name="chart" size={16} /> 查询对局</>}
             </button>
           </div>
         </div>
@@ -561,18 +566,17 @@ function StatsTab() {
         {matchData && !matchLoading && (
           <div className="match-data-display">
             {/* 返回按钮 */}
-            <div style={{ marginBottom: '15px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <div className="match-detail-toolbar">
               <button
-                className="query-button"
+                className="detail-back-btn"
                 onClick={() => {
                   setMatchData(null);
                   setMatchIdInput('');
                 }}
-                style={{ background: '#666', border: 'none', padding: '8px 16px', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '14px' }}
               >
-                ← 返回历史列表
+                <Icon name="arrowRight" size={15} /> 返回历史列表
               </button>
-              <span style={{ color: '#00d4ff', fontSize: '14px' }}>正在查看对局详情: {matchData.matchId}</span>
+              <span className="current-match-id">正在查看对局详情: {matchData.matchId}</span>
             </div>
 
             {/* 对局基本信息 */}

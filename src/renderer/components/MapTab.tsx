@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type MouseEvent, type DragEvent } from 'react';
+import { useState, useEffect, useRef, type Dispatch, type MouseEvent, type SetStateAction } from 'react';
 import Logger from '../utils/logger';
 import Icon from './Icon';
 
@@ -18,9 +18,9 @@ const mapNameMapping: Record<number, string> = {
   13: '绿头鸭',
 };
 
-type Position = { x: number; y: number };
+export type Position = { x: number; y: number };
 
-type MapMarker = {
+export type MapMarker = {
   x: number;
   y: number;
   number: number;
@@ -28,21 +28,50 @@ type MapMarker = {
   id: number;
 };
 
-type RoleKey = 'good' | 'neutral' | 'evil';
+export type RoleKey = 'good' | 'neutral' | 'evil';
 
-type Connection = {
+export type Connection = {
   from: number;
   to: number;
 };
 
 type ToolMode = 'move' | 'connect' | 'trail' | 'delete';
 
-function MapTab() {
+type MapTabProps = {
+  selectedMap: number;
+  setSelectedMap: Dispatch<SetStateAction<number>>;
+  currentSequence: number;
+  setCurrentSequence: Dispatch<SetStateAction<number>>;
+  mapMarkersByMap: Record<number, MapMarker[]>;
+  setMapMarkersByMap: Dispatch<SetStateAction<Record<number, MapMarker[]>>>;
+  roleAssignments: Record<string, RoleKey>;
+  setRoleAssignments: Dispatch<SetStateAction<Record<string, RoleKey>>>;
+  connectionsByMap: Record<number, Connection[]>;
+  setConnectionsByMap: Dispatch<SetStateAction<Record<number, Connection[]>>>;
+  markerTrailsByMap: Record<number, Record<number, Position[][]>>;
+  setMarkerTrailsByMap: Dispatch<SetStateAction<Record<number, Record<number, Position[][]>>>>;
+  deadMarkers: Record<string, boolean>;
+  setDeadMarkers: Dispatch<SetStateAction<Record<string, boolean>>>;
+};
+
+function MapTab({
+  selectedMap,
+  setSelectedMap,
+  currentSequence,
+  setCurrentSequence,
+  mapMarkersByMap,
+  setMapMarkersByMap,
+  roleAssignments,
+  setRoleAssignments,
+  connectionsByMap,
+  setConnectionsByMap,
+  markerTrailsByMap,
+  setMarkerTrailsByMap,
+  deadMarkers,
+  setDeadMarkers,
+}: MapTabProps) {
   // 地图辅助工具状态
-  const [selectedMap, setSelectedMap] = useState(1);
-  const [currentSequence, setCurrentSequence] = useState(1);
   const [toolMode, setToolMode] = useState<ToolMode>('move');
-  const [mapMarkersByMap, setMapMarkersByMap] = useState<Record<number, MapMarker[]>>({});
   const [draggedNumber, setDraggedNumber] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [draggingMarkerId, setDraggingMarkerId] = useState<number | null>(null);
@@ -51,16 +80,12 @@ function MapTab() {
   const [hasMoved, setHasMoved] = useState(false);
   const [isInDeleteZone, setIsInDeleteZone] = useState(false);
   const [selectedNumberForRole, setSelectedNumberForRole] = useState<number | null>(null);
-  const [roleAssignments, setRoleAssignments] = useState<Record<string, RoleKey>>({});
-  const [connectionsByMap, setConnectionsByMap] = useState<Record<number, Connection[]>>({});
   const [drawingConnection, setDrawingConnection] = useState<{ markerId: number; x: number; y: number } | null>(null);
   const [mousePos, setMousePos] = useState<Position>({ x: 0, y: 0 });
   const [hoveredConnection, setHoveredConnection] = useState<number | null>(null);
   const [drawingTrailMarkerId, setDrawingTrailMarkerId] = useState<number | null>(null);
-  const [markerTrailsByMap, setMarkerTrailsByMap] = useState<Record<number, Record<number, Position[][]>>>({});
   const [activeTrailSegment, setActiveTrailSegment] = useState<Position[] | null>(null);
   const [isDrawingTrail, setIsDrawingTrail] = useState(false);
-  const [deadMarkers, setDeadMarkers] = useState<Record<string, boolean>>({});
   const [mapAspectRatio, setMapAspectRatio] = useState(16 / 9);
 
   const mapMarkers = mapMarkersByMap[selectedMap] || [];

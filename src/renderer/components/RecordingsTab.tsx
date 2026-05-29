@@ -51,6 +51,7 @@ function RecordingsTab({
   const [recordingsPerPage] = useState(20);
 
   const recordingsListRef = useRef<HTMLElement | null>(null);
+  const savedScrollTopRef = useRef(0);
 
   const loadRecordingUrl = async (filePath: string) => {
     try {
@@ -259,6 +260,9 @@ function RecordingsTab({
 
   // Navigate to player view
   const handleNavigateToPlayer = (recording) => {
+    if (recordingsListRef.current) {
+      savedScrollTopRef.current = recordingsListRef.current.scrollTop;
+    }
     setSelectedRecording(recording);
   };
 
@@ -266,6 +270,11 @@ function RecordingsTab({
   const handleReturnToList = () => {
     setSelectedRecording(null);
     setRecordingUrl(null);
+    requestAnimationFrame(() => {
+      if (recordingsListRef.current) {
+        recordingsListRef.current.scrollTop = savedScrollTopRef.current;
+      }
+    });
   };
 
   // Pagination helpers

@@ -4,7 +4,7 @@ import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import { randomUUID } from 'crypto';
 import logger from './logger';
-import { createRecordingsDir, isPathInside, recordingUrlMap } from './utils';
+import { createRecordingsDir, isPathInside, recordingUrlMap, setRecordingUrl } from './utils';
 import { getGlobalConfig, getFavoritesConfig, saveFavoritesConfig } from './config';
 import { compressVideo, generateVideoThumbnail } from './services/ffmpeg';
 
@@ -56,22 +56,22 @@ export const registerRecordingHandlers = (): void => {
         recordingsDir = await createRecordingsDir();
       }
       const files = await fs.readdir(recordingsDir);
-      const recordings: Array<{ id: string; name: string; date: string; filePath: string; size: number }> = [];
-      for (const file of files) {
-        if (file.endsWith('.webm') || file.endsWith('.mp4')) {
+      const videoFiles = files.filter(f => f.endsWith('.webm') || f.endsWith('.mp4'));
+      const results = await Promise.all(
+        videoFiles.map(async file => {
           const filePath = path.join(recordingsDir, file);
           const stats = await fs.stat(filePath);
-          recordings.push({
+          return {
             id: file,
             name: file.replace('.webm', '').replace('_compressed.mp4', ''),
             date: stats.birthtime.toISOString(),
             filePath,
             size: stats.size,
-          });
-        }
-      }
-      recordings.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      return recordings;
+          };
+        })
+      );
+      results.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return results;
     } catch (error) {
       logger.error('Error getting recordings:', error);
       return [];
@@ -121,7 +121,7 @@ export const registerRecordingHandlers = (): void => {
       }
       await fs.access(resolvedFilePath);
       const token = randomUUID();
-      recordingUrlMap.set(token, resolvedFilePath);
+      setRecordingUrl(token, resolvedFilePath);
       return { success: true, url: `recording://local/${token}/${encodeURIComponent(path.basename(resolvedFilePath))}` };
     } catch (error) {
       logger.error('Error creating recording URL:', error);
@@ -141,7 +141,8 @@ export const registerRecordingHandlers = (): void => {
         const data = await fs.readFile(thumbnailPath);
         return { success: true, data: data.toString('base64') };
       } catch {
-        return await generateVideoThumbnail(filePath, thumbnailPath);
+        const result = await generateVideoThumbnail(filePath, thumbnailPath);
+        return { success: true, data: result.data };
       }
     } catch (error) {
       logger.error('Error generating thumbnail:', error);

@@ -54,7 +54,9 @@ function MapTab() {
   const [mousePos, setMousePos] = useState<Position>({ x: 0, y: 0 });
   const [hoveredConnection, setHoveredConnection] = useState<number | null>(null);
   const [drawingTrailMarkerId, setDrawingTrailMarkerId] = useState<number | null>(null);
-  const [markerTrails, setMarkerTrails] = useState<Record<number, Position[]>>({});
+  const [markerTrails, setMarkerTrails] = useState<Record<number, Position[][]>>({});
+  const [activeTrailSegment, setActiveTrailSegment] = useState<Position[] | null>(null);
+  const [isDrawingTrail, setIsDrawingTrail] = useState(false);
   const [deadMarkers, setDeadMarkers] = useState<Record<string, boolean>>({});
 
   const isDead = (seq: number, num: number): boolean => {
@@ -62,6 +64,22 @@ function MapTab() {
       if (deadMarkers[`${s}-${num}`]) return true;
     }
     return false;
+  };
+
+  const getMapPoint = (e: MouseEvent): Position | null => {
+    if (!mapContainerRef.current) return null;
+    const rect = mapContainerRef.current.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)),
+      y: Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)),
+    };
+  };
+
+  const shouldAddTrailPoint = (points: Position[], point: Position): boolean => {
+    const last = points[points.length - 1];
+    if (!last) return true;
+    const distance = Math.hypot(point.x - last.x, point.y - last.y);
+    return distance >= 2.5;
   };
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -92,6 +110,14 @@ function MapTab() {
   };
 
   const handleMapMouseMove = (e: MouseEvent) => {
+    if (isDrawingTrail && drawingTrailMarkerId !== null && activeTrailSegment) {
+      const point = getMapPoint(e);
+      if (point && shouldAddTrailPoint(activeTrailSegment, point)) {
+        setActiveTrailSegment([...activeTrailSegment, point]);
+      }
+      return;
+    }
+
     if (!draggingMarkerId || !mapContainerRef.current) return;
 
     const moveDistance = Math.sqrt(
@@ -138,6 +164,22 @@ function MapTab() {
   };
 
   const handleMapMouseUp = () => {
+    if (isDrawingTrail && drawingTrailMarkerId !== null && activeTrailSegment && activeTrailSegment.length > 1) {
+      setMarkerTrails(prev => ({
+        ...prev,
+        [drawingTrailMarkerId]: [...(prev[drawingTrailMarkerId] || []), activeTrailSegment]
+      }));
+      setActiveTrailSegment(null);
+      setIsDrawingTrail(false);
+      return;
+    }
+
+    if (isDrawingTrail) {
+      setActiveTrailSegment(null);
+      setIsDrawingTrail(false);
+      return;
+    }
+
     if (draggingMarkerId) {
       if (isInDeleteZone) {
         setMapMarkers(mapMarkers.filter(m => m.id !== draggingMarkerId));
@@ -366,15 +408,13 @@ function MapTab() {
               handleMapMouseUp();
               handleConnectionCancel();
             }}
-            onClick={(e) => {
-              if (drawingTrailMarkerId !== null && mapContainerRef.current) {
-                const rect = mapContainerRef.current.getBoundingClientRect();
-                const x = ((e.clientX - rect.left) / rect.width) * 100;
-                const y = ((e.clientY - rect.top) / rect.height) * 100;
-                setMarkerTrails(prev => ({
-                  ...prev,
-                  [drawingTrailMarkerId]: [...(prev[drawingTrailMarkerId] || []), { x, y }]
-                }));
+            onMouseDown={(e) => {
+              if (drawingTrailMarkerId !== null && e.button === 0) {
+                const point = getMapPoint(e);
+                if (point) {
+                  setActiveTrailSegment([point]);
+                  setIsDrawingTrail(true);
+                }
               }
             }}
             onContextMenu={(e) => e.preventDefault()}
@@ -524,32 +564,36 @@ function MapTab() {
 
               {/* 移动轨迹 */}
               {mapMarkers.filter(m => m.sequence === currentSequence).map(marker => {
-                const trail = markerTrails[marker.id];
-                if (!trail || trail.length === 0) return null;
-                const allPoints = [{ x: marker.x, y: marker.y }, ...trail];
+                const segments = markerTrails[marker.id] || [];
+                const drawingSegment = drawingTrailMarkerId === marker.id && activeTrailSegment ? [activeTrailSegment] : [];
+                const allSegments = [...segments, ...drawingSegment];
+                if (allSegments.length === 0) return null;
                 return (
                   <g key={`trail-${marker.id}`}>
-                    {allPoints.slice(0, -1).map((p, i) => (
-                      <line
-                        key={`l-${i}`}
-                        x1={`${p.x}%`}
-                        y1={`${p.y}%`}
-                        x2={`${allPoints[i + 1].x}%`}
-                        y2={`${allPoints[i + 1].y}%`}
-                        stroke="#ffd700"
-                        strokeWidth="2"
-                        strokeDasharray="5,3"
-                        opacity="0.7"
-                      />
-                    ))}
-                    {trail.map((p, i) => (
+                    {allSegments.map((segment, segmentIndex) => {
+                      const points = segmentIndex === 0 ? [{ x: marker.x, y: marker.y }, ...segment] : segment;
+                      return points.slice(0, -1).map((p, i) => (
+                        <line
+                          key={`l-${segmentIndex}-${i}`}
+                          x1={`${p.x}%`}
+                          y1={`${p.y}%`}
+                          x2={`${points[i + 1].x}%`}
+                          y2={`${points[i + 1].y}%`}
+                          stroke="#ffd700"
+                          strokeWidth="2"
+                          strokeDasharray={segmentIndex === segments.length ? undefined : '5,3'}
+                          opacity={segmentIndex === segments.length ? '0.95' : '0.7'}
+                        />
+                      ));
+                    })}
+                    {allSegments.flat().map((p, i) => (
                       <circle
                         key={`c-${i}`}
                         cx={`${p.x}%`}
                         cy={`${p.y}%`}
-                        r="4"
+                        r="3"
                         fill="#ffd700"
-                        opacity="0.5"
+                        opacity="0.45"
                       />
                     ))}
                   </g>
@@ -592,6 +636,7 @@ function MapTab() {
                   className={`${markerClass} ${isDead(currentSequence, marker.number) ? 'dead' : ''}`}
                   style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
                   onMouseDown={(e) => {
+                    if (drawingTrailMarkerId !== null) return;
                     if (e.button === 0) {
                       handleMarkerMouseDown(e, marker.id);
                     } else if (e.button === 2) {
@@ -605,7 +650,7 @@ function MapTab() {
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!hasMoved) {
+                    if (!hasMoved && drawingTrailMarkerId === null) {
                       handleMarkerClick(marker.number);
                     }
                   }}
@@ -628,13 +673,25 @@ function MapTab() {
                 <p className="selection-hint">
                   正在为数字 <strong>{mapMarkers.find(m => m.id === drawingTrailMarkerId)?.number ?? '?'}</strong> 绘制路径
                 </p>
-                <p className="trail-instruction">左键点击地图添加途经点</p>
+                <p className="trail-instruction">按住左键拖动绘制，松开完成一段路径</p>
                 <div className="trail-points-list">
-                  {(markerTrails[drawingTrailMarkerId] || []).map((_, i) => (
-                    <span key={i} className="trail-point-chip">{i + 1}</span>
+                  {(markerTrails[drawingTrailMarkerId] || []).map((segment, i) => (
+                    <span key={i} className="trail-point-chip">{i + 1}:{segment.length}</span>
                   ))}
+                  {activeTrailSegment && <span className="trail-point-chip">绘制中:{activeTrailSegment.length}</span>}
                 </div>
                 <div className="trail-actions">
+                  <button
+                    className="action-btn"
+                    onClick={() => {
+                      setMarkerTrails(prev => ({
+                        ...prev,
+                        [drawingTrailMarkerId]: (prev[drawingTrailMarkerId] || []).slice(0, -1)
+                      }));
+                    }}
+                  >
+                    撤销上一段
+                  </button>
                   <button
                     className="action-btn primary"
                     onClick={() => {
@@ -643,6 +700,8 @@ function MapTab() {
                         delete next[drawingTrailMarkerId];
                         return next;
                       });
+                      setActiveTrailSegment(null);
+                      setIsDrawingTrail(false);
                       setDrawingTrailMarkerId(null);
                     }}
                   >
@@ -650,7 +709,11 @@ function MapTab() {
                   </button>
                   <button
                     className="cancel-btn"
-                    onClick={() => setDrawingTrailMarkerId(null)}
+                    onClick={() => {
+                      setActiveTrailSegment(null);
+                      setIsDrawingTrail(false);
+                      setDrawingTrailMarkerId(null);
+                    }}
                   >
                     完成
                   </button>

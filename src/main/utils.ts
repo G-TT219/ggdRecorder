@@ -35,6 +35,16 @@ export const getAppConfigPath = (): string =>
   path.join(app.getPath('userData'), 'config.json');
 
 export const recordingUrlMap = new Map<string, string>();
+const RECORDING_URL_MAX = 50;
+export const setRecordingUrl = (token: string, filePath: string): void => {
+  if (recordingUrlMap.size >= RECORDING_URL_MAX) {
+    const keys = [...recordingUrlMap.keys()];
+    for (let i = 0; i < RECORDING_URL_MAX / 2; i++) {
+      recordingUrlMap.delete(keys[i]);
+    }
+  }
+  recordingUrlMap.set(token, filePath);
+};
 
 export const pendingRecordingTarget: { current: string | null } = { current: null };
 export const setPendingRecordingTarget = (name: string): void => { pendingRecordingTarget.current = name; };

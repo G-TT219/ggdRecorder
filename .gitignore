@@ -10,4 +10,5 @@ dist-electron/
 .env
 package-lock.json
 .claude
+.codegraph
 CLAUDE.md

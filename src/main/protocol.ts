@@ -2,6 +2,7 @@ import path from 'path';
 import { protocol, net } from 'electron';
 import { Readable } from 'stream';
 import * as fsSync from 'fs';
+import { promises as fs } from 'fs';
 import logger from './logger';
 import { recordingUrlMap } from './utils';
 
@@ -26,10 +27,11 @@ export const registerProtocolHandlers = (): void => {
       const url = new URL(request.url);
       const token = url.pathname.split('/').filter(Boolean)[0];
       const filePath = recordingUrlMap.get(token);
-      if (filePath && fsSync.existsSync(filePath)) {
+      if (filePath) {
+        try { await fs.access(filePath); } catch { return new Response(null, { status: 404 }); }
         const ext = path.extname(filePath).toLowerCase();
         const mime = ext === '.mp4' ? 'video/mp4' : 'video/webm';
-        const stat = fsSync.statSync(filePath);
+        const stat = await fs.stat(filePath);
         const fileSize = stat.size;
         const range = request.headers.get('range');
 

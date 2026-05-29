@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 import Logger from './utils/logger';
+import ErrorBoundary from './components/ErrorBoundary';
 import SettingsTab from './components/SettingsTab';
 import TitleBar from './components/TitleBar';
 import GameTab from './components/GameTab';
@@ -23,6 +24,8 @@ function App() {
   const [gamePath, setGamePath] = useState('');
   const [compressVideos, setCompressVideos] = useState(false);
   const [recordingThumbnails, setRecordingThumbnails] = useState<RecordingThumbnails>({});
+  const recordingThumbnailsRef = useRef<RecordingThumbnails>({});
+  useEffect(() => { recordingThumbnailsRef.current = recordingThumbnails; }, [recordingThumbnails]);
   const [isMaximized, setIsMaximized] = useState(false);
   const [favoriteRecordings, setFavoriteRecordings] = useState<string[]>([]);
   const [recordingNotes, setRecordingNotes] = useState<RecordingNotes>({});
@@ -186,7 +189,8 @@ function App() {
   };
 
   const loadRecordingThumbnails = useCallback(async (recordingsList: Recording[]) => {
-    const missingRecordings = recordingsList.filter(recording => !recordingThumbnails[recording.id]);
+    const currentThumbnails = recordingThumbnailsRef.current;
+    const missingRecordings = recordingsList.filter(recording => !currentThumbnails[recording.id]);
     if (missingRecordings.length === 0) return;
 
     const results = await Promise.allSettled(
@@ -196,7 +200,7 @@ function App() {
       )
     );
 
-    const loadedThumbnails = {};
+    const loadedThumbnails: RecordingThumbnails = {};
     for (const item of results) {
       if (item.status === 'fulfilled' && item.value.result.success) {
         loadedThumbnails[item.value.id] = item.value.result.data;
@@ -208,7 +212,7 @@ function App() {
     if (Object.keys(loadedThumbnails).length > 0) {
       setRecordingThumbnails(prev => ({ ...prev, ...loadedThumbnails }));
     }
-  }, [recordingThumbnails]);
+  }, []);
 
   const loadingConfig = async () => {
     try {
@@ -513,6 +517,7 @@ function App() {
         )}
       </header>
 
+      <ErrorBoundary>
       <main className={`app-main ${activeTab === 'review' ? 'review-mode' : ''}`}>
         <div className={`tab-pane map-pane ${activeTab === 'entertainment' || activeTab === 'review' ? 'active' : 'hidden'}`}>
           <MapTab />
@@ -559,6 +564,7 @@ function App() {
           />
         ) : null}
       </main>
+    </ErrorBoundary>
     </div>
   );
 }

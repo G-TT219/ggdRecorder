@@ -252,6 +252,13 @@ function MapTab() {
     setToolMode('trail');
   };
 
+  const exitTrailMode = () => {
+    setActiveTrailSegment(null);
+    setIsDrawingTrail(false);
+    setDrawingTrailMarkerId(null);
+    setToolMode('move');
+  };
+
   const removeMarker = (markerId: number) => {
     setCurrentMapMarkers(markers => markers.filter(m => m.id !== markerId));
     setCurrentConnections(items => items.filter(conn => conn.from !== markerId && conn.to !== markerId));
@@ -693,7 +700,12 @@ function MapTab() {
                 }
               }
             }}
-            onContextMenu={(e) => e.preventDefault()}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              if (toolMode === 'trail' || drawingTrailMarkerId !== null) {
+                exitTrailMode();
+              }
+            }}
           >
             {/* 删除区域（右上角）- 仅在拖拽时显示 */}
             {(draggingMarkerId || toolMode === 'delete') && (

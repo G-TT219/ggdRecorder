@@ -35,11 +35,14 @@ type Connection = {
   to: number;
 };
 
+type ToolMode = 'move' | 'connect' | 'trail' | 'delete';
+
 function MapTab() {
   // 地图辅助工具状态
   const [selectedMap, setSelectedMap] = useState(1);
   const [currentSequence, setCurrentSequence] = useState(1);
-  const [mapMarkers, setMapMarkers] = useState<MapMarker[]>([]);
+  const [toolMode, setToolMode] = useState<ToolMode>('move');
+  const [mapMarkersByMap, setMapMarkersByMap] = useState<Record<number, MapMarker[]>>({});
   const [draggedNumber, setDraggedNumber] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [draggingMarkerId, setDraggingMarkerId] = useState<number | null>(null);
@@ -49,15 +52,46 @@ function MapTab() {
   const [isInDeleteZone, setIsInDeleteZone] = useState(false);
   const [selectedNumberForRole, setSelectedNumberForRole] = useState<number | null>(null);
   const [roleAssignments, setRoleAssignments] = useState<Record<string, RoleKey>>({});
-  const [connections, setConnections] = useState<Connection[]>([]);
+  const [connectionsByMap, setConnectionsByMap] = useState<Record<number, Connection[]>>({});
   const [drawingConnection, setDrawingConnection] = useState<{ markerId: number; x: number; y: number } | null>(null);
   const [mousePos, setMousePos] = useState<Position>({ x: 0, y: 0 });
   const [hoveredConnection, setHoveredConnection] = useState<number | null>(null);
   const [drawingTrailMarkerId, setDrawingTrailMarkerId] = useState<number | null>(null);
-  const [markerTrails, setMarkerTrails] = useState<Record<number, Position[][]>>({});
+  const [markerTrailsByMap, setMarkerTrailsByMap] = useState<Record<number, Record<number, Position[][]>>>({});
   const [activeTrailSegment, setActiveTrailSegment] = useState<Position[] | null>(null);
   const [isDrawingTrail, setIsDrawingTrail] = useState(false);
   const [deadMarkers, setDeadMarkers] = useState<Record<string, boolean>>({});
+  const [mapAspectRatio, setMapAspectRatio] = useState(16 / 9);
+
+  const mapMarkers = mapMarkersByMap[selectedMap] || [];
+  const connections = connectionsByMap[selectedMap] || [];
+  const markerTrails = markerTrailsByMap[selectedMap] || {};
+
+  const setCurrentMapMarkers = (updater: MapMarker[] | ((markers: MapMarker[]) => MapMarker[])) => {
+    setMapMarkersByMap(prev => {
+      const current = prev[selectedMap] || [];
+      const next = typeof updater === 'function' ? updater(current) : updater;
+      return { ...prev, [selectedMap]: next };
+    });
+  };
+
+  const setCurrentConnections = (updater: Connection[] | ((connections: Connection[]) => Connection[])) => {
+    setConnectionsByMap(prev => {
+      const current = prev[selectedMap] || [];
+      const next = typeof updater === 'function' ? updater(current) : updater;
+      return { ...prev, [selectedMap]: next };
+    });
+  };
+
+  const setCurrentMarkerTrails = (
+    updater: Record<number, Position[][]> | ((trails: Record<number, Position[][]>) => Record<number, Position[][]>)
+  ) => {
+    setMarkerTrailsByMap(prev => {
+      const current = prev[selectedMap] || {};
+      const next = typeof updater === 'function' ? updater(current) : updater;
+      return { ...prev, [selectedMap]: next };
+    });
+  };
 
   const isDead = (seq: number, num: number): boolean => {
     for (let s = 1; s <= seq; s++) {
@@ -67,8 +101,8 @@ function MapTab() {
   };
 
   const getMapPoint = (e: MouseEvent): Position | null => {
-    if (!mapContainerRef.current) return null;
-    const rect = mapContainerRef.current.getBoundingClientRect();
+    if (!mapStageRef.current) return null;
+    const rect = mapStageRef.current.getBoundingClientRect();
     return {
       x: Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)),
       y: Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)),
@@ -83,6 +117,7 @@ function MapTab() {
   };
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapStageRef = useRef<HTMLDivElement | null>(null);
   const deleteZoneRef = useRef<HTMLDivElement | null>(null);
 
   // 地图标记拖拽处理
@@ -97,14 +132,14 @@ function MapTab() {
     setIsDragging(true);
 
     const marker = mapMarkers.find(m => m.id === markerId);
-    if (marker && mapContainerRef.current) {
-      const containerRect = mapContainerRef.current.getBoundingClientRect();
-      const markerX = (marker.x / 100) * containerRect.width;
-      const markerY = (marker.y / 100) * containerRect.height;
+    if (marker && mapStageRef.current) {
+      const stageRect = mapStageRef.current.getBoundingClientRect();
+      const markerX = (marker.x / 100) * stageRect.width;
+      const markerY = (marker.y / 100) * stageRect.height;
 
       setMarkerOffset({
-        x: e.clientX - containerRect.left - markerX,
-        y: e.clientY - containerRect.top - markerY
+        x: e.clientX - stageRect.left - markerX,
+        y: e.clientY - stageRect.top - markerY
       });
     }
   };
@@ -118,7 +153,7 @@ function MapTab() {
       return;
     }
 
-    if (!draggingMarkerId || !mapContainerRef.current) return;
+    if (!draggingMarkerId || !mapStageRef.current) return;
 
     const moveDistance = Math.sqrt(
       Math.pow(e.clientX - mouseDownPos.x, 2) +
@@ -141,9 +176,9 @@ function MapTab() {
     }
 
     if (hasMoved || moveDistance > 5) {
-      const containerRect = mapContainerRef.current.getBoundingClientRect();
-      const x = ((e.clientX - containerRect.left - markerOffset.x) / containerRect.width) * 100;
-      const y = ((e.clientY - containerRect.top - markerOffset.y) / containerRect.height) * 100;
+      const stageRect = mapStageRef.current.getBoundingClientRect();
+      const x = ((e.clientX - stageRect.left - markerOffset.x) / stageRect.width) * 100;
+      const y = ((e.clientY - stageRect.top - markerOffset.y) / stageRect.height) * 100;
 
       const clampedX = Math.max(0, Math.min(100, x));
       const clampedY = Math.max(0, Math.min(100, y));
@@ -155,7 +190,7 @@ function MapTab() {
         markerEl.style.top = `${clampedY}%`;
       }
 
-      setMapMarkers(
+      setCurrentMapMarkers(
         mapMarkers.map(m =>
           m.id === draggingMarkerId ? { ...m, x: clampedX, y: clampedY } : m
         )
@@ -165,7 +200,7 @@ function MapTab() {
 
   const handleMapMouseUp = () => {
     if (isDrawingTrail && drawingTrailMarkerId !== null && activeTrailSegment && activeTrailSegment.length > 1) {
-      setMarkerTrails(prev => ({
+      setCurrentMarkerTrails(prev => ({
         ...prev,
         [drawingTrailMarkerId]: [...(prev[drawingTrailMarkerId] || []), activeTrailSegment]
       }));
@@ -182,7 +217,7 @@ function MapTab() {
 
     if (draggingMarkerId) {
       if (isInDeleteZone) {
-        setMapMarkers(mapMarkers.filter(m => m.id !== draggingMarkerId));
+        removeMarker(draggingMarkerId);
         Logger.info('标记已删除');
       }
 
@@ -196,6 +231,33 @@ function MapTab() {
   // 处理数字标记点击（用于选择设置身份）
   const handleMarkerClick = (markerNumber) => {
     setSelectedNumberForRole(markerNumber);
+  };
+
+  const startTrailForMarker = (markerId: number) => {
+    setSelectedNumberForRole(null);
+    setDrawingConnection(null);
+    setDrawingTrailMarkerId(markerId);
+    setToolMode('trail');
+  };
+
+  const removeMarker = (markerId: number) => {
+    setCurrentMapMarkers(markers => markers.filter(m => m.id !== markerId));
+    setCurrentConnections(items => items.filter(conn => conn.from !== markerId && conn.to !== markerId));
+    setCurrentMarkerTrails(prev => {
+      const next = { ...prev };
+      delete next[markerId];
+      return next;
+    });
+  };
+
+  const clearCurrentMap = () => {
+    setCurrentMapMarkers([]);
+    setCurrentConnections([]);
+    setCurrentMarkerTrails({});
+    setDrawingConnection(null);
+    setDrawingTrailMarkerId(null);
+    setActiveTrailSegment(null);
+    setIsDrawingTrail(false);
   };
 
   // 设置角色身份
@@ -214,8 +276,8 @@ function MapTab() {
     e.preventDefault();
     e.stopPropagation();
 
-    if (mapContainerRef.current) {
-      const rect = mapContainerRef.current.getBoundingClientRect();
+    if (mapStageRef.current) {
+      const rect = mapStageRef.current.getBoundingClientRect();
       setDrawingConnection({
         markerId,
         x: (markerX / 100) * rect.width,
@@ -226,8 +288,8 @@ function MapTab() {
 
   // 更新鼠标位置（用于绘制临时连线）
   const handleConnectionMouseMove = (e: MouseEvent) => {
-    if (drawingConnection && mapContainerRef.current) {
-      const rect = mapContainerRef.current.getBoundingClientRect();
+    if (drawingConnection && mapStageRef.current) {
+      const rect = mapStageRef.current.getBoundingClientRect();
       setMousePos({
         x: e.clientX - rect.left,
         y: e.clientY - rect.top
@@ -248,7 +310,7 @@ function MapTab() {
       );
 
       if (!exists) {
-        setConnections([
+        setCurrentConnections([
           ...connections,
           { from: drawingConnection.markerId, to: targetMarkerId }
         ]);
@@ -266,7 +328,7 @@ function MapTab() {
   // 删除连线
   const handleDeleteConnection = (fromId, toId) => {
     Logger.info(`Deleting connection: ${fromId} -> ${toId}`);
-    setConnections(
+    setCurrentConnections(
       connections.filter(
         conn => !(conn.from === fromId && conn.to === toId)
       )
@@ -382,13 +444,37 @@ function MapTab() {
               <h3>{mapNameMapping[selectedMap]}</h3>
             </div>
             <div className="map-actions">
-              <button onClick={() => setMapMarkers([])} className="action-btn">
+              <button onClick={clearCurrentMap} className="action-btn">
                 清除标记
               </button>
               <button onClick={() => { setRoleAssignments({}); setDeadMarkers({}); }} className="action-btn">
                 清除身份
               </button>
             </div>
+          </div>
+
+          <div className="map-tool-mode-bar" aria-label="地图工具模式">
+            {([
+              ['move', '移动'],
+              ['connect', '连线'],
+              ['trail', '路径'],
+              ['delete', '删除']
+            ] as [ToolMode, string][]).map(([mode, label]) => (
+              <button
+                key={mode}
+                className={`tool-mode-btn ${toolMode === mode ? 'active' : ''}`}
+                onClick={() => {
+                  setToolMode(mode);
+                  setDrawingConnection(null);
+                  setDrawingTrailMarkerId(null);
+                  setActiveTrailSegment(null);
+                  setIsDrawingTrail(false);
+                }}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           <div
@@ -420,7 +506,7 @@ function MapTab() {
             onContextMenu={(e) => e.preventDefault()}
           >
             {/* 删除区域（右上角）- 仅在拖拽时显示 */}
-            {draggingMarkerId && (
+            {(draggingMarkerId || toolMode === 'delete') && (
               <div
                 ref={deleteZoneRef}
                 className={`delete-zone ${isInDeleteZone ? 'active' : ''}`}
@@ -430,43 +516,35 @@ function MapTab() {
               </div>
             )}
 
-            <img
-              src={`/img/${selectedMap}.png`}
-              alt={`地图${selectedMap}`}
-              className="map-image"
-              draggable={false}
-              onDragStart={(e) => e.preventDefault()}
+            <div
+              ref={mapStageRef}
+              className="map-stage"
+              style={{ '--map-aspect-ratio': mapAspectRatio } as React.CSSProperties}
               onDragOver={(e) => {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'copy';
               }}
               onDrop={(e) => {
                 e.preventDefault();
+                const point = getMapPoint(e as unknown as MouseEvent);
 
-                if (draggedNumber !== null) {
+                if (draggedNumber !== null && point) {
                   const existingMarker = mapMarkers.find(
                     m => m.number === draggedNumber && m.sequence === currentSequence
                   );
-                  const target = e.target as Element;
 
                   if (existingMarker) {
-                    const rect = target.getBoundingClientRect();
-                    const x = ((e.clientX - rect.left) / rect.width) * 100;
-                    const y = ((e.clientY - rect.top) / rect.height) * 100;
-                    setMapMarkers(
+                    setCurrentMapMarkers(
                       mapMarkers.map(m =>
-                        m.id === existingMarker.id ? { ...m, x, y } : m
+                        m.id === existingMarker.id ? { ...m, x: point.x, y: point.y } : m
                       )
                     );
                   } else {
-                    const rect = target.getBoundingClientRect();
-                    const x = ((e.clientX - rect.left) / rect.width) * 100;
-                    const y = ((e.clientY - rect.top) / rect.height) * 100;
-                    setMapMarkers([
+                    setCurrentMapMarkers([
                       ...mapMarkers,
                       {
-                        x,
-                        y,
+                        x: point.x,
+                        y: point.y,
                         number: draggedNumber,
                         sequence: currentSequence,
                         id: Date.now()
@@ -475,6 +553,20 @@ function MapTab() {
                   }
                   setDraggedNumber(null);
                   setIsDragging(false);
+                }
+              }}
+            >
+
+            <img
+              src={`/img/${selectedMap}.png`}
+              alt={`地图${selectedMap}`}
+              className="map-image"
+              draggable={false}
+              onDragStart={(e) => e.preventDefault()}
+              onLoad={(e) => {
+                const img = e.currentTarget;
+                if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                  setMapAspectRatio(img.naturalWidth / img.naturalHeight);
                 }
               }}
             />
@@ -636,10 +728,10 @@ function MapTab() {
                   className={`${markerClass} ${isDead(currentSequence, marker.number) ? 'dead' : ''}`}
                   style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
                   onMouseDown={(e) => {
-                    if (drawingTrailMarkerId !== null) return;
-                    if (e.button === 0) {
+                    if (drawingTrailMarkerId !== null || toolMode === 'delete' || toolMode === 'trail') return;
+                    if (e.button === 0 && toolMode === 'move') {
                       handleMarkerMouseDown(e, marker.id);
-                    } else if (e.button === 2) {
+                    } else if (e.button === 2 || toolMode === 'connect') {
                       handleConnectionStart(e, marker.id, marker.x, marker.y);
                     }
                   }}
@@ -650,7 +742,11 @@ function MapTab() {
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!hasMoved && drawingTrailMarkerId === null) {
+                    if (toolMode === 'delete') {
+                      removeMarker(marker.id);
+                    } else if (toolMode === 'trail') {
+                      startTrailForMarker(marker.id);
+                    } else if (!hasMoved && drawingTrailMarkerId === null && toolMode === 'move') {
                       handleMarkerClick(marker.number);
                     }
                   }}
@@ -660,6 +756,7 @@ function MapTab() {
                 </div>
               );
             })}
+            </div>
           </div>
         </div>
 
@@ -684,7 +781,7 @@ function MapTab() {
                   <button
                     className="action-btn"
                     onClick={() => {
-                      setMarkerTrails(prev => ({
+                      setCurrentMarkerTrails(prev => ({
                         ...prev,
                         [drawingTrailMarkerId]: (prev[drawingTrailMarkerId] || []).slice(0, -1)
                       }));
@@ -695,7 +792,7 @@ function MapTab() {
                   <button
                     className="action-btn primary"
                     onClick={() => {
-                      setMarkerTrails(prev => {
+                      setCurrentMarkerTrails(prev => {
                         const next = { ...prev };
                         delete next[drawingTrailMarkerId];
                         return next;
@@ -767,8 +864,7 @@ function MapTab() {
                   onClick={() => {
                     const currentMarkers = mapMarkers.filter(m => m.sequence === currentSequence);
                     const marker = currentMarkers.find(m => m.number === selectedNumberForRole);
-                    setSelectedNumberForRole(null);
-                    if (marker) setDrawingTrailMarkerId(marker.id);
+                    if (marker) startTrailForMarker(marker.id);
                   }}
                   style={{ width: '100%', marginTop: '0' }}
                 >

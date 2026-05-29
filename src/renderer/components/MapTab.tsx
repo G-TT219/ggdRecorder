@@ -66,6 +66,18 @@ function MapTab() {
   const mapMarkers = mapMarkersByMap[selectedMap] || [];
   const connections = connectionsByMap[selectedMap] || [];
   const markerTrails = markerTrailsByMap[selectedMap] || {};
+  const currentSequenceMarkers = mapMarkers.filter(m => m.sequence === currentSequence);
+  const selectedMarker = selectedNumberForRole !== null
+    ? currentSequenceMarkers.find(m => m.number === selectedNumberForRole)
+    : null;
+  const drawingTrailMarker = drawingTrailMarkerId !== null
+    ? mapMarkers.find(m => m.id === drawingTrailMarkerId)
+    : null;
+  const roleMeta: Record<RoleKey, { label: string; className: string; color: string }> = {
+    good: { label: '好鹅', className: 'good', color: '#4ade80' },
+    neutral: { label: '中立', className: 'neutral', color: '#f59e0b' },
+    evil: { label: '坏鹅', className: 'evil', color: '#ef4444' }
+  };
 
   const setCurrentMapMarkers = (updater: MapMarker[] | ((markers: MapMarker[]) => MapMarker[])) => {
     setMapMarkersByMap(prev => {
@@ -335,6 +347,26 @@ function MapTab() {
     );
   };
 
+  const clearSelectedRole = (number: number) => {
+    const nextAssignments = { ...roleAssignments };
+    delete nextAssignments[number];
+    setRoleAssignments(nextAssignments);
+  };
+
+  const toggleSelectedDeadState = (number: number) => {
+    setDeadMarkers(prev => {
+      const already = isDead(currentSequence, number);
+      if (already) {
+        const next = { ...prev };
+        for (let s = currentSequence; s <= 10; s++) {
+          delete next[`${s}-${number}`];
+        }
+        return next;
+      }
+      return { ...prev, [`${currentSequence}-${number}`]: true };
+    });
+  };
+
   // 添加全局 mouseup 事件监听，确保拖拽结束
   useEffect(() => {
     const handleGlobalMouseUp = () => {
@@ -354,6 +386,164 @@ function MapTab() {
       };
     }
   }, [draggingMarkerId]);
+
+  const renderInspector = () => {
+    if (drawingTrailMarkerId !== null) {
+      return (
+        <div className="inspector-section active-inspector">
+          <div className="inspector-header">
+            <span className="inspector-kicker">属性检查器</span>
+            <h3>数字 {drawingTrailMarker?.number ?? '?'}</h3>
+          </div>
+          <div className="status-row">
+            <span>路径状态</span>
+            <strong>绘制中</strong>
+          </div>
+          <p className="trail-instruction">按住左键拖动绘制，松开完成一段路径。</p>
+          <div className="trail-points-list">
+            {(markerTrails[drawingTrailMarkerId] || []).map((segment, i) => (
+              <span key={i} className="trail-point-chip">段 {i + 1} / {segment.length}</span>
+            ))}
+            {activeTrailSegment && <span className="trail-point-chip active">绘制中 / {activeTrailSegment.length}</span>}
+          </div>
+          <div className="inspector-actions">
+            <button
+              className="action-btn"
+              onClick={() => {
+                setCurrentMarkerTrails(prev => ({
+                  ...prev,
+                  [drawingTrailMarkerId]: (prev[drawingTrailMarkerId] || []).slice(0, -1)
+                }));
+              }}
+            >
+              撤销上一段
+            </button>
+            <button
+              className="action-btn danger"
+              onClick={() => {
+                setCurrentMarkerTrails(prev => {
+                  const next = { ...prev };
+                  delete next[drawingTrailMarkerId];
+                  return next;
+                });
+                setActiveTrailSegment(null);
+                setIsDrawingTrail(false);
+                setDrawingTrailMarkerId(null);
+              }}
+            >
+              清除路径
+            </button>
+            <button
+              className="action-btn primary"
+              onClick={() => {
+                setActiveTrailSegment(null);
+                setIsDrawingTrail(false);
+                setDrawingTrailMarkerId(null);
+              }}
+            >
+              完成
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (selectedNumberForRole !== null) {
+      const selectedRole = roleAssignments[selectedNumberForRole];
+      return (
+        <div className="inspector-section active-inspector">
+          <div className="inspector-header">
+            <span className="inspector-kicker">属性检查器</span>
+            <h3>数字 {selectedNumberForRole}</h3>
+          </div>
+          <div className="inspector-summary-card">
+            <div className="marker-badge">{selectedNumberForRole}</div>
+            <div>
+              <span className="muted-label">身份</span>
+              <strong>{selectedRole ? roleMeta[selectedRole].label : '未设置'}</strong>
+            </div>
+            <span className={`status-pill ${isDead(currentSequence, selectedNumberForRole) ? 'danger' : 'success'}`}>
+              {isDead(currentSequence, selectedNumberForRole) ? '死亡' : '存活'}
+            </span>
+          </div>
+          <div className="inspector-field-group">
+            <span className="field-label">设置身份</span>
+            <div className="role-buttons">
+              <button className="role-btn good" onClick={() => handleSetRole('good')}>
+                <span className="role-dot good"></span> 好鹅
+              </button>
+              <button className="role-btn neutral" onClick={() => handleSetRole('neutral')}>
+                <span className="role-dot neutral"></span> 中立
+              </button>
+              <button className="role-btn evil" onClick={() => handleSetRole('evil')}>
+                <span className="role-dot evil"></span> 坏鹅
+              </button>
+            </div>
+          </div>
+          <div className="inspector-actions">
+            <button
+              className={`action-btn ${isDead(currentSequence, selectedNumberForRole) ? '' : 'danger'}`}
+              onClick={() => toggleSelectedDeadState(selectedNumberForRole)}
+            >
+              <Icon name="ghost" size={14} />
+              {isDead(currentSequence, selectedNumberForRole) ? '标记复活' : '标记死亡'}
+            </button>
+            <button
+              className="action-btn"
+              onClick={() => selectedMarker && startTrailForMarker(selectedMarker.id)}
+              disabled={!selectedMarker}
+            >
+              绘制路径
+            </button>
+            <button className="action-btn" onClick={() => clearSelectedRole(selectedNumberForRole)}>
+              清除身份
+            </button>
+            <button className="cancel-btn" onClick={() => setSelectedNumberForRole(null)}>
+              取消选择
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="inspector-section">
+        <div className="inspector-header">
+          <span className="inspector-kicker">属性检查器</span>
+          <h3>当前地图</h3>
+        </div>
+        <div className="inspector-stats">
+          <div><span>地图</span><strong>{mapNameMapping[selectedMap]}</strong></div>
+          <div><span>轮次</span><strong>{currentSequence}</strong></div>
+          <div><span>本轮标记</span><strong>{currentSequenceMarkers.length}</strong></div>
+          <div><span>连线</span><strong>{connections.length}</strong></div>
+        </div>
+        <p className="role-hint">点击地图上的数字查看属性，或从左侧拖入数字创建标记。</p>
+        {Object.keys(roleAssignments).length > 0 ? (
+          <div className="assigned-roles">
+            {Object.entries(roleAssignments).map(([number, role]) => {
+              const info = roleMeta[role];
+              return (
+                <div key={number} className="role-item">
+                  <span className="role-number">{number}</span>
+                  <span className="role-info" style={{ color: info.color }}>
+                    <span className={`role-dot ${info.className}`}></span> {info.label}
+                  </span>
+                  <button className="remove-role" title="清除身份" onClick={() => clearSelectedRole(Number(number))}>
+                    <Icon name="x" size={14} strokeWidth={2.4} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <p>暂无身份分配</p>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <section className="entertainment-section">
@@ -762,7 +952,10 @@ function MapTab() {
 
         {/* 右侧面板 */}
         <div className="map-right-panel">
-          <div className="role-assignment">
+          <div className="inspector-panel">
+            {renderInspector()}
+          </div>
+          <div className="role-assignment legacy-role-assignment">
             <h3>角色身份设置</h3>
 
             {drawingTrailMarkerId !== null ? (

@@ -41,7 +41,7 @@ export const saveAppConfig = async (config: AppConfig): Promise<boolean> => {
 };
 
 // Favorites config
-const normalizeFavoritesConfig = (config: Record<string, unknown> = {}) => ({
+export const normalizeFavoritesConfig = (config: Record<string, unknown> = {}) => ({
   version: 2 as const,
   favorites: Array.isArray(config.favorites) ? config.favorites as string[] : [],
   notes: config.notes && typeof config.notes === 'object' ? config.notes as Record<string, string> : {},

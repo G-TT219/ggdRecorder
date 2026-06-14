@@ -12,3 +12,9 @@ package-lock.json
 .claude
 .codegraph
 CLAUDE.md
+
+# Playwright MCP
+.playwright-mcp/
+
+# Map tool
+map-tool/

@@ -101,7 +101,7 @@ function MapTab({
   const roleMeta: Record<RoleKey, { label: string; className: string; color: string }> = {
     good: { label: '好鹅', className: 'good', color: '#4ade80' },
     neutral: { label: '中立', className: 'neutral', color: '#f59e0b' },
-    evil: { label: '坏鹅', className: 'evil', color: '#ef4444' }
+    evil: { label: '坏鸭', className: 'evil', color: '#ef4444' }
   };
 
   const setCurrentMapMarkers = (updater: MapMarker[] | ((markers: MapMarker[]) => MapMarker[])) => {
@@ -508,7 +508,7 @@ function MapTab({
                 <span className="role-dot neutral"></span> 中立
               </button>
               <button className="role-btn evil" onClick={() => handleSetRole('evil')}>
-                <span className="role-dot evil"></span> 坏鹅
+                <span className="role-dot evil"></span> 坏鸭
               </button>
             </div>
           </div>
@@ -977,7 +977,7 @@ function MapTab({
                       handleMarkerClick(marker.number);
                     }
                   }}
-                  title={`数字 ${marker.number} - 拖拽移动，点击设置身份${role ? ` (${role === 'good' ? '好鹅' : role === 'neutral' ? '中立' : '坏鹅'})` : ''}`}
+                  title={`数字 ${marker.number} - 拖拽移动，点击设置身份${role ? ` (${role === 'good' ? '好鹅' : role === 'neutral' ? '中立' : '坏鸭'})` : ''}`}
                 >
                   {marker.number}
                 </div>
@@ -1057,7 +1057,7 @@ function MapTab({
                     <span className="role-dot neutral"></span> 中立
                   </button>
                   <button className="role-btn evil" onClick={() => handleSetRole('evil')}>
-                    <span className="role-dot evil"></span> 坏鹅
+                    <span className="role-dot evil"></span> 坏鸭
                   </button>
                 </div>
                 <div className="trail-actions">
@@ -1110,7 +1110,7 @@ function MapTab({
                       const roleInfo: Record<RoleKey, { label: string; color: string }> = {
                         good: { label: '好鹅', color: '#4caf50' },
                         neutral: { label: '中立', color: '#ff9800' },
-                        evil: { label: '坏鹅', color: '#f44336' }
+                        evil: { label: '坏鸭', color: '#f44336' }
                       };
                       const info = roleInfo[role];
                       return (

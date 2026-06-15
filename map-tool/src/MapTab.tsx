@@ -649,7 +649,7 @@ function MapTab({
         <div className="map-display">
           <div className="map-header">
             <div className="map-title">
-              <img src={`/img/${selectedMap}.png`} alt="地图预览" className="map-preview-thumb" />
+              <img src={`img/${selectedMap}.png`} alt="地图预览" className="map-preview-thumb" />
               <h3>{mapNameMapping[selectedMap]}</h3>
             </div>
             <div className="map-actions">
@@ -772,7 +772,7 @@ function MapTab({
             >
 
             <img
-              src={`/img/${selectedMap}.png`}
+              src={`img/${selectedMap}.png`}
               alt={`地图${selectedMap}`}
               className="map-image"
               draggable={false}

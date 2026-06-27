@@ -714,9 +714,8 @@ function MapTab({
             }}
             onContextMenu={(e) => {
               e.preventDefault();
-              if (toolMode === 'trail' || drawingTrailMarkerId !== null) {
-                exitTrailMode();
-              }
+              if (drawingTrailMarkerId !== null || toolMode === 'trail') exitTrailMode();
+              if (drawingConnection) handleConnectionCancel();
             }}
           >
             {/* 删除区域（右上角）- 仅在拖拽时显示 */}
@@ -945,8 +944,16 @@ function MapTab({
                     if (drawingTrailMarkerId !== null || toolMode === 'delete' || toolMode === 'trail') return;
                     if (e.button === 0 && toolMode === 'move') {
                       handleMarkerMouseDown(e, marker.id);
-                    } else if (e.button === 2 || toolMode === 'connect') {
-                      handleConnectionStart(e, marker.id, marker.x, marker.y);
+                    } else if (toolMode === 'connect') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (!drawingConnection) {
+                        handleConnectionStart(e, marker.id, marker.x, marker.y);
+                      } else if (drawingConnection.markerId === marker.id) {
+                        handleConnectionCancel();
+                      } else {
+                        handleConnectionEnd(e, marker.id);
+                      }
                     }
                   }}
                   onMouseUp={(e) => {
@@ -960,7 +967,7 @@ function MapTab({
                       removeMarker(marker.id);
                     } else if (toolMode === 'trail') {
                       startTrailForMarker(marker.id);
-                    } else if (!hasMoved && drawingTrailMarkerId === null && toolMode === 'move') {
+                    } else if (!hasMoved && toolMode === 'move') {
                       handleMarkerClick(marker.number);
                     }
                   }}

@@ -11,5 +11,6 @@
     "declaration": false,
     "sourceMap": false
   },
-  "include": ["src/main", "src/shared", "src/preload"]
+  "include": ["src/main", "src/shared", "src/preload"],
+  "exclude": ["**/__tests__/**", "**/*.test.ts", "**/*.spec.ts"]
 }

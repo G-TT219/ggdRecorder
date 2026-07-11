@@ -8,10 +8,11 @@ import GameTab from './components/GameTab';
 import RecordingsTab from './components/RecordingsTab';
 import MapTab from './components/MapTab';
 import StatsTab from './components/StatsTab';
+import ScreenshotTab from './components/ScreenshotTab';
 import type { Connection, MapMarker, Position, RoleKey } from './components/MapTab';
 import type { GameProcess, Recording, RecordingThumbnails, FavoriteGroup, RecordingNotes, FavoriteRecordingGroups } from './types/electron-api';
 
-type ActiveTab = 'games' | 'recordings' | 'settings' | 'entertainment' | 'stats' | 'review';
+type ActiveTab = 'games' | 'recordings' | 'settings' | 'entertainment' | 'stats' | 'review' | 'capture';
 
 function App() {
   const [gameProcesses, setGameProcesses] = useState<GameProcess[]>([]);
@@ -381,6 +382,8 @@ function App() {
     } else if (activeTab === 'stats') {
       // 战绩查询界面也需要较大窗口
       window.electronAPI.resizeWindow(1200, 800);
+    } else if (activeTab === 'capture') {
+      window.electronAPI.resizeWindow(1400, 900);
     } else {
       // 切换到其他标签时恢复默认大小
       window.electronAPI.resizeWindow(500, 800);
@@ -510,6 +513,12 @@ function App() {
           >
             设置
           </button>
+          <button
+            className={activeTab === 'capture' ? 'active' : ''}
+            onClick={() => setActiveTab('capture')}
+          >
+            截图标注
+          </button>
         </div>
         {activeTab === 'review' && (
           <button className="back-btn" onClick={() => setActiveTab('recordings')}>
@@ -561,6 +570,9 @@ function App() {
         </div>
         <div className={`tab-pane ${activeTab === 'stats' ? 'active' : 'hidden'}`}>
           <StatsTab />
+        </div>
+        <div className={`tab-pane ${activeTab === 'capture' ? 'active' : 'hidden'}`}>
+          <ScreenshotTab />
         </div>
         {activeTab === 'games' ? (
           <GameTab

@@ -6,6 +6,8 @@ dist-main/
 game-record/
 logs/
 dist-electron/
+dist-electron-new/
+.pi/
 .npmrc
 .env
 package-lock.json

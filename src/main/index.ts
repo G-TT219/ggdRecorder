@@ -10,10 +10,6 @@ import { registerWindowHandlers } from './ipc-window';
 import { registerStatsHandlers } from './ipc-stats';
 import { registerMiscHandlers } from './ipc-misc';
 
-if (require('electron-squirrel-startup')) {
-  app.quit();
-}
-
 try {
   if (process.env.NODE_ENV === 'development') {
     require('electron-reloader')(module, {

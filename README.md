@@ -89,7 +89,7 @@ src/
 | 流式播放 | 自定义 `recording://` 协议 + `Readable.toWeb()` |
 | 日志 | Winston + DailyRotateFile |
 | AI 分析 | Google Gemini API（@google/genai） |
-| 打包 | Electron Forge + Electron Builder |
+| 打包 | Electron Builder |
 
 ## 开始使用
 

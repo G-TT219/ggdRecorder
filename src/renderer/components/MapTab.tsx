@@ -1,4 +1,15 @@
-import { useState, useEffect, useRef, type Dispatch, type MouseEvent, type SetStateAction } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type Dispatch,
+  type DragEvent,
+  type MouseEvent as ReactMouseEvent,
+  type SetStateAction,
+} from 'react';
 import Logger from '../utils/logger';
 import Icon from './Icon';
 
@@ -35,7 +46,41 @@ export type Connection = {
   to: number;
 };
 
-type ToolMode = 'move' | 'connect' | 'trail' | 'delete';
+type Interaction =
+  | { kind: 'idle' }
+  | { kind: 'placing'; playerNumber: number }
+  | { kind: 'connecting'; fromMarkerId: number; via: 'button' | 'right-drag' }
+  | { kind: 'drawing-path'; markerId: number };
+
+type ContextMenuState =
+  | { kind: 'marker'; markerId: number; x: number; y: number }
+  | { kind: 'connection'; connection: Connection; x: number; y: number }
+  | { kind: 'canvas'; x: number; y: number };
+
+type AnnotationSnapshot = {
+  mapMarkersByMap: Record<number, MapMarker[]>;
+  roleAssignments: Record<string, RoleKey>;
+  connectionsByMap: Record<number, Connection[]>;
+  markerTrailsByMap: Record<number, Record<number, Position[][]>>;
+  deadMarkers: Record<string, boolean>;
+};
+
+type MarkerDragState = {
+  markerId: number;
+  startX: number;
+  startY: number;
+  offsetX: number;
+  offsetY: number;
+  moved: boolean;
+  snapshot: AnnotationSnapshot;
+};
+
+type RightGestureState = {
+  markerId: number;
+  startX: number;
+  startY: number;
+  moved: boolean;
+};
 
 type MapTabProps = {
   selectedMap: number;
@@ -54,6 +99,15 @@ type MapTabProps = {
   setDeadMarkers: Dispatch<SetStateAction<Record<string, boolean>>>;
 };
 
+const roleMeta: Record<RoleKey, { label: string; className: string; color: string }> = {
+  good: { label: '好鹅', className: 'good', color: '#4f9f68' },
+  neutral: { label: '中立', className: 'neutral', color: '#c58b2a' },
+  evil: { label: '坏鸭', className: 'evil', color: '#d55a5d' },
+};
+
+const connectionKey = (connection: Connection): string =>
+  [connection.from, connection.to].sort((a, b) => a - b).join('-');
+
 function MapTab({
   selectedMap,
   setSelectedMap,
@@ -70,1087 +124,1565 @@ function MapTab({
   deadMarkers,
   setDeadMarkers,
 }: MapTabProps) {
-  // 地图辅助工具状态
-  const [toolMode, setToolMode] = useState<ToolMode>('move');
-  const [draggedNumber, setDraggedNumber] = useState<number | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [draggingMarkerId, setDraggingMarkerId] = useState<number | null>(null);
-  const [markerOffset, setMarkerOffset] = useState<Position>({ x: 0, y: 0 });
-  const [mouseDownPos, setMouseDownPos] = useState<Position>({ x: 0, y: 0 });
-  const [hasMoved, setHasMoved] = useState(false);
-  const [isInDeleteZone, setIsInDeleteZone] = useState(false);
-  const [selectedNumberForRole, setSelectedNumberForRole] = useState<number | null>(null);
-  const [drawingConnection, setDrawingConnection] = useState<{ markerId: number; x: number; y: number } | null>(null);
-  const [mousePos, setMousePos] = useState<Position>({ x: 0, y: 0 });
-  const [hoveredConnection, setHoveredConnection] = useState<number | null>(null);
-  const [drawingTrailMarkerId, setDrawingTrailMarkerId] = useState<number | null>(null);
+  const [interaction, setInteraction] = useState<Interaction>({ kind: 'idle' });
+  const [selectedMarkerId, setSelectedMarkerId] = useState<number | null>(null);
+  const [selectedRosterNumber, setSelectedRosterNumber] = useState<number | null>(null);
+  const [selectedConnection, setSelectedConnection] = useState<Connection | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [activeTrailSegment, setActiveTrailSegment] = useState<Position[] | null>(null);
-  const [isDrawingTrail, setIsDrawingTrail] = useState(false);
+  const [draggingMarkerId, setDraggingMarkerId] = useState<number | null>(null);
+  const [rightDragFromId, setRightDragFromId] = useState<number | null>(null);
+  const [rightDragTargetId, setRightDragTargetId] = useState<number | null>(null);
+  const [cursorPoint, setCursorPoint] = useState<Position>({ x: 50, y: 50 });
+  const [draggedRosterNumber, setDraggedRosterNumber] = useState<number | null>(null);
   const [mapAspectRatio, setMapAspectRatio] = useState(16 / 9);
+  const [clearMenuOpen, setClearMenuOpen] = useState(false);
+  const [toast, setToast] = useState<{ message: string; canUndo: boolean } | null>(null);
+  const [historyState, setHistoryState] = useState({ undo: 0, redo: 0 });
 
-  const mapMarkers = mapMarkersByMap[selectedMap] || [];
-  const connections = connectionsByMap[selectedMap] || [];
-  const markerTrails = markerTrailsByMap[selectedMap] || {};
-  const currentSequenceMarkers = mapMarkers.filter(m => m.sequence === currentSequence);
-  const selectedMarker = selectedNumberForRole !== null
-    ? currentSequenceMarkers.find(m => m.number === selectedNumberForRole)
-    : null;
-  const drawingTrailMarker = drawingTrailMarkerId !== null
-    ? mapMarkers.find(m => m.id === drawingTrailMarkerId)
-    : null;
-  const roleMeta: Record<RoleKey, { label: string; className: string; color: string }> = {
-    good: { label: '好鹅', className: 'good', color: '#4ade80' },
-    neutral: { label: '中立', className: 'neutral', color: '#f59e0b' },
-    evil: { label: '坏鸭', className: 'evil', color: '#ef4444' }
-  };
+  const mapStageRef = useRef<HTMLDivElement | null>(null);
+  const markerDragRef = useRef<MarkerDragState | null>(null);
+  const rightGestureRef = useRef<RightGestureState | null>(null);
+  const suppressContextMenuUntilRef = useRef(0);
+  const markerIdRef = useRef(Date.now());
+  const undoStackRef = useRef<AnnotationSnapshot[]>([]);
+  const redoStackRef = useRef<AnnotationSnapshot[]>([]);
 
-  const setCurrentMapMarkers = (updater: MapMarker[] | ((markers: MapMarker[]) => MapMarker[])) => {
-    setMapMarkersByMap(prev => {
-      const current = prev[selectedMap] || [];
+  const mapMarkers = useMemo(
+    () => mapMarkersByMap[selectedMap] || [],
+    [mapMarkersByMap, selectedMap]
+  );
+  const connections = useMemo(
+    () => connectionsByMap[selectedMap] || [],
+    [connectionsByMap, selectedMap]
+  );
+  const markerTrails = useMemo(
+    () => markerTrailsByMap[selectedMap] || {},
+    [markerTrailsByMap, selectedMap]
+  );
+  const currentSequenceMarkers = useMemo(
+    () => mapMarkers.filter(marker => marker.sequence === currentSequence),
+    [mapMarkers, currentSequence]
+  );
+  const currentMarkerNumbers = useMemo(
+    () => new Set(currentSequenceMarkers.map(marker => marker.number)),
+    [currentSequenceMarkers]
+  );
+  const previousSequenceMarkers = useMemo(
+    () => currentSequence <= 1
+      ? []
+      : mapMarkers.filter(
+          marker =>
+            marker.sequence === currentSequence - 1 &&
+            !currentMarkerNumbers.has(marker.number)
+        ),
+    [mapMarkers, currentSequence, currentMarkerNumbers]
+  );
+  const selectedMarker = selectedMarkerId === null
+    ? null
+    : currentSequenceMarkers.find(marker => marker.id === selectedMarkerId) || null;
+  const selectedPlayerNumber = selectedMarker?.number ?? selectedRosterNumber;
+  const drawingMarker = interaction.kind === 'drawing-path'
+    ? currentSequenceMarkers.find(marker => marker.id === interaction.markerId) || null
+    : null;
+
+  useEffect(() => {
+    if (selectedMarkerId !== null) setSelectedRosterNumber(null);
+  }, [selectedMarkerId]);
+
+  useEffect(() => {
+    if (selectedConnection !== null) setSelectedRosterNumber(null);
+  }, [selectedConnection]);
+
+  const cloneSnapshot = useCallback((): AnnotationSnapshot => {
+    const clonedMarkers = Object.fromEntries(
+      Object.entries(mapMarkersByMap).map(([mapId, markers]) => [
+        Number(mapId),
+        markers.map(marker => ({ ...marker })),
+      ])
+    );
+    const clonedConnections = Object.fromEntries(
+      Object.entries(connectionsByMap).map(([mapId, items]) => [
+        Number(mapId),
+        items.map(item => ({ ...item })),
+      ])
+    );
+    const clonedTrails = Object.fromEntries(
+      Object.entries(markerTrailsByMap).map(([mapId, trails]) => [
+        Number(mapId),
+        Object.fromEntries(
+          Object.entries(trails).map(([markerId, segments]) => [
+            Number(markerId),
+            segments.map(segment => segment.map(point => ({ ...point }))),
+          ])
+        ),
+      ])
+    );
+
+    return {
+      mapMarkersByMap: clonedMarkers,
+      roleAssignments: { ...roleAssignments },
+      connectionsByMap: clonedConnections,
+      markerTrailsByMap: clonedTrails,
+      deadMarkers: { ...deadMarkers },
+    };
+  }, [
+    mapMarkersByMap,
+    roleAssignments,
+    connectionsByMap,
+    markerTrailsByMap,
+    deadMarkers,
+  ]);
+
+  const restoreSnapshot = useCallback((snapshot: AnnotationSnapshot) => {
+    setMapMarkersByMap(snapshot.mapMarkersByMap);
+    setRoleAssignments(snapshot.roleAssignments);
+    setConnectionsByMap(snapshot.connectionsByMap);
+    setMarkerTrailsByMap(snapshot.markerTrailsByMap);
+    setDeadMarkers(snapshot.deadMarkers);
+  }, [
+    setMapMarkersByMap,
+    setRoleAssignments,
+    setConnectionsByMap,
+    setMarkerTrailsByMap,
+    setDeadMarkers,
+  ]);
+
+  const syncHistoryState = useCallback(() => {
+    setHistoryState({
+      undo: undoStackRef.current.length,
+      redo: redoStackRef.current.length,
+    });
+  }, []);
+
+  const pushHistory = useCallback((snapshot?: AnnotationSnapshot) => {
+    undoStackRef.current.push(snapshot || cloneSnapshot());
+    if (undoStackRef.current.length > 50) undoStackRef.current.shift();
+    redoStackRef.current = [];
+    syncHistoryState();
+  }, [cloneSnapshot, syncHistoryState]);
+
+  const undo = useCallback(() => {
+    const snapshot = undoStackRef.current.pop();
+    if (!snapshot) return;
+    redoStackRef.current.push(cloneSnapshot());
+    restoreSnapshot(snapshot);
+    setInteraction({ kind: 'idle' });
+    setActiveTrailSegment(null);
+    setSelectedConnection(null);
+    setContextMenu(null);
+    syncHistoryState();
+  }, [cloneSnapshot, restoreSnapshot, syncHistoryState]);
+
+  const redo = useCallback(() => {
+    const snapshot = redoStackRef.current.pop();
+    if (!snapshot) return;
+    undoStackRef.current.push(cloneSnapshot());
+    restoreSnapshot(snapshot);
+    setInteraction({ kind: 'idle' });
+    setActiveTrailSegment(null);
+    setSelectedConnection(null);
+    setContextMenu(null);
+    syncHistoryState();
+  }, [cloneSnapshot, restoreSnapshot, syncHistoryState]);
+
+  const notify = useCallback((message: string, canUndo = false) => {
+    setToast({ message, canUndo });
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timeoutId = window.setTimeout(() => setToast(null), 3600);
+    return () => window.clearTimeout(timeoutId);
+  }, [toast]);
+
+  const setCurrentMapMarkers = (
+    updater: MapMarker[] | ((markers: MapMarker[]) => MapMarker[])
+  ) => {
+    setMapMarkersByMap(previous => {
+      const current = previous[selectedMap] || [];
       const next = typeof updater === 'function' ? updater(current) : updater;
-      return { ...prev, [selectedMap]: next };
+      return { ...previous, [selectedMap]: next };
     });
   };
 
-  const setCurrentConnections = (updater: Connection[] | ((connections: Connection[]) => Connection[])) => {
-    setConnectionsByMap(prev => {
-      const current = prev[selectedMap] || [];
+  const setCurrentConnections = (
+    updater: Connection[] | ((items: Connection[]) => Connection[])
+  ) => {
+    setConnectionsByMap(previous => {
+      const current = previous[selectedMap] || [];
       const next = typeof updater === 'function' ? updater(current) : updater;
-      return { ...prev, [selectedMap]: next };
+      return { ...previous, [selectedMap]: next };
     });
   };
 
   const setCurrentMarkerTrails = (
-    updater: Record<number, Position[][]> | ((trails: Record<number, Position[][]>) => Record<number, Position[][]>)
+    updater:
+      | Record<number, Position[][]>
+      | ((trails: Record<number, Position[][]>) => Record<number, Position[][]>)
   ) => {
-    setMarkerTrailsByMap(prev => {
-      const current = prev[selectedMap] || {};
+    setMarkerTrailsByMap(previous => {
+      const current = previous[selectedMap] || {};
       const next = typeof updater === 'function' ? updater(current) : updater;
-      return { ...prev, [selectedMap]: next };
+      return { ...previous, [selectedMap]: next };
     });
   };
 
-  const isDead = (seq: number, num: number): boolean => {
-    for (let s = 1; s <= seq; s++) {
-      if (deadMarkers[`${s}-${num}`]) return true;
+  const isDead = (sequence: number, playerNumber: number): boolean => {
+    for (let index = 1; index <= sequence; index += 1) {
+      if (deadMarkers[String(index) + '-' + String(playerNumber)]) return true;
     }
     return false;
   };
 
-  const getMapPoint = (e: MouseEvent): Position | null => {
+  const deathRoundFor = (sequence: number, playerNumber: number): number | null => {
+    for (let index = 1; index <= sequence; index += 1) {
+      if (deadMarkers[String(index) + '-' + String(playerNumber)]) return index;
+    }
+    return null;
+  };
+
+  const getMapPoint = (clientX: number, clientY: number): Position | null => {
     if (!mapStageRef.current) return null;
     const rect = mapStageRef.current.getBoundingClientRect();
     return {
-      x: Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)),
-      y: Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)),
+      x: Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)),
+      y: Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100)),
     };
   };
 
-  const shouldAddTrailPoint = (points: Position[], point: Position): boolean => {
-    const last = points[points.length - 1];
-    if (!last) return true;
-    const distance = Math.hypot(point.x - last.x, point.y - last.y);
-    return distance >= 2.5;
+  const getMenuPoint = (clientX: number, clientY: number): Position => {
+    const rect = mapStageRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 12, y: 12 };
+    return {
+      x: Math.max(8, Math.min(rect.width - 184, clientX - rect.left)),
+      y: Math.max(8, Math.min(rect.height - 168, clientY - rect.top)),
+    };
   };
 
-  const mapContainerRef = useRef<HTMLDivElement | null>(null);
-  const mapStageRef = useRef<HTMLDivElement | null>(null);
-  const deleteZoneRef = useRef<HTMLDivElement | null>(null);
+  const cancelInteraction = useCallback(() => {
+    setInteraction({ kind: 'idle' });
+    setActiveTrailSegment(null);
+    setRightDragFromId(null);
+    setRightDragTargetId(null);
+    rightGestureRef.current = null;
+  }, []);
 
-  // 地图标记拖拽处理
-  const handleMarkerMouseDown = (e: MouseEvent, markerId: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    setMouseDownPos({ x: e.clientX, y: e.clientY });
-    setHasMoved(false);
-
-    setDraggingMarkerId(markerId);
-    setIsDragging(true);
-
-    const marker = mapMarkers.find(m => m.id === markerId);
-    if (marker && mapStageRef.current) {
-      const stageRect = mapStageRef.current.getBoundingClientRect();
-      const markerX = (marker.x / 100) * stageRect.width;
-      const markerY = (marker.y / 100) * stageRect.height;
-
-      setMarkerOffset({
-        x: e.clientX - stageRect.left - markerX,
-        y: e.clientY - stageRect.top - markerY
-      });
-    }
-  };
-
-  const handleMapMouseMove = (e: MouseEvent) => {
-    if (isDrawingTrail && drawingTrailMarkerId !== null && activeTrailSegment) {
-      const point = getMapPoint(e);
-      if (point && shouldAddTrailPoint(activeTrailSegment, point)) {
-        setActiveTrailSegment([...activeTrailSegment, point]);
-      }
-      return;
-    }
-
-    if (!draggingMarkerId || !mapStageRef.current) return;
-
-    const moveDistance = Math.sqrt(
-      Math.pow(e.clientX - mouseDownPos.x, 2) +
-      Math.pow(e.clientY - mouseDownPos.y, 2)
-    );
-
-    if (moveDistance > 5 && !hasMoved) {
-      setHasMoved(true);
-    }
-
-    if (deleteZoneRef.current) {
-      const deleteRect = deleteZoneRef.current.getBoundingClientRect();
-      const inDeleteZone = (
-        e.clientX >= deleteRect.left &&
-        e.clientX <= deleteRect.right &&
-        e.clientY >= deleteRect.top &&
-        e.clientY <= deleteRect.bottom
-      );
-      setIsInDeleteZone(inDeleteZone);
-    }
-
-    if (hasMoved || moveDistance > 5) {
-      const stageRect = mapStageRef.current.getBoundingClientRect();
-      const x = ((e.clientX - stageRect.left - markerOffset.x) / stageRect.width) * 100;
-      const y = ((e.clientY - stageRect.top - markerOffset.y) / stageRect.height) * 100;
-
-      const clampedX = Math.max(0, Math.min(100, x));
-      const clampedY = Math.max(0, Math.min(100, y));
-
-      // 直接操作 DOM，跳过 React 异步批处理
-      const markerEl = mapContainerRef.current.querySelector(`[data-marker-id="${draggingMarkerId}"]`) as HTMLElement;
-      if (markerEl) {
-        markerEl.style.left = `${clampedX}%`;
-        markerEl.style.top = `${clampedY}%`;
-      }
-
-      setCurrentMapMarkers(
-        mapMarkers.map(m =>
-          m.id === draggingMarkerId ? { ...m, x: clampedX, y: clampedY } : m
+  const placeMarker = (playerNumber: number, point: Position) => {
+    pushHistory();
+    const existing = currentSequenceMarkers.find(marker => marker.number === playerNumber);
+    if (existing) {
+      setCurrentMapMarkers(markers =>
+        markers.map(marker =>
+          marker.id === existing.id ? { ...marker, x: point.x, y: point.y } : marker
         )
       );
+      setSelectedMarkerId(existing.id);
+    } else {
+      markerIdRef.current += 1;
+      const marker: MapMarker = {
+        id: markerIdRef.current,
+        number: playerNumber,
+        sequence: currentSequence,
+        x: point.x,
+        y: point.y,
+      };
+      setCurrentMapMarkers(markers => [...markers, marker]);
+      setSelectedMarkerId(marker.id);
+    }
+    setSelectedRosterNumber(null);
+    setSelectedConnection(null);
+    setInteraction({ kind: 'idle' });
+    notify('玩家 ' + String(playerNumber) + ' 已放置', true);
+  };
+
+  const selectRosterPlayer = (playerNumber: number) => {
+    const marker = currentSequenceMarkers.find(item => item.number === playerNumber);
+    setContextMenu(null);
+    setSelectedConnection(null);
+    setSelectedRosterNumber(playerNumber);
+    setInteraction({ kind: 'idle' });
+    if (marker) {
+      setSelectedMarkerId(marker.id);
+    } else {
+      setSelectedMarkerId(null);
     }
   };
 
-  const handleMapMouseUp = () => {
-    if (isDrawingTrail && drawingTrailMarkerId !== null && activeTrailSegment && activeTrailSegment.length > 1) {
-      setCurrentMarkerTrails(prev => ({
-        ...prev,
-        [drawingTrailMarkerId]: [...(prev[drawingTrailMarkerId] || []), activeTrailSegment]
-      }));
-      setActiveTrailSegment(null);
-      setIsDrawingTrail(false);
+  const startPlacingPlayer = (playerNumber: number) => {
+    setContextMenu(null);
+    setSelectedConnection(null);
+    setSelectedMarkerId(null);
+    setSelectedRosterNumber(playerNumber);
+    setInteraction({ kind: 'placing', playerNumber });
+  };
+
+  const addConnection = (fromMarkerId: number, toMarkerId: number) => {
+    if (fromMarkerId === toMarkerId) {
+      cancelInteraction();
       return;
     }
-
-    if (isDrawingTrail) {
-      setActiveTrailSegment(null);
-      setIsDrawingTrail(false);
+    const fromMarker = currentSequenceMarkers.find(marker => marker.id === fromMarkerId);
+    const toMarker = currentSequenceMarkers.find(marker => marker.id === toMarkerId);
+    if (!fromMarker || !toMarker) {
+      cancelInteraction();
       return;
     }
-
-    if (draggingMarkerId) {
-      if (isInDeleteZone) {
-        removeMarker(draggingMarkerId);
-        Logger.info('标记已删除');
-      }
-
-      setDraggingMarkerId(null);
-      setIsDragging(false);
-      setHasMoved(false);
-      setIsInDeleteZone(false);
+    const exists = connections.some(connection =>
+      (connection.from === fromMarkerId && connection.to === toMarkerId) ||
+      (connection.from === toMarkerId && connection.to === fromMarkerId)
+    );
+    if (exists) {
+      notify('这两个玩家已经连接');
+      cancelInteraction();
+      return;
     }
+    pushHistory();
+    const connection = { from: fromMarkerId, to: toMarkerId };
+    setCurrentConnections(items => [...items, connection]);
+    setSelectedConnection(connection);
+    setSelectedMarkerId(null);
+    cancelInteraction();
+    notify(
+      '已连接玩家 ' + String(fromMarker.number) + ' 和 ' + String(toMarker.number),
+      true
+    );
   };
 
-  // 处理数字标记点击（用于选择设置身份）
-  const handleMarkerClick = (markerNumber) => {
-    setSelectedNumberForRole(markerNumber);
+  const startConnection = (markerId: number) => {
+    setSelectedMarkerId(markerId);
+    setSelectedConnection(null);
+    setContextMenu(null);
+    setInteraction({ kind: 'connecting', fromMarkerId: markerId, via: 'button' });
   };
 
-  const startTrailForMarker = (markerId: number) => {
-    setSelectedNumberForRole(null);
-    setDrawingConnection(null);
-    setDrawingTrailMarkerId(markerId);
-    setToolMode('trail');
-  };
-
-  const exitTrailMode = () => {
-    setActiveTrailSegment(null);
-    setIsDrawingTrail(false);
-    setDrawingTrailMarkerId(null);
-    setToolMode('move');
+  const removeConnection = (connection: Connection) => {
+    pushHistory();
+    const key = connectionKey(connection);
+    setCurrentConnections(items => items.filter(item => connectionKey(item) !== key));
+    setSelectedConnection(null);
+    setContextMenu(null);
+    Logger.info('地图连线已删除: ' + key);
+    notify('连线已删除', true);
   };
 
   const removeMarker = (markerId: number) => {
-    setCurrentMapMarkers(markers => markers.filter(m => m.id !== markerId));
-    setCurrentConnections(items => items.filter(conn => conn.from !== markerId && conn.to !== markerId));
-    setCurrentMarkerTrails(prev => {
-      const next = { ...prev };
+    const marker = mapMarkers.find(item => item.id === markerId);
+    if (!marker) return;
+    pushHistory();
+    setCurrentMapMarkers(markers => markers.filter(item => item.id !== markerId));
+    setCurrentConnections(items =>
+      items.filter(connection => connection.from !== markerId && connection.to !== markerId)
+    );
+    setCurrentMarkerTrails(trails => {
+      const next = { ...trails };
       delete next[markerId];
+      return next;
+    });
+    if (selectedMarkerId === markerId) setSelectedMarkerId(null);
+    setContextMenu(null);
+    cancelInteraction();
+    Logger.info('玩家地图标记已删除: ' + String(marker.number));
+    notify('玩家 ' + String(marker.number) + ' 的本轮标记已删除', true);
+  };
+
+  const setPlayerRole = (playerNumber: number, role?: RoleKey) => {
+    pushHistory();
+    setRoleAssignments(previous => {
+      const next = { ...previous };
+      if (role) next[playerNumber] = role;
+      else delete next[playerNumber];
       return next;
     });
   };
 
-  const clearCurrentMap = () => {
-    setCurrentMapMarkers([]);
-    setCurrentConnections([]);
-    setCurrentMarkerTrails({});
-    setDrawingConnection(null);
-    setDrawingTrailMarkerId(null);
-    setActiveTrailSegment(null);
-    setIsDrawingTrail(false);
-  };
-
-  // 设置角色身份
-  const handleSetRole = (role: RoleKey) => {
-    if (selectedNumberForRole !== null) {
-      setRoleAssignments({
-        ...roleAssignments,
-        [selectedNumberForRole]: role
-      });
-      setSelectedNumberForRole(null);
-    }
-  };
-
-  // 开始绘制连线（右键按下）
-  const handleConnectionStart = (e: MouseEvent, markerId: number, markerX: number, markerY: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (mapStageRef.current) {
-      const rect = mapStageRef.current.getBoundingClientRect();
-      setDrawingConnection({
-        markerId,
-        x: (markerX / 100) * rect.width,
-        y: (markerY / 100) * rect.height
-      });
-    }
-  };
-
-  // 更新鼠标位置（用于绘制临时连线）
-  const handleConnectionMouseMove = (e: MouseEvent) => {
-    if (drawingConnection && mapStageRef.current) {
-      const rect = mapStageRef.current.getBoundingClientRect();
-      setMousePos({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      });
-    }
-  };
-
-  // 完成连线（右键释放）
-  const handleConnectionEnd = (e: MouseEvent, targetMarkerId: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (drawingConnection && drawingConnection.markerId !== targetMarkerId) {
-      const exists = connections.some(
-        conn =>
-          (conn.from === drawingConnection.markerId && conn.to === targetMarkerId) ||
-          (conn.from === targetMarkerId && conn.to === drawingConnection.markerId)
-      );
-
-      if (!exists) {
-        setCurrentConnections([
-          ...connections,
-          { from: drawingConnection.markerId, to: targetMarkerId }
-        ]);
-      }
-    }
-
-    setDrawingConnection(null);
-  };
-
-  // 取消连线
-  const handleConnectionCancel = () => {
-    setDrawingConnection(null);
-  };
-
-  // 删除连线
-  const handleDeleteConnection = (fromId, toId) => {
-    Logger.info(`Deleting connection: ${fromId} -> ${toId}`);
-    setCurrentConnections(
-      connections.filter(
-        conn => !(conn.from === fromId && conn.to === toId)
-      )
-    );
-  };
-
-  const clearSelectedRole = (number: number) => {
-    const nextAssignments = { ...roleAssignments };
-    delete nextAssignments[number];
-    setRoleAssignments(nextAssignments);
-  };
-
-  const toggleSelectedDeadState = (number: number) => {
-    setDeadMarkers(prev => {
-      const already = isDead(currentSequence, number);
-      if (already) {
-        const next = { ...prev };
-        for (let s = currentSequence; s <= 10; s++) {
-          delete next[`${s}-${number}`];
+  const toggleDeadState = (playerNumber: number) => {
+    pushHistory();
+    setDeadMarkers(previous => {
+      const alreadyDead = isDead(currentSequence, playerNumber);
+      if (alreadyDead) {
+        const next = { ...previous };
+        for (let sequence = currentSequence; sequence <= 10; sequence += 1) {
+          delete next[String(sequence) + '-' + String(playerNumber)];
         }
         return next;
       }
-      return { ...prev, [`${currentSequence}-${number}`]: true };
+      return {
+        ...previous,
+        [String(currentSequence) + '-' + String(playerNumber)]: true,
+      };
     });
   };
 
-  // 添加全局 mouseup 事件监听，确保拖拽结束
+  const startDrawingPath = (markerId: number) => {
+    setSelectedMarkerId(markerId);
+    setSelectedConnection(null);
+    setContextMenu(null);
+    setActiveTrailSegment(null);
+    setInteraction({ kind: 'drawing-path', markerId });
+  };
+
+  const finishDrawingPath = () => {
+    setActiveTrailSegment(null);
+    setInteraction({ kind: 'idle' });
+    notify('路径绘制已完成');
+  };
+
+  const undoLastPathSegment = (markerId: number) => {
+    const segments = markerTrails[markerId] || [];
+    if (segments.length === 0) return;
+    pushHistory();
+    setCurrentMarkerTrails(previous => ({
+      ...previous,
+      [markerId]: (previous[markerId] || []).slice(0, -1),
+    }));
+  };
+
+  const clearMarkerPath = (markerId: number) => {
+    if (!(markerTrails[markerId] || []).length) return;
+    pushHistory();
+    setCurrentMarkerTrails(previous => {
+      const next = { ...previous };
+      delete next[markerId];
+      return next;
+    });
+    setActiveTrailSegment(null);
+    notify('玩家路径已清除', true);
+  };
+
+  const inheritMarker = (sourceMarker: MapMarker, recordHistory = true) => {
+    if (recordHistory) pushHistory();
+    markerIdRef.current += 1;
+    const marker: MapMarker = {
+      ...sourceMarker,
+      id: markerIdRef.current,
+      sequence: currentSequence,
+    };
+    setCurrentMapMarkers(markers => [...markers, marker]);
+    setSelectedMarkerId(marker.id);
+    setInteraction({ kind: 'idle' });
+  };
+
+  const inheritPreviousRound = () => {
+    if (previousSequenceMarkers.length === 0) return;
+    pushHistory();
+    const inherited = previousSequenceMarkers.map(source => {
+      markerIdRef.current += 1;
+      return {
+        ...source,
+        id: markerIdRef.current,
+        sequence: currentSequence,
+      };
+    });
+    setCurrentMapMarkers(markers => [...markers, ...inherited]);
+    notify('已沿用上一轮的 ' + String(inherited.length) + ' 个位置', true);
+  };
+
+  const clearCurrentRound = () => {
+    if (currentSequenceMarkers.length === 0) return;
+    pushHistory();
+    const removedIds = new Set(currentSequenceMarkers.map(marker => marker.id));
+    setCurrentMapMarkers(markers =>
+      markers.filter(marker => marker.sequence !== currentSequence)
+    );
+    setCurrentConnections(items =>
+      items.filter(
+        connection => !removedIds.has(connection.from) && !removedIds.has(connection.to)
+      )
+    );
+    setCurrentMarkerTrails(previous => {
+      const next = { ...previous };
+      removedIds.forEach(markerId => delete next[markerId]);
+      return next;
+    });
+    setSelectedMarkerId(null);
+    setSelectedConnection(null);
+    cancelInteraction();
+    setClearMenuOpen(false);
+    notify('第 ' + String(currentSequence) + ' 轮标注已清除', true);
+  };
+
+  const clearCurrentMap = () => {
+    if (mapMarkers.length === 0) return;
+    if (!window.confirm('清除当前地图全部轮次的标记、路径和连线？')) return;
+    pushHistory();
+    setCurrentMapMarkers([]);
+    setCurrentConnections([]);
+    setCurrentMarkerTrails({});
+    setSelectedMarkerId(null);
+    setSelectedConnection(null);
+    cancelInteraction();
+    setClearMenuOpen(false);
+    notify('当前地图标注已清除', true);
+  };
+
+  const clearIdentityData = () => {
+    if (Object.keys(roleAssignments).length === 0 && Object.keys(deadMarkers).length === 0) return;
+    if (!window.confirm('清除整场所有玩家的身份和生死状态？')) return;
+    pushHistory();
+    setRoleAssignments({});
+    setDeadMarkers({});
+    setClearMenuOpen(false);
+    notify('玩家身份信息已清除', true);
+  };
+
+  const openMarkerMenu = (
+    event: ReactMouseEvent<HTMLElement>,
+    markerId: number
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (Date.now() < suppressContextMenuUntilRef.current) return;
+    const point = getMenuPoint(event.clientX, event.clientY);
+    setSelectedMarkerId(markerId);
+    setSelectedConnection(null);
+    setContextMenu({ kind: 'marker', markerId, x: point.x, y: point.y });
+  };
+
+  const openConnectionMenu = (
+    event: ReactMouseEvent<SVGLineElement>,
+    connection: Connection
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const point = getMenuPoint(event.clientX, event.clientY);
+    setSelectedConnection(connection);
+    setSelectedMarkerId(null);
+    setContextMenu({ kind: 'connection', connection, x: point.x, y: point.y });
+  };
+
+  const beginMarkerMouseDown = (
+    event: ReactMouseEvent<HTMLButtonElement>,
+    marker: MapMarker
+  ) => {
+    if (event.button === 2) {
+      event.preventDefault();
+      event.stopPropagation();
+      rightGestureRef.current = {
+        markerId: marker.id,
+        startX: event.clientX,
+        startY: event.clientY,
+        moved: false,
+      };
+      setSelectedMarkerId(marker.id);
+      setSelectedConnection(null);
+      return;
+    }
+
+    if (event.button !== 0) return;
+    if (interaction.kind === 'connecting') {
+      event.preventDefault();
+      event.stopPropagation();
+      addConnection(interaction.fromMarkerId, marker.id);
+      return;
+    }
+    if (interaction.kind === 'drawing-path') return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = mapStageRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    markerDragRef.current = {
+      markerId: marker.id,
+      startX: event.clientX,
+      startY: event.clientY,
+      offsetX: event.clientX - rect.left - (marker.x / 100) * rect.width,
+      offsetY: event.clientY - rect.top - (marker.y / 100) * rect.height,
+      moved: false,
+      snapshot: cloneSnapshot(),
+    };
+    setDraggingMarkerId(marker.id);
+    setSelectedMarkerId(marker.id);
+    setSelectedConnection(null);
+    setInteraction({ kind: 'idle' });
+    setContextMenu(null);
+  };
+
+  const handleStageMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || interaction.kind !== 'drawing-path') return;
+    if ((event.target as Element).closest('.map-v2-context-menu, .map-v2-mode-banner')) return;
+    const point = getMapPoint(event.clientX, event.clientY);
+    const marker = currentSequenceMarkers.find(item => item.id === interaction.markerId);
+    if (!point || !marker) return;
+    event.preventDefault();
+    const existingSegments = markerTrails[marker.id] || [];
+    setActiveTrailSegment(
+      existingSegments.length === 0
+        ? [{ x: marker.x, y: marker.y }, point]
+        : [point]
+    );
+  };
+
+  const handleStageMouseMove = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const point = getMapPoint(event.clientX, event.clientY);
+    if (point) setCursorPoint(point);
+
+    if (interaction.kind === 'drawing-path' && activeTrailSegment && point) {
+      const last = activeTrailSegment[activeTrailSegment.length - 1];
+      if (!last || Math.hypot(point.x - last.x, point.y - last.y) >= 0.8) {
+        setActiveTrailSegment(previous => previous ? [...previous, point] : [point]);
+      }
+    }
+
+    const markerDrag = markerDragRef.current;
+    if (markerDrag && mapStageRef.current) {
+      const distance = Math.hypot(
+        event.clientX - markerDrag.startX,
+        event.clientY - markerDrag.startY
+      );
+      if (distance > 4) markerDrag.moved = true;
+      if (markerDrag.moved) {
+        const rect = mapStageRef.current.getBoundingClientRect();
+        const x = Math.max(
+          0,
+          Math.min(
+            100,
+            ((event.clientX - rect.left - markerDrag.offsetX) / rect.width) * 100
+          )
+        );
+        const y = Math.max(
+          0,
+          Math.min(
+            100,
+            ((event.clientY - rect.top - markerDrag.offsetY) / rect.height) * 100
+          )
+        );
+        setCurrentMapMarkers(markers =>
+          markers.map(marker =>
+            marker.id === markerDrag.markerId ? { ...marker, x, y } : marker
+          )
+        );
+      }
+    }
+
+    const rightGesture = rightGestureRef.current;
+    if (rightGesture) {
+      const distance = Math.hypot(
+        event.clientX - rightGesture.startX,
+        event.clientY - rightGesture.startY
+      );
+      if (distance > 4 && !rightGesture.moved) {
+        rightGesture.moved = true;
+        setRightDragFromId(rightGesture.markerId);
+        setInteraction({
+          kind: 'connecting',
+          fromMarkerId: rightGesture.markerId,
+          via: 'right-drag',
+        });
+      }
+      if (rightGesture.moved) {
+        const target = document
+          .elementFromPoint(event.clientX, event.clientY)
+          ?.closest('[data-map-marker-id]') as HTMLElement | null;
+        const targetId = target ? Number(target.dataset.mapMarkerId) : null;
+        setRightDragTargetId(
+          targetId && targetId !== rightGesture.markerId ? targetId : null
+        );
+      }
+    }
+  };
+
+  const finishMarkerDrag = () => {
+    const markerDrag = markerDragRef.current;
+    if (markerDrag?.moved) {
+      pushHistory(markerDrag.snapshot);
+      notify('标记位置已更新', true);
+    }
+    markerDragRef.current = null;
+    setDraggingMarkerId(null);
+  };
+
+  const finishRightGesture = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const rightGesture = rightGestureRef.current;
+    if (!rightGesture) return;
+    if (rightGesture.moved) {
+      suppressContextMenuUntilRef.current = Date.now() + 300;
+      const target = document
+        .elementFromPoint(event.clientX, event.clientY)
+        ?.closest('[data-map-marker-id]') as HTMLElement | null;
+      const targetId = target ? Number(target.dataset.mapMarkerId) : null;
+      if (targetId && targetId !== rightGesture.markerId) {
+        addConnection(rightGesture.markerId, targetId);
+      } else {
+        cancelInteraction();
+      }
+    }
+    rightGestureRef.current = null;
+    setRightDragFromId(null);
+    setRightDragTargetId(null);
+  };
+
+  const handleStageMouseUp = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (
+      event.button === 0 &&
+      interaction.kind === 'drawing-path' &&
+      activeTrailSegment
+    ) {
+      if (activeTrailSegment.length > 1) {
+        pushHistory();
+        const markerId = interaction.markerId;
+        setCurrentMarkerTrails(previous => ({
+          ...previous,
+          [markerId]: [...(previous[markerId] || []), activeTrailSegment],
+        }));
+      }
+      setActiveTrailSegment(null);
+    }
+    if (event.button === 0) finishMarkerDrag();
+    if (event.button === 2) finishRightGesture(event);
+  };
+
+  const handleCanvasClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if ((event.target as Element).closest(
+      '.map-v2-marker, .map-v2-ghost-marker, .map-v2-context-menu, .map-v2-mode-banner'
+    )) return;
+    setContextMenu(null);
+    setClearMenuOpen(false);
+    if (interaction.kind === 'placing') {
+      const point = getMapPoint(event.clientX, event.clientY);
+      if (point) placeMarker(interaction.playerNumber, point);
+      return;
+    }
+    if (interaction.kind === 'connecting') {
+      cancelInteraction();
+      return;
+    }
+    if (interaction.kind !== 'drawing-path') {
+      setSelectedMarkerId(null);
+      setSelectedRosterNumber(null);
+      setSelectedConnection(null);
+    }
+  };
+
+  const handleRosterDragStart = (
+    event: DragEvent<HTMLButtonElement>,
+    playerNumber: number
+  ) => {
+    setDraggedRosterNumber(playerNumber);
+    event.dataTransfer.effectAllowed = 'copy';
+    event.dataTransfer.setData('text/plain', String(playerNumber));
+  };
+
+  const handleRosterDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const playerNumber =
+      draggedRosterNumber || Number(event.dataTransfer.getData('text/plain'));
+    const point = getMapPoint(event.clientX, event.clientY);
+    if (playerNumber && point) placeMarker(playerNumber, point);
+    setDraggedRosterNumber(null);
+  };
+
+  const changeSequence = (sequence: number) => {
+    cancelInteraction();
+    setSelectedMarkerId(null);
+    setSelectedRosterNumber(null);
+    setSelectedConnection(null);
+    setContextMenu(null);
+    setCurrentSequence(sequence);
+  };
+
   useEffect(() => {
-    const handleGlobalMouseUp = () => {
-      if (draggingMarkerId) {
-        setDraggingMarkerId(null);
-        setIsDragging(false);
+    cancelInteraction();
+    setSelectedMarkerId(null);
+    setSelectedRosterNumber(null);
+    setSelectedConnection(null);
+    setContextMenu(null);
+    setClearMenuOpen(false);
+  }, [selectedMap, currentSequence, cancelInteraction]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select')) return;
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+        event.preventDefault();
+        redo();
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        if (interaction.kind !== 'idle') cancelInteraction();
+        else {
+          setSelectedMarkerId(null);
+          setSelectedRosterNumber(null);
+          setSelectedConnection(null);
+        }
+        setContextMenu(null);
+        setClearMenuOpen(false);
+        return;
+      }
+      if (event.key === 'Enter' && interaction.kind === 'drawing-path') {
+        event.preventDefault();
+        finishDrawingPath();
+        return;
+      }
+      if (event.key === 'Delete') {
+        if (selectedConnection) {
+          event.preventDefault();
+          removeConnection(selectedConnection);
+        } else if (selectedMarkerId !== null) {
+          event.preventDefault();
+          removeMarker(selectedMarkerId);
+        }
       }
     };
 
-    if (draggingMarkerId) {
-      document.addEventListener('mouseup', handleGlobalMouseUp);
-      document.addEventListener('mouseleave', handleGlobalMouseUp);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  });
 
-      return () => {
-        document.removeEventListener('mouseup', handleGlobalMouseUp);
-        document.removeEventListener('mouseleave', handleGlobalMouseUp);
-      };
-    }
-  }, [draggingMarkerId]);
+  const getMarkerNumber = (markerId: number): number | null =>
+    mapMarkers.find(marker => marker.id === markerId)?.number ?? null;
 
-  const renderInspector = () => {
-    if (drawingTrailMarkerId !== null) {
+  const activeConnectionFromMarker = interaction.kind === 'connecting'
+    ? currentSequenceMarkers.find(marker => marker.id === interaction.fromMarkerId) || null
+    : null;
+  const currentConnections = connections.filter(connection => {
+    const from = currentSequenceMarkers.some(marker => marker.id === connection.from);
+    const to = currentSequenceMarkers.some(marker => marker.id === connection.to);
+    return from && to;
+  });
+
+  const renderContextMenu = () => {
+    if (!contextMenu) return null;
+    const style = { left: contextMenu.x, top: contextMenu.y };
+
+    if (contextMenu.kind === 'marker') {
+      const marker = currentSequenceMarkers.find(item => item.id === contextMenu.markerId);
+      if (!marker) return null;
       return (
-        <div className="inspector-section active-inspector">
-          <div className="inspector-header">
-            <span className="inspector-kicker">属性检查器</span>
-            <h3>数字 {drawingTrailMarker?.number ?? '?'}</h3>
-          </div>
-          <div className="status-row">
-            <span>路径状态</span>
-            <strong>绘制中</strong>
-          </div>
-          <p className="trail-instruction">按住左键拖动绘制，松开完成一段路径。</p>
-          <div className="trail-points-list">
-            {(markerTrails[drawingTrailMarkerId] || []).map((segment, i) => (
-              <span key={i} className="trail-point-chip">段 {i + 1} / {segment.length}</span>
-            ))}
-            {activeTrailSegment && <span className="trail-point-chip active">绘制中 / {activeTrailSegment.length}</span>}
-          </div>
-          <div className="inspector-actions">
-            <button
-              className="action-btn"
-              onClick={() => {
-                setCurrentMarkerTrails(prev => ({
-                  ...prev,
-                  [drawingTrailMarkerId]: (prev[drawingTrailMarkerId] || []).slice(0, -1)
-                }));
-              }}
-            >
-              撤销上一段
-            </button>
-            <button
-              className="action-btn danger"
-              onClick={() => {
-                setCurrentMarkerTrails(prev => {
-                  const next = { ...prev };
-                  delete next[drawingTrailMarkerId];
-                  return next;
-                });
-                setActiveTrailSegment(null);
-                setIsDrawingTrail(false);
-                setDrawingTrailMarkerId(null);
-              }}
-            >
-              清除路径
-            </button>
-            <button
-              className="action-btn primary"
-              onClick={() => {
-                setActiveTrailSegment(null);
-                setIsDrawingTrail(false);
-                setDrawingTrailMarkerId(null);
-              }}
-            >
-              完成
-            </button>
-          </div>
+        <div
+          className="map-v2-context-menu"
+          style={style}
+          role="menu"
+          onMouseDown={event => event.stopPropagation()}
+          onClick={event => event.stopPropagation()}
+        >
+          <div className="map-v2-context-title">玩家 {marker.number}</div>
+          <button type="button" onClick={() => startConnection(marker.id)}>
+            连接到其他玩家
+            <span>右键拖动</span>
+          </button>
+          <button type="button" onClick={() => startDrawingPath(marker.id)}>
+            绘制路径
+          </button>
+          <button type="button" onClick={() => {
+            toggleDeadState(marker.number);
+            setContextMenu(null);
+          }}>
+            {isDead(currentSequence, marker.number) ? '标记复活' : '标记死亡'}
+          </button>
+          <div className="map-v2-context-separator" />
+          <button
+            type="button"
+            className="danger"
+            onClick={() => removeMarker(marker.id)}
+          >
+            删除本轮标记
+          </button>
         </div>
       );
     }
 
-    if (selectedNumberForRole !== null) {
-      const selectedRole = roleAssignments[selectedNumberForRole];
+    if (contextMenu.kind === 'connection') {
+      const fromNumber = getMarkerNumber(contextMenu.connection.from);
+      const toNumber = getMarkerNumber(contextMenu.connection.to);
       return (
-        <div className="inspector-section active-inspector">
-          <div className="inspector-header">
-            <span className="inspector-kicker">属性检查器</span>
-            <h3>数字 {selectedNumberForRole}</h3>
+        <div
+          className="map-v2-context-menu compact"
+          style={style}
+          role="menu"
+          onMouseDown={event => event.stopPropagation()}
+          onClick={event => event.stopPropagation()}
+        >
+          <div className="map-v2-context-title">
+            玩家 {fromNumber ?? '?'} ↔ {toNumber ?? '?'}
           </div>
-          <div className="inspector-summary-card">
-            <div className="marker-badge">{selectedNumberForRole}</div>
-            <div>
-              <span className="muted-label">身份</span>
-              <strong>{selectedRole ? roleMeta[selectedRole].label : '未设置'}</strong>
-            </div>
-            <span className={`status-pill ${isDead(currentSequence, selectedNumberForRole) ? 'danger' : 'success'}`}>
-              {isDead(currentSequence, selectedNumberForRole) ? '死亡' : '存活'}
-            </span>
-          </div>
-          <div className="inspector-field-group">
-            <span className="field-label">设置身份</span>
-            <div className="role-buttons">
-              <button className="role-btn good" onClick={() => handleSetRole('good')}>
-                <span className="role-dot good"></span> 好鹅
-              </button>
-              <button className="role-btn neutral" onClick={() => handleSetRole('neutral')}>
-                <span className="role-dot neutral"></span> 中立
-              </button>
-              <button className="role-btn evil" onClick={() => handleSetRole('evil')}>
-                <span className="role-dot evil"></span> 坏鸭
-              </button>
-            </div>
-          </div>
-          <div className="inspector-actions">
-            <button
-              className={`action-btn ${isDead(currentSequence, selectedNumberForRole) ? '' : 'danger'}`}
-              onClick={() => toggleSelectedDeadState(selectedNumberForRole)}
-            >
-              <Icon name="ghost" size={14} />
-              {isDead(currentSequence, selectedNumberForRole) ? '标记复活' : '标记死亡'}
-            </button>
-            <button
-              className="action-btn"
-              onClick={() => selectedMarker && startTrailForMarker(selectedMarker.id)}
-              disabled={!selectedMarker}
-            >
-              绘制路径
-            </button>
-            <button className="action-btn" onClick={() => clearSelectedRole(selectedNumberForRole)}>
-              清除身份
-            </button>
-            <button className="cancel-btn" onClick={() => setSelectedNumberForRole(null)}>
-              取消选择
-            </button>
-          </div>
+          <button
+            type="button"
+            className="danger"
+            onClick={() => removeConnection(contextMenu.connection)}
+          >
+            <Icon name="trash" size={13} />
+            删除连线
+          </button>
         </div>
       );
     }
 
     return (
-      <div className="inspector-section">
-        <div className="inspector-header">
-          <span className="inspector-kicker">属性检查器</span>
-          <h3>当前地图</h3>
+      <div
+        className="map-v2-context-menu compact"
+        style={style}
+        role="menu"
+        onMouseDown={event => event.stopPropagation()}
+        onClick={event => event.stopPropagation()}
+      >
+        <div className="map-v2-context-title">画布操作</div>
+        <button type="button" disabled={historyState.undo === 0} onClick={undo}>
+          撤销
+          <span>Ctrl Z</span>
+        </button>
+        <button type="button" disabled={historyState.redo === 0} onClick={redo}>
+          重做
+          <span>Ctrl Y</span>
+        </button>
+        <div className="map-v2-context-separator" />
+        <button type="button" className="danger" onClick={clearCurrentRound}>
+          清除当前轮次
+        </button>
+      </div>
+    );
+  };
+
+  const renderInspector = () => {
+    if (selectedPlayerNumber === null) {
+      return (
+        <div className="map-v2-inspector-empty">
+          <div className="map-v2-inspector-heading">
+            <span>当前场景</span>
+            <h3>{mapNameMapping[selectedMap]}</h3>
+          </div>
+          <div className="map-v2-scene-stats">
+            <div><span>轮次</span><strong>{currentSequence}</strong></div>
+            <div><span>玩家</span><strong>{currentSequenceMarkers.length}</strong></div>
+            <div><span>连线</span><strong>{currentConnections.length}</strong></div>
+            <div>
+              <span>路径</span>
+              <strong>
+                {currentSequenceMarkers.reduce(
+                  (count, marker) => count + (markerTrails[marker.id] || []).length,
+                  0
+                )}
+              </strong>
+            </div>
+          </div>
+          <div className="map-v2-empty-guide">
+            <strong>从玩家开始</strong>
+            <p>点击左侧玩家即可先设置身份；需要上图时再拖入地图或使用放置按钮。</p>
+          </div>
+          <div className="map-v2-shortcuts">
+            <span><kbd>右键拖动</kbd> 创建连线</span>
+            <span><kbd>Delete</kbd> 删除选中项</span>
+            <span><kbd>Esc</kbd> 取消当前操作</span>
+          </div>
         </div>
-        <div className="inspector-stats">
-          <div><span>地图</span><strong>{mapNameMapping[selectedMap]}</strong></div>
-          <div><span>轮次</span><strong>{currentSequence}</strong></div>
-          <div><span>本轮标记</span><strong>{currentSequenceMarkers.length}</strong></div>
-          <div><span>连线</span><strong>{connections.length}</strong></div>
+      );
+    }
+
+    const role = roleAssignments[selectedPlayerNumber];
+    const dead = isDead(currentSequence, selectedPlayerNumber);
+    const deathRound = deathRoundFor(currentSequence, selectedPlayerNumber);
+    const trailSegments = selectedMarker ? markerTrails[selectedMarker.id] || [] : [];
+    const drawingThisMarker =
+      selectedMarker !== null &&
+      interaction.kind === 'drawing-path' && interaction.markerId === selectedMarker.id;
+    const connectingThisMarker =
+      selectedMarker !== null &&
+      interaction.kind === 'connecting' && interaction.fromMarkerId === selectedMarker.id;
+    const placingThisPlayer =
+      interaction.kind === 'placing' && interaction.playerNumber === selectedPlayerNumber;
+
+    return (
+      <div className="map-v2-inspector-active">
+        <div className="map-v2-player-summary">
+          <div className={'map-v2-player-avatar ' + (role ? roleMeta[role].className : '')}>
+            {selectedPlayerNumber}
+          </div>
+          <div>
+            <span>{selectedMarker ? '当前玩家 · 已放置' : '当前玩家 · 未放置'}</span>
+            <h3>玩家 {selectedPlayerNumber}</h3>
+          </div>
+          <span
+            className={
+              'map-v2-life-pill ' + (!selectedMarker ? 'unplaced' : dead ? 'dead' : 'alive')
+            }
+          >
+            {!selectedMarker ? '未上图' : dead ? '死亡' : '存活'}
+          </span>
         </div>
-        <p className="role-hint">点击地图上的数字查看属性，或从左侧拖入数字创建标记。</p>
-        {Object.keys(roleAssignments).length > 0 ? (
-          <div className="assigned-roles">
-            {Object.entries(roleAssignments).map(([number, role]) => {
-              const info = roleMeta[role];
-              return (
-                <div key={number} className="role-item">
-                  <span className="role-number">{number}</span>
-                  <span className="role-info" style={{ color: info.color }}>
-                    <span className={`role-dot ${info.className}`}></span> {info.label}
-                  </span>
-                  <button className="remove-role" title="清除身份" onClick={() => clearSelectedRole(Number(number))}>
-                    <Icon name="x" size={14} strokeWidth={2.4} />
+
+        <div className="map-v2-inspector-section">
+          <div className="map-v2-field-label">身份</div>
+          <div className="map-v2-role-grid">
+            <button
+              type="button"
+              className={!role ? 'active unknown' : ''}
+              onClick={() => setPlayerRole(selectedPlayerNumber)}
+            >
+              未知
+            </button>
+            {(Object.keys(roleMeta) as RoleKey[]).map(roleKey => (
+              <button
+                type="button"
+                key={roleKey}
+                className={
+                  (role === roleKey ? 'active ' : '') + roleMeta[roleKey].className
+                }
+                onClick={() => setPlayerRole(selectedPlayerNumber, roleKey)}
+              >
+                <span className={'map-v2-role-dot ' + roleMeta[roleKey].className} />
+                {roleMeta[roleKey].label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="map-v2-inspector-section">
+          <div className="map-v2-field-label">本轮状态</div>
+          <button
+            type="button"
+            className={'map-v2-status-toggle ' + (dead ? 'dead' : 'alive')}
+            onClick={() => toggleDeadState(selectedPlayerNumber)}
+          >
+            <Icon name="ghost" size={14} />
+            <span>
+              <strong>{dead ? '标记复活' : '标记死亡'}</strong>
+              <small>
+                {dead && deathRound
+                  ? '死亡状态始于第 ' + String(deathRound) + ' 轮'
+                  : '从当前轮次开始生效'}
+              </small>
+            </span>
+          </button>
+        </div>
+
+        {selectedMarker ? (
+          <>
+            <div className="map-v2-inspector-section">
+              <div className="map-v2-field-label">地图操作</div>
+              <div className="map-v2-inspector-actions">
+                <button
+                  type="button"
+                  className={drawingThisMarker ? 'active' : ''}
+                  onClick={() =>
+                    drawingThisMarker
+                      ? finishDrawingPath()
+                      : startDrawingPath(selectedMarker.id)
+                  }
+                >
+                  {drawingThisMarker ? '完成路径' : '绘制路径'}
+                  {trailSegments.length > 0 && <span>{trailSegments.length}</span>}
+                </button>
+                <button
+                  type="button"
+                  className={connectingThisMarker ? 'active' : ''}
+                  onClick={() =>
+                    connectingThisMarker
+                      ? cancelInteraction()
+                      : startConnection(selectedMarker.id)
+                  }
+                >
+                  {connectingThisMarker ? '取消连接' : '连接玩家'}
+                </button>
+              </div>
+              {trailSegments.length > 0 && (
+                <div className="map-v2-path-actions">
+                  <button type="button" onClick={() => undoLastPathSegment(selectedMarker.id)}>
+                    撤销上一段
+                  </button>
+                  <button type="button" onClick={() => clearMarkerPath(selectedMarker.id)}>
+                    清除路径
                   </button>
                 </div>
-              );
-            })}
-          </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              className="map-v2-delete-marker"
+              onClick={() => removeMarker(selectedMarker.id)}
+            >
+              <Icon name="trash" size={14} />
+              删除本轮标记
+            </button>
+
+            <div className="map-v2-inspector-tip">
+              右键打开快捷菜单，右键拖到另一位玩家可直接连线。
+            </div>
+          </>
         ) : (
-          <div className="empty-state">
-            <p>暂无身份分配</p>
-          </div>
+          <>
+            <div className="map-v2-inspector-section">
+              <div className="map-v2-field-label">地图标记</div>
+              <button
+                type="button"
+                className={'map-v2-place-player ' + (placingThisPlayer ? 'active' : '')}
+                onClick={() =>
+                  placingThisPlayer
+                    ? cancelInteraction()
+                    : startPlacingPlayer(selectedPlayerNumber)
+                }
+              >
+                <span>{placingThisPlayer ? '等待地图落点' : '放置到地图'}</span>
+                <small>
+                  {placingThisPlayer ? '点击地图确定位置，Esc 取消' : '也可以从左侧直接拖入地图'}
+                </small>
+              </button>
+            </div>
+
+            <div className="map-v2-inspector-tip">
+              身份已独立保存；现在不放置标记，也不会丢失设置。
+            </div>
+          </>
         )}
       </div>
     );
   };
 
   return (
-    <section className="entertainment-section">
-      <div className="map-tool-container">
-        {/* 左侧边栏 */}
-        <div className="map-sidebar">
-          {/* 地图选择 */}
-          <div className="map-selector">
-            <h3>地图选择</h3>
-            <select
-              className="map-select"
-              value={selectedMap}
-              onChange={(e) => setSelectedMap(Number(e.target.value))}
-            >
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map(mapNum => (
-                <option key={mapNum} value={mapNum}>
-                  {mapNameMapping[mapNum]}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* 轮次 */}
-          <div className="sequence-selector">
-            <h3>轮次</h3>
-            <div className="sequence-grid">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(seq => (
-                <button
-                  key={seq}
-                  className={`seq-btn ${currentSequence === seq ? 'active' : ''}`}
-                  onClick={() => setCurrentSequence(seq)}
-                >
-                  {seq}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 工具 */}
-          <div className="tools-panel">
-            <h3>数字标记</h3>
-            <div className="number-grid">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].map(num => {
-                const role = roleAssignments[num];
-                let iconClass = `number-icon ${selectedNumberForRole === num ? 'selected' : ''}`;
-
-                if (role === 'good') {
-                  iconClass += ' role-good';
-                } else if (role === 'neutral') {
-                  iconClass += ' role-neutral';
-                } else if (role === 'evil') {
-                  iconClass += ' role-evil';
-                }
-
-                return (
-                  <div
-                    key={num}
-                    className={iconClass}
-                    draggable
-                    onDragStart={(e) => {
-                      setDraggedNumber(num);
-                      setIsDragging(true);
-                      e.dataTransfer.effectAllowed = 'copy';
-                    }}
-                    onDragEnd={() => {
-                      setDraggedNumber(null);
-                      setIsDragging(false);
-                    }}
-                    onClick={() => handleMarkerClick(num)}
-                    title={`数字 ${num}${role ? ` - ${role === 'good' ? '好鹅' : role === 'neutral' ? '中立' : '坏鸭'}` : ' - 拖拽到地图，点击设置身份'}`}
-                  >
-                    {num}
-                    {isDead(currentSequence, num) && (
-                      <span className="dead-x-overlay">✕</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* 中间地图显示区 */}
-        <div className="map-display">
-          <div className="map-header">
-            <div className="map-title">
-              <img src={`/img/${selectedMap}.png`} alt="地图预览" className="map-preview-thumb" />
-              <h3>{mapNameMapping[selectedMap]}</h3>
-            </div>
-            <div className="map-actions">
-              <button onClick={clearCurrentMap} className="action-btn">
-                清除标记
-              </button>
-              <button onClick={() => { setRoleAssignments({}); setDeadMarkers({}); }} className="action-btn">
-                清除身份
-              </button>
-            </div>
-          </div>
-
-          <div className="map-tool-mode-bar" aria-label="地图工具模式">
-            {([
-              ['move', '移动'],
-              ['connect', '连线'],
-              ['trail', '路径'],
-              ['delete', '删除']
-            ] as [ToolMode, string][]).map(([mode, label]) => (
-              <button
-                key={mode}
-                className={`tool-mode-btn ${toolMode === mode ? 'active' : ''}`}
-                onClick={() => {
-                  setToolMode(mode);
-                  setDrawingConnection(null);
-                  setDrawingTrailMarkerId(null);
-                  setActiveTrailSegment(null);
-                  setIsDrawingTrail(false);
-                }}
-                type="button"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div
-            ref={mapContainerRef}
-            className={`map-canvas-container ${isDragging ? 'drag-over' : ''}`}
-            onMouseMove={(e) => {
-              handleMapMouseMove(e);
-              handleConnectionMouseMove(e);
-            }}
-            onMouseUp={(e) => {
-              handleMapMouseUp();
-              if (e.button === 2) {
-                handleConnectionCancel();
-              }
-            }}
-            onMouseLeave={(e) => {
-              handleMapMouseUp();
-              handleConnectionCancel();
-            }}
-            onMouseDown={(e) => {
-              if (drawingTrailMarkerId !== null && e.button === 0) {
-                const point = getMapPoint(e);
-                if (point) {
-                  setActiveTrailSegment([point]);
-                  setIsDrawingTrail(true);
-                }
-              }
-            }}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              if (drawingTrailMarkerId !== null || toolMode === 'trail') exitTrailMode();
-              if (drawingConnection) handleConnectionCancel();
-            }}
+    <section className="entertainment-section map-v2">
+      <div className="map-v2-commandbar">
+        <label className="map-v2-map-select">
+          <span>地图</span>
+          <select
+            value={selectedMap}
+            onChange={event => setSelectedMap(Number(event.target.value))}
           >
-            {/* 删除区域（右上角）- 仅在拖拽时显示 */}
-            {(draggingMarkerId || toolMode === 'delete') && (
-              <div
-                ref={deleteZoneRef}
-                className={`delete-zone ${isInDeleteZone ? 'active' : ''}`}
-              >
-                <span className="delete-icon"><Icon name="trash" size={20} /></span>
-                <span className="delete-text">拖拽到此删除</span>
-              </div>
-            )}
+            {Object.entries(mapNameMapping).map(([mapId, mapName]) => (
+              <option key={mapId} value={mapId}>{mapName}</option>
+            ))}
+          </select>
+        </label>
 
-            <div
-              ref={mapStageRef}
-              className="map-stage"
-              style={{ '--map-aspect-ratio': mapAspectRatio } as React.CSSProperties}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'copy';
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                const point = getMapPoint(e as unknown as MouseEvent);
-
-                if (draggedNumber !== null && point) {
-                  const existingMarker = mapMarkers.find(
-                    m => m.number === draggedNumber && m.sequence === currentSequence
-                  );
-
-                  if (existingMarker) {
-                    setCurrentMapMarkers(
-                      mapMarkers.map(m =>
-                        m.id === existingMarker.id ? { ...m, x: point.x, y: point.y } : m
-                      )
-                    );
-                  } else {
-                    setCurrentMapMarkers([
-                      ...mapMarkers,
-                      {
-                        x: point.x,
-                        y: point.y,
-                        number: draggedNumber,
-                        sequence: currentSequence,
-                        id: Date.now()
-                      }
-                    ]);
-                  }
-                  setDraggedNumber(null);
-                  setIsDragging(false);
-                }
-              }}
-            >
-
-            <img
-              src={`/img/${selectedMap}.png`}
-              alt={`地图${selectedMap}`}
-              className="map-image"
-              draggable={false}
-              onDragStart={(e) => e.preventDefault()}
-              onLoad={(e) => {
-                const img = e.currentTarget;
-                if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-                  setMapAspectRatio(img.naturalWidth / img.naturalHeight);
-                }
-              }}
-            />
-
-            {/* SVG 连线层 */}
-            <svg className="connections-layer">
-              {/* 已存在的连线 - 只显示当前序列的标记之间的连线 */}
-              {connections.map((conn, index) => {
-                const fromMarker = mapMarkers.find(m => m.id === conn.from);
-                const toMarker = mapMarkers.find(m => m.id === conn.to);
-
-                if (!fromMarker || !toMarker) return null;
-                if (fromMarker.sequence !== currentSequence || toMarker.sequence !== currentSequence) return null;
-
-                return (
-                  <g key={index}>
-                    <line
-                      x1={`${fromMarker.x}%`}
-                      y1={`${fromMarker.y}%`}
-                      x2={`${toMarker.x}%`}
-                      y2={`${toMarker.y}%`}
-                      stroke="transparent"
-                      strokeWidth="15"
-                      strokeLinecap="round"
-                      onMouseEnter={() => setHoveredConnection(index)}
-                      onMouseLeave={() => setHoveredConnection(null)}
-                      style={{ cursor: 'pointer' }}
-                    />
-                    <line
-                      x1={`${fromMarker.x}%`}
-                      y1={`${fromMarker.y}%`}
-                      x2={`${toMarker.x}%`}
-                      y2={`${toMarker.y}%`}
-                      stroke="#00d4ff"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      opacity="0.8"
-                    />
-                  </g>
-                );
-              })}
-
-              {/* 删除按钮层 - 在所有连线之上 */}
-              {connections.map((conn, index) => {
-                const fromMarker = mapMarkers.find(m => m.id === conn.from);
-                const toMarker = mapMarkers.find(m => m.id === conn.to);
-
-                if (!fromMarker || !toMarker) return null;
-                if (fromMarker.sequence !== currentSequence || toMarker.sequence !== currentSequence) return null;
-                if (hoveredConnection !== index) return null;
-
-                return (
-                  <g key={`delete-${index}`}>
-                    <circle
-                      cx={`${(fromMarker.x + toMarker.x) / 2}%`}
-                      cy={`${(fromMarker.y + toMarker.y) / 2}%`}
-                      r="8"
-                      fill="#ff4757"
-                      stroke="white"
-                      strokeWidth="2"
-                      className="connection-delete-btn"
-                      onMouseEnter={() => setHoveredConnection(index)}
-                      onMouseLeave={() => setHoveredConnection(null)}
-                      onClick={(e) => {
-                        console.log('Delete button clicked!', conn.from, conn.to);
-                        Logger.info(`Delete button clicked: ${conn.from} -> ${conn.to}`);
-                        e.stopPropagation();
-                        handleDeleteConnection(conn.from, conn.to);
-                      }}
-                      style={{ cursor: 'pointer' }}
-                    />
-                    <text
-                      x={`${(fromMarker.x + toMarker.x) / 2}%`}
-                      y={`${(fromMarker.y + toMarker.y) / 2}%`}
-                      textAnchor="middle"
-                      dominantBaseline="central"
-                      fill="white"
-                      fontSize="10"
-                      fontWeight="bold"
-                      style={{ pointerEvents: 'none' }}
-                    >
-                      ×
-                    </text>
-                  </g>
-                );
-              })}
-
-              {/* 移动轨迹 */}
-              {mapMarkers.filter(m => m.sequence === currentSequence).map(marker => {
-                const segments = markerTrails[marker.id] || [];
-                const drawingSegment = drawingTrailMarkerId === marker.id && activeTrailSegment ? [activeTrailSegment] : [];
-                const allSegments = [...segments, ...drawingSegment];
-                if (allSegments.length === 0) return null;
-                return (
-                  <g key={`trail-${marker.id}`}>
-                    {allSegments.map((segment, segmentIndex) => {
-                      const points = segmentIndex === 0 ? [{ x: marker.x, y: marker.y }, ...segment] : segment;
-                      return points.slice(0, -1).map((p, i) => (
-                        <line
-                          key={`l-${segmentIndex}-${i}`}
-                          x1={`${p.x}%`}
-                          y1={`${p.y}%`}
-                          x2={`${points[i + 1].x}%`}
-                          y2={`${points[i + 1].y}%`}
-                          stroke="#ffd700"
-                          strokeWidth="2"
-                          strokeDasharray={segmentIndex === segments.length ? undefined : '5,3'}
-                          opacity={segmentIndex === segments.length ? '0.95' : '0.7'}
-                        />
-                      ));
-                    })}
-                    {allSegments.flat().map((p, i) => (
-                      <circle
-                        key={`c-${i}`}
-                        cx={`${p.x}%`}
-                        cy={`${p.y}%`}
-                        r="3"
-                        fill="#ffd700"
-                        opacity="0.45"
-                      />
-                    ))}
-                  </g>
-                );
-              })}
-
-              {/* 正在绘制的临时连线 */}
-              {drawingConnection && (
-                <line
-                  x1={drawingConnection.x}
-                  y1={drawingConnection.y}
-                  x2={mousePos.x}
-                  y2={mousePos.y}
-                  stroke="#00d4ff"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeDasharray="5,5"
-                  opacity="0.6"
-                />
-              )}
-            </svg>
-
-            {/* 标记点覆盖层 */}
-            {mapMarkers.filter(m => m.sequence === currentSequence).map(marker => {
-              const role = roleAssignments[marker.number];
-              let markerClass = `map-marker-number ${draggingMarkerId === marker.id ? 'dragging' : ''}`;
-
-              if (role === 'good') {
-                markerClass += ' role-good';
-              } else if (role === 'neutral') {
-                markerClass += ' role-neutral';
-              } else if (role === 'evil') {
-                markerClass += ' role-evil';
-              }
-
+        <div className="map-v2-rounds" aria-label="轮次时间线">
+          <span className="map-v2-rounds-label">轮次</span>
+          <div className="map-v2-round-list">
+            {Array.from({ length: 10 }, (_, index) => index + 1).map(sequence => {
+              const count = mapMarkers.filter(marker => marker.sequence === sequence).length;
+              const hasDeathEvent = Object.keys(deadMarkers).some(
+                key => key.startsWith(String(sequence) + '-')
+              );
               return (
-                <div
-                  key={marker.id}
-                  data-marker-id={marker.id}
-                  className={`${markerClass} ${isDead(currentSequence, marker.number) ? 'dead' : ''}`}
-                  style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
-                  onMouseDown={(e) => {
-                    if (drawingTrailMarkerId !== null || toolMode === 'delete' || toolMode === 'trail') return;
-                    if (e.button === 0 && toolMode === 'move') {
-                      handleMarkerMouseDown(e, marker.id);
-                    } else if (toolMode === 'connect') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (!drawingConnection) {
-                        handleConnectionStart(e, marker.id, marker.x, marker.y);
-                      } else if (drawingConnection.markerId === marker.id) {
-                        handleConnectionCancel();
-                      } else {
-                        handleConnectionEnd(e, marker.id);
-                      }
-                    }
-                  }}
-                  onMouseUp={(e) => {
-                    if (e.button === 2 && drawingConnection) {
-                      handleConnectionEnd(e, marker.id);
-                    }
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (toolMode === 'delete') {
-                      removeMarker(marker.id);
-                    } else if (toolMode === 'trail') {
-                      startTrailForMarker(marker.id);
-                    } else if (!hasMoved && toolMode === 'move') {
-                      handleMarkerClick(marker.number);
-                    }
-                  }}
-                  title={`数字 ${marker.number} - 拖拽移动，点击设置身份${role ? ` (${role === 'good' ? '好鹅' : role === 'neutral' ? '中立' : '坏鸭'})` : ''}`}
+                <button
+                  type="button"
+                  key={sequence}
+                  className={currentSequence === sequence ? 'active' : ''}
+                  onClick={() => changeSequence(sequence)}
+                  title={'第 ' + String(sequence) + ' 轮，' + String(count) + ' 个标记'}
                 >
-                  {marker.number}
-                </div>
+                  <span>{sequence}</span>
+                  {count > 0 && <small>{count}</small>}
+                  {hasDeathEvent && <i aria-label="本轮有状态事件" />}
+                </button>
               );
             })}
-            </div>
           </div>
         </div>
 
-        {/* 右侧面板 */}
-        <div className="map-right-panel">
-          <div className="inspector-panel">
-            {renderInspector()}
-          </div>
-          <div className="role-assignment legacy-role-assignment">
-            <h3>角色身份设置</h3>
-
-            {drawingTrailMarkerId !== null ? (
-              <div className="role-selection-active">
-                <p className="selection-hint">
-                  正在为数字 <strong>{mapMarkers.find(m => m.id === drawingTrailMarkerId)?.number ?? '?'}</strong> 绘制路径
-                </p>
-                <p className="trail-instruction">按住左键拖动绘制，松开完成一段路径</p>
-                <div className="trail-points-list">
-                  {(markerTrails[drawingTrailMarkerId] || []).map((segment, i) => (
-                    <span key={i} className="trail-point-chip">{i + 1}:{segment.length}</span>
-                  ))}
-                  {activeTrailSegment && <span className="trail-point-chip">绘制中:{activeTrailSegment.length}</span>}
-                </div>
-                <div className="trail-actions">
-                  <button
-                    className="action-btn"
-                    onClick={() => {
-                      setCurrentMarkerTrails(prev => ({
-                        ...prev,
-                        [drawingTrailMarkerId]: (prev[drawingTrailMarkerId] || []).slice(0, -1)
-                      }));
-                    }}
-                  >
-                    撤销上一段
-                  </button>
-                  <button
-                    className="action-btn primary"
-                    onClick={() => {
-                      setCurrentMarkerTrails(prev => {
-                        const next = { ...prev };
-                        delete next[drawingTrailMarkerId];
-                        return next;
-                      });
-                      setActiveTrailSegment(null);
-                      setIsDrawingTrail(false);
-                      setDrawingTrailMarkerId(null);
-                    }}
-                  >
-                    清除路径
-                  </button>
-                  <button
-                    className="cancel-btn"
-                    onClick={() => {
-                      setActiveTrailSegment(null);
-                      setIsDrawingTrail(false);
-                      setDrawingTrailMarkerId(null);
-                    }}
-                  >
-                    完成
-                  </button>
-                </div>
-              </div>
-            ) : selectedNumberForRole !== null ? (
-              <div className="role-selection-active">
-                <p className="selection-hint">为数字 <strong>{selectedNumberForRole}</strong> 选择身份：</p>
-                <div className="role-buttons">
-                  <button className="role-btn good" onClick={() => handleSetRole('good')}>
-                    <span className="role-dot good"></span> 好鹅
-                  </button>
-                  <button className="role-btn neutral" onClick={() => handleSetRole('neutral')}>
-                    <span className="role-dot neutral"></span> 中立
-                  </button>
-                  <button className="role-btn evil" onClick={() => handleSetRole('evil')}>
-                    <span className="role-dot evil"></span> 坏鸭
-                  </button>
-                </div>
-                <div className="trail-actions">
-                  <button
-                    className={`action-btn ${isDead(currentSequence, selectedNumberForRole!) ? 'danger' : ''}`}
-                    onClick={() => {
-                      const num = selectedNumberForRole!;
-                      setDeadMarkers(prev => {
-                        const already = isDead(currentSequence, num);
-                        if (already) {
-                          // 复活：清除当前及之后所有轮次的死亡标记
-                          const next = { ...prev };
-                          for (let s = currentSequence; s <= 10; s++) {
-                            delete next[`${s}-${num}`];
-                          }
-                          return next;
-                        } else {
-                          // 标记死亡：仅当前轮次
-                          return { ...prev, [`${currentSequence}-${num}`]: true };
-                        }
-                      });
-                    }}
-                    style={{ flex: 1 }}
-                  >
-                    <Icon name="ghost" size={14} /> {isDead(currentSequence, selectedNumberForRole!) ? '复活' : '标记死亡'}
-                  </button>
-                  <button className="cancel-btn" onClick={() => setSelectedNumberForRole(null)} style={{ flex: 0 }}>
-                    取消
-                  </button>
-                </div>
-                <hr className="panel-divider" />
-                <button
-                  className="action-btn primary"
-                  onClick={() => {
-                    const currentMarkers = mapMarkers.filter(m => m.sequence === currentSequence);
-                    const marker = currentMarkers.find(m => m.number === selectedNumberForRole);
-                    if (marker) startTrailForMarker(marker.id);
-                  }}
-                  style={{ width: '100%', marginTop: '0' }}
-                >
-                  绘制路径
+        <div className="map-v2-command-actions">
+          <button
+            type="button"
+            className="map-v2-history-button"
+            disabled={historyState.undo === 0}
+            onClick={undo}
+            title="撤销 Ctrl+Z"
+          >
+            ↶
+          </button>
+          <button
+            type="button"
+            className="map-v2-history-button"
+            disabled={historyState.redo === 0}
+            onClick={redo}
+            title="重做 Ctrl+Y"
+          >
+            ↷
+          </button>
+          <div className="map-v2-clear-wrap">
+            <button
+              type="button"
+              className="map-v2-clear-trigger"
+              onClick={() => setClearMenuOpen(open => !open)}
+            >
+              清除
+              <span aria-hidden="true">⌄</span>
+            </button>
+            {clearMenuOpen && (
+              <div className="map-v2-clear-menu">
+                <button type="button" onClick={clearCurrentRound}>
+                  清除第 {currentSequence} 轮
+                  <span>{currentSequenceMarkers.length} 个标记</span>
                 </button>
-              </div>
-            ) : (
-              <div className="role-list">
-                <p className="role-hint">点击地图上的数字标记来设置身份</p>
-                {Object.keys(roleAssignments).length > 0 ? (
-                  <div className="assigned-roles">
-                    {Object.entries(roleAssignments).map(([number, role]) => {
-                      const roleInfo: Record<RoleKey, { label: string; color: string }> = {
-                        good: { label: '好鹅', color: '#4caf50' },
-                        neutral: { label: '中立', color: '#ff9800' },
-                        evil: { label: '坏鸭', color: '#f44336' }
-                      };
-                      const info = roleInfo[role];
-                      return (
-                        <div key={number} className="role-item">
-                          <span className="role-number">{number}</span>
-                          <span className="role-info" style={{ color: info.color }}>
-                            <span className={`role-dot ${role}`}></span> {info.label}
-                          </span>
-                          <button
-                            className="remove-role"
-                            title="清除身份"
-                            onClick={() => {
-                              const newAssignments = { ...roleAssignments };
-                              delete newAssignments[number];
-                              setRoleAssignments(newAssignments);
-                            }}
-                          >
-                            <Icon name="x" size={14} strokeWidth={2.4} />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="empty-state">
-                    <p>暂无身份分配</p>
-                  </div>
-                )}
+                <button type="button" onClick={clearCurrentMap}>
+                  清除当前地图全部轮次
+                </button>
+                <button type="button" className="danger" onClick={clearIdentityData}>
+                  清除整场身份信息
+                </button>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      <div className="map-v2-layout">
+        <aside className="map-v2-roster">
+          <div className="map-v2-panel-heading">
+            <div>
+              <span>PLAYERS</span>
+              <h3>玩家</h3>
+            </div>
+            <strong>{currentSequenceMarkers.length}/16</strong>
+          </div>
+          <p className="map-v2-roster-hint">点击玩家设置身份；需要上图时直接拖入地图。</p>
+          <div className="map-v2-player-grid">
+            {Array.from({ length: 16 }, (_, index) => index + 1).map(playerNumber => {
+              const marker = currentSequenceMarkers.find(
+                item => item.number === playerNumber
+              );
+              const role = roleAssignments[playerNumber];
+              const dead = isDead(currentSequence, playerNumber);
+              const placing =
+                interaction.kind === 'placing' &&
+                interaction.playerNumber === playerNumber;
+              const selected = playerNumber === selectedPlayerNumber;
+              const className = [
+                marker ? 'placed' : 'unplaced',
+                placing ? 'placing' : '',
+                selected ? 'selected' : '',
+                role ? 'role-' + roleMeta[role].className : '',
+                dead ? 'dead' : '',
+              ].filter(Boolean).join(' ');
+              return (
+                <button
+                  type="button"
+                  key={playerNumber}
+                  className={className}
+                  onClick={() => selectRosterPlayer(playerNumber)}
+                  aria-pressed={selected}
+                  draggable
+                  onDragStart={event => handleRosterDragStart(event, playerNumber)}
+                  onDragEnd={() => setDraggedRosterNumber(null)}
+                  title={
+                    marker
+                      ? '玩家 ' + String(playerNumber) + ' 已放置，点击查看身份与地图操作'
+                      : '玩家 ' + String(playerNumber) + ' 未放置，点击设置身份，拖动可放置'
+                  }
+                >
+                  <span>{playerNumber}</span>
+                  <i className="map-v2-player-status" />
+                  {dead && <b>×</b>}
+                </button>
+              );
+            })}
+          </div>
+          <div className="map-v2-roster-legend">
+            <span><i className="placed" /> 已放置</span>
+            <span><i /> 未放置</span>
+          </div>
+        </aside>
+
+        <main className="map-v2-canvas-panel">
+          <div className="map-v2-canvas-header">
+            <div className="map-v2-map-title">
+              <img src={'/img/' + String(selectedMap) + '.png'} alt="" />
+              <div>
+                <span>当前地图 · 第 {currentSequence} 轮</span>
+                <h3>{mapNameMapping[selectedMap]}</h3>
+              </div>
+            </div>
+            <div className="map-v2-canvas-help">
+              拖动标记移动 · 右键拖动连线
+            </div>
+          </div>
+
+          {previousSequenceMarkers.length > 0 && (
+            <div className="map-v2-inherit-bar">
+              <span>
+                上一轮还有 {previousSequenceMarkers.length} 位玩家未放置
+              </span>
+              <button type="button" onClick={inheritPreviousRound}>
+                全部沿用
+              </button>
+            </div>
+          )}
+
+          <div className="map-v2-canvas-shell">
+            <div
+              ref={mapStageRef}
+              className={[
+                'map-v2-stage',
+                interaction.kind === 'placing' ? 'is-placing' : '',
+                interaction.kind === 'drawing-path' ? 'is-drawing' : '',
+                interaction.kind === 'connecting' ? 'is-connecting' : '',
+                draggedRosterNumber !== null ? 'is-drag-over' : '',
+              ].filter(Boolean).join(' ')}
+              style={{ '--map-aspect-ratio': mapAspectRatio } as CSSProperties}
+              onMouseDown={handleStageMouseDown}
+              onMouseMove={handleStageMouseMove}
+              onMouseUp={handleStageMouseUp}
+              onMouseLeave={() => {
+                finishMarkerDrag();
+                if (rightGestureRef.current?.moved) cancelInteraction();
+                rightGestureRef.current = null;
+                setRightDragFromId(null);
+                setRightDragTargetId(null);
+              }}
+              onClick={handleCanvasClick}
+              onContextMenu={event => {
+                event.preventDefault();
+                if (Date.now() < suppressContextMenuUntilRef.current) return;
+                if ((event.target as Element).closest(
+                  '.map-v2-marker, .map-v2-connection-hit, .map-v2-context-menu'
+                )) return;
+                const point = getMenuPoint(event.clientX, event.clientY);
+                setContextMenu({ kind: 'canvas', x: point.x, y: point.y });
+              }}
+              onDragOver={event => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'copy';
+              }}
+              onDrop={handleRosterDrop}
+            >
+              <img
+                className="map-v2-image"
+                src={'/img/' + String(selectedMap) + '.png'}
+                alt={mapNameMapping[selectedMap]}
+                draggable={false}
+                onLoad={event => {
+                  const image = event.currentTarget;
+                  if (image.naturalWidth && image.naturalHeight) {
+                    setMapAspectRatio(image.naturalWidth / image.naturalHeight);
+                  }
+                }}
+              />
+
+              <svg
+                className="map-v2-annotation-layer"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                aria-label="地图连线和路径"
+              >
+                {currentSequenceMarkers.map(marker => {
+                  const segments = markerTrails[marker.id] || [];
+                  const drafts =
+                    interaction.kind === 'drawing-path' &&
+                    interaction.markerId === marker.id &&
+                    activeTrailSegment
+                      ? [activeTrailSegment]
+                      : [];
+                  const color = roleAssignments[marker.number]
+                    ? roleMeta[roleAssignments[marker.number]].color
+                    : '#567da7';
+                  return [...segments, ...drafts].map((segment, index) => (
+                    <polyline
+                      key={'trail-' + String(marker.id) + '-' + String(index)}
+                      points={segment.map(point => String(point.x) + ',' + String(point.y)).join(' ')}
+                      fill="none"
+                      stroke={color}
+                      strokeWidth="0.55"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeDasharray={index >= segments.length ? '1.2 1' : undefined}
+                      opacity={index >= segments.length ? 0.72 : 0.88}
+                    />
+                  ));
+                })}
+
+                {currentConnections.map(connection => {
+                  const from = currentSequenceMarkers.find(
+                    marker => marker.id === connection.from
+                  );
+                  const to = currentSequenceMarkers.find(
+                    marker => marker.id === connection.to
+                  );
+                  if (!from || !to) return null;
+                  const selected =
+                    selectedConnection &&
+                    connectionKey(selectedConnection) === connectionKey(connection);
+                  return (
+                    <g key={connectionKey(connection)}>
+                      <line
+                        className="map-v2-connection-hit"
+                        x1={from.x}
+                        y1={from.y}
+                        x2={to.x}
+                        y2={to.y}
+                        stroke="transparent"
+                        strokeWidth="2.5"
+                        role="button"
+                        tabIndex={0}
+                        aria-label={
+                          '玩家 ' + String(from.number) + ' 与玩家 ' + String(to.number) + ' 的连线'
+                        }
+                        onClick={event => openConnectionMenu(event, connection)}
+                        onContextMenu={event => openConnectionMenu(event, connection)}
+                        onKeyDown={event => {
+                          if (event.key === 'Delete' || event.key === 'Backspace') {
+                            event.preventDefault();
+                            removeConnection(connection);
+                          }
+                        }}
+                      />
+                      <line
+                        className={'map-v2-connection-line ' + (selected ? 'selected' : '')}
+                        x1={from.x}
+                        y1={from.y}
+                        x2={to.x}
+                        y2={to.y}
+                        strokeWidth={selected ? 0.72 : 0.5}
+                        pointerEvents="none"
+                      />
+                    </g>
+                  );
+                })}
+
+                {interaction.kind === 'connecting' && activeConnectionFromMarker && (
+                  <line
+                    className="map-v2-connection-preview"
+                    x1={activeConnectionFromMarker.x}
+                    y1={activeConnectionFromMarker.y}
+                    x2={cursorPoint.x}
+                    y2={cursorPoint.y}
+                    strokeWidth="0.5"
+                    pointerEvents="none"
+                  />
+                )}
+              </svg>
+
+              {previousSequenceMarkers.map(marker => (
+                <button
+                  type="button"
+                  key={'ghost-' + String(marker.id)}
+                  className="map-v2-ghost-marker"
+                  style={{ left: String(marker.x) + '%', top: String(marker.y) + '%' }}
+                  onClick={event => {
+                    event.stopPropagation();
+                    inheritMarker(marker);
+                  }}
+                  title={'沿用玩家 ' + String(marker.number) + ' 的上一轮位置'}
+                >
+                  {marker.number}
+                </button>
+              ))}
+
+              {currentSequenceMarkers.map(marker => {
+                const role = roleAssignments[marker.number];
+                const className = [
+                  'map-v2-marker',
+                  role ? 'role-' + roleMeta[role].className : '',
+                  marker.id === selectedMarkerId ? 'selected' : '',
+                  marker.id === draggingMarkerId ? 'dragging' : '',
+                  marker.id === rightDragFromId ? 'connection-source' : '',
+                  marker.id === rightDragTargetId ? 'connection-target' : '',
+                  isDead(currentSequence, marker.number) ? 'dead' : '',
+                ].filter(Boolean).join(' ');
+                return (
+                  <button
+                    type="button"
+                    key={marker.id}
+                    data-map-marker-id={marker.id}
+                    className={className}
+                    style={{ left: String(marker.x) + '%', top: String(marker.y) + '%' }}
+                    onMouseDown={event => beginMarkerMouseDown(event, marker)}
+                    onClick={event => event.stopPropagation()}
+                    onContextMenu={event => openMarkerMenu(event, marker.id)}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedMarkerId(marker.id);
+                      }
+                    }}
+                    aria-label={'玩家 ' + String(marker.number)}
+                  >
+                    {marker.number}
+                    {isDead(currentSequence, marker.number) && <span>×</span>}
+                  </button>
+                );
+              })}
+
+              {interaction.kind === 'placing' && (
+                <div
+                  className="map-v2-placement-cursor"
+                  style={{ left: String(cursorPoint.x) + '%', top: String(cursorPoint.y) + '%' }}
+                >
+                  {interaction.playerNumber}
+                </div>
+              )}
+
+              {interaction.kind !== 'idle' && (
+                <div
+                  className="map-v2-mode-banner"
+                  onMouseDown={event => event.stopPropagation()}
+                  onClick={event => event.stopPropagation()}
+                >
+                  <div>
+                    <strong>
+                      {interaction.kind === 'placing' &&
+                        '放置玩家 ' + String(interaction.playerNumber)}
+                      {interaction.kind === 'connecting' &&
+                        '连接玩家 ' + String(activeConnectionFromMarker?.number ?? '?')}
+                      {interaction.kind === 'drawing-path' &&
+                        '为玩家 ' + String(drawingMarker?.number ?? '?') + ' 绘制路径'}
+                    </strong>
+                    <span>
+                      {interaction.kind === 'placing' && '点击地图确定位置'}
+                      {interaction.kind === 'connecting' && '点击目标玩家，或按 Esc 取消'}
+                      {interaction.kind === 'drawing-path' && '按住左键绘制，松开完成一段'}
+                    </span>
+                  </div>
+                  {interaction.kind === 'drawing-path' && drawingMarker && (
+                    <button
+                      type="button"
+                      onClick={() => undoLastPathSegment(drawingMarker.id)}
+                      disabled={(markerTrails[drawingMarker.id] || []).length === 0}
+                    >
+                      撤销一段
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="primary"
+                    onClick={() =>
+                      interaction.kind === 'drawing-path'
+                        ? finishDrawingPath()
+                        : cancelInteraction()
+                    }
+                  >
+                    {interaction.kind === 'drawing-path' ? '完成' : '取消'}
+                  </button>
+                </div>
+              )}
+
+              {renderContextMenu()}
+            </div>
+          </div>
+        </main>
+
+        <aside className="map-v2-inspector">
+          {renderInspector()}
+        </aside>
+      </div>
+
+      {toast && (
+        <div className="map-v2-toast" role="status">
+          <span>{toast.message}</span>
+          {toast.canUndo && historyState.undo > 0 && (
+            <button type="button" onClick={() => {
+              undo();
+              setToast(null);
+            }}>
+              撤销
+            </button>
+          )}
+          <button
+            type="button"
+            className="close"
+            aria-label="关闭提示"
+            onClick={() => setToast(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
     </section>
   );
 }

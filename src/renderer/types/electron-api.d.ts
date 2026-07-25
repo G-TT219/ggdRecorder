@@ -8,14 +8,18 @@ export type {
   RecordingNotes,
   FavoriteRecordingGroups,
   RecordingThumbnails,
+  RecordingQuality,
+  RecordingSessionStartOptions,
+  RecordingSessionStartResult,
+  RecordingSessionFinishResult,
   FavoritesMetadata,
   AppConfig,
   AnalyzeRecordingResult,
   ElectronAPI,
-} from '../shared/types';
+} from '../../shared/types';
 
 declare global {
   interface Window {
-    electronAPI: import('../shared/types').ElectronAPI;
+    electronAPI: import('../../shared/types').ElectronAPI;
   }
 }

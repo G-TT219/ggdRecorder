@@ -1,16 +1,24 @@
 import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import Logger from '../utils/logger';
+import type { RecordingQuality } from '../../shared/types';
 
 type SettingsTabProps = {
   recordingsDir: string;
   gamePath: string;
-  compressVideos: boolean;
+  recordingQuality: RecordingQuality;
   onRecordingsDirChange: (dir: string) => void;
   onGamePathChange: (path: string) => void;
-  onCompressVideosChange: (checked: boolean) => void;
+  onRecordingQualityChange: (quality: RecordingQuality) => void;
 };
 
-function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirChange, onGamePathChange, onCompressVideosChange }: SettingsTabProps) {
+function SettingsTab({
+  recordingsDir,
+  gamePath,
+  recordingQuality,
+  onRecordingsDirChange,
+  onGamePathChange,
+  onRecordingQualityChange,
+}: SettingsTabProps) {
   const [apiKey, setApiKey] = useState('');
   const [ggdToken, setGgdToken] = useState('');
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -86,10 +94,17 @@ function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirC
     return lastSlashIndex !== -1 ? path.substring(0, lastSlashIndex) : '';
   };
 
-  const handleCompressVideosChange = (e: ChangeEvent<HTMLInputElement>) => {
-    onCompressVideosChange(e.target.checked);
-    window.electronAPI.setCompressVideosConfig(e.target.checked);
-    Logger.info('Compress videos config set to: ' + e.target.checked);
+  const handleRecordingQualityChange = async (quality: RecordingQuality) => {
+    if (quality === recordingQuality) return;
+    const previousQuality = recordingQuality;
+    onRecordingQualityChange(quality);
+    const result = await window.electronAPI.setRecordingQualityConfig(quality);
+    if (!result.success) {
+      onRecordingQualityChange(previousQuality);
+      Logger.error('Failed to save recording quality:', result.error);
+    } else {
+      Logger.info('Recording quality set to: ' + quality);
+    }
   };
 
   const saveApiKey = async () => {
@@ -232,23 +247,48 @@ function SettingsTab({ recordingsDir, gamePath, compressVideos, onRecordingsDirC
           </div>
         </div>
 
-        {/* Compression */}
-        <div className="settings-card">
+        {/* Recording quality */}
+        <div className="settings-card recording-quality-card">
           <div className="settings-card-header">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-              <line x1="4" y1="22" x2="4" y2="15" />
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <path d="M7 15l3-3 2 2 3-4 2 2" />
             </svg>
             <div>
-              <span className="settings-card-title">视频压缩</span>
-              <span className="settings-card-subtitle">录制后自动压缩以节省存储空间</span>
+              <span className="settings-card-title">录制质量</span>
+              <span className="settings-card-subtitle">录制时直接编码并持续写盘，不再进行录后压缩</span>
             </div>
-            <label className="settings-toggle">
-              <input type="checkbox" checked={compressVideos} onChange={handleCompressVideosChange} />
-              <span className="settings-toggle-track">
-                <span className="settings-toggle-knob"></span>
-              </span>
-            </label>
+            <span className="settings-badge active">实时写盘</span>
+          </div>
+          <div className="settings-field">
+            <div className="recording-quality-options" role="radiogroup" aria-label="录制质量">
+              {([
+                ['performance', '流畅', '30 FPS · 较低资源占用', 1],
+                ['balanced', '均衡', '最高 60 FPS · 日常推荐', 2],
+                ['quality', '高质量', '最高 60 FPS · 更多细节', 3],
+              ] as const).map(([value, label, description, level]) => (
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={recordingQuality === value}
+                  key={value}
+                  className={recordingQuality === value ? 'active' : ''}
+                  data-quality={value}
+                  onClick={() => handleRecordingQualityChange(value)}
+                >
+                  <span className="recording-quality-option-title">
+                    {label}
+                    <i className="recording-quality-level" aria-hidden="true">
+                      {[1, 2, 3].map(item => <b key={item} className={item <= level ? 'filled' : ''} />)}
+                    </i>
+                  </span>
+                  <small>{description}</small>
+                </button>
+              ))}
+            </div>
+            <p className="recording-quality-note">
+              分辨率跟随录制源，帧率最高 60 FPS；程序会根据实际画面尺寸自动计算码率。
+            </p>
           </div>
         </div>
 

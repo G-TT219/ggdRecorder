@@ -78,6 +78,14 @@ function RecordingsTab({
 
   const selectedFavoriteGroup = favoriteGroups.find(group => group.id === favoriteGroupFilter);
 
+  const formatFileSize = (bytes: number) => {
+    if (!bytes) return '0 MB';
+    const megabytes = bytes / (1024 * 1024);
+    return megabytes >= 1024
+      ? `${(megabytes / 1024).toFixed(1)} GB`
+      : `${megabytes.toFixed(megabytes >= 100 ? 0 : 1)} MB`;
+  };
+
   // Computed: filtered recordings with useMemo
   const filteredRecordings = useMemo(() => {
     if (!startDate && !endDate && !showFavoritesOnly) {
@@ -533,7 +541,7 @@ function RecordingsTab({
         </div>
       ) : (
         <div className="recordings-list">
-          <div className="recordings-list-header">
+          <div className={`recordings-list-header ${isSelectMode ? 'selection-mode' : ''}`}>
             <h2 data-count={recordings.length}>录像列表</h2>
             <div className="batch-controls">
               {!isSelectMode ? (
@@ -558,33 +566,47 @@ function RecordingsTab({
                 </div>
               ) : (
                 <div className="batch-mode-inner">
-                  <span className="selected-count">已选择 {selectedRecordings.length} / {filteredRecordings.length} 项</span>
-                  <button onClick={selectAllRecordings} className="select-all-button">
-                    {selectedRecordings.length === filteredRecordings.length ? '取消全选' : '全选'}
-                  </button>
-                  <button onClick={batchDeleteRecordings} className="batch-delete-button" disabled={selectedRecordings.length === 0}>
-                    批量删除
-                  </button>
-                  <div className="date-filter-row">
-                    <input
-                      type="date"
-                      value={startDate}
-                      onChange={handleStartDateChange}
-                      className="date-filter-input"
-                      title="开始日期"
-                    />
-                    <span className="date-separator">至</span>
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={handleEndDateChange}
-                      className="date-filter-input"
-                      title="结束日期"
-                    />
+                  <div className="batch-selection-summary">
+                    <span className="batch-selection-icon"><Icon name="check" size={14} /></span>
+                    <div>
+                      <strong>{selectedRecordings.length > 0 ? `已选择 ${selectedRecordings.length} 项` : '选择录像'}</strong>
+                      <span>当前筛选共 {filteredRecordings.length} 项</span>
+                    </div>
                   </div>
-                  <button onClick={toggleSelectMode} className="cancel-select-button">
-                    取消
-                  </button>
+                  <div className="batch-mode-actions">
+                    <button onClick={selectAllRecordings} className="select-all-button">
+                      {selectedRecordings.length === filteredRecordings.length ? '取消全选' : '全选'}
+                    </button>
+                    <div className="date-filter-row">
+                      <label>
+                        <span>开始</span>
+                        <input
+                          type="date"
+                          value={startDate}
+                          onChange={handleStartDateChange}
+                          className="date-filter-input"
+                          title="开始日期"
+                        />
+                      </label>
+                      <span className="date-separator">—</span>
+                      <label>
+                        <span>结束</span>
+                        <input
+                          type="date"
+                          value={endDate}
+                          onChange={handleEndDateChange}
+                          className="date-filter-input"
+                          title="结束日期"
+                        />
+                      </label>
+                    </div>
+                    <button onClick={batchDeleteRecordings} className="batch-delete-button" disabled={selectedRecordings.length === 0}>
+                      <Icon name="trash" size={13} /> 删除所选
+                    </button>
+                    <button onClick={toggleSelectMode} className="cancel-select-button">
+                      <Icon name="x" size={13} /> 退出
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -669,7 +691,8 @@ function RecordingsTab({
                     <input
                       type="checkbox"
                       checked={selectedRecordings.some(r => r.id === recording.id)}
-                      onChange={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => toggleRecordingSelection(recording)}
                       className="recording-checkbox"
                     />
                   )}
@@ -686,9 +709,12 @@ function RecordingsTab({
                     <div className="favorite-indicator"><Icon name="starFilled" size={16} /></div>
                   )}
                 </div>
-                <div className="recording-info" onClick={(e) => e.stopPropagation()}>
+                <div className="recording-info" onClick={(e) => { if (!isSelectMode) e.stopPropagation(); }}>
                   <h3>{recording.name}</h3>
-                  <p>{new Date(recording.date).toLocaleString('zh-CN')}</p>
+                  <div className="recording-meta">
+                    <span>{new Date(recording.date).toLocaleString('zh-CN')}</span>
+                    <span>{formatFileSize(recording.size)}</span>
+                  </div>
                   {recordingNotes[recording.id] && (
                     <p className="recording-note-preview" title={recordingNotes[recording.id]}>
                       备注：{recordingNotes[recording.id]}
@@ -715,7 +741,7 @@ function RecordingsTab({
                         className="play-button"
                         onClick={() => handleNavigateToPlayer(recording)}
                       >
-                        播放
+                        <Icon name="play" size={12} /> 播放
                       </button>
                       <button
                         className={`favorite-button ${favoriteRecordings.includes(recording.id) ? 'favorited' : ''}`}
@@ -730,14 +756,14 @@ function RecordingsTab({
                           onClick={() => saveFavoriteToDirectory(recording)}
                           title="另存到指定目录"
                         >
-                          另存为
+                          <Icon name="clipboard" size={13} /> 另存
                         </button>
                       )}
                       <button
                         className="delete-button"
                         onClick={() => deleteRecording(recording)}
                       >
-                        删除
+                        <Icon name="trash" size={13} /> 删除
                       </button>
                     </div>
                   )}

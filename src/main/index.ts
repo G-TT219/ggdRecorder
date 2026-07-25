@@ -9,6 +9,7 @@ import { registerConfigHandlers } from './ipc-config';
 import { registerWindowHandlers } from './ipc-window';
 import { registerStatsHandlers } from './ipc-stats';
 import { registerMiscHandlers } from './ipc-misc';
+import { registerScreenshotHandlers } from './ipc-screenshot';
 
 try {
   if (process.env.NODE_ENV === 'development') {
@@ -44,6 +45,7 @@ app.whenReady().then(async () => {
   registerWindowHandlers();
   registerStatsHandlers();
   registerMiscHandlers();
+  registerScreenshotHandlers();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

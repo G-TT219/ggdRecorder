@@ -4,6 +4,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import logger from './logger';
 import { getGlobalConfig, setGlobalConfig, saveAppConfig } from './config';
+import type { RecordingQuality } from '../shared/types';
 
 export const registerConfigHandlers = (): void => {
   ipcMain.handle('get-app-config', async () => {
@@ -18,6 +19,22 @@ export const registerConfigHandlers = (): void => {
       const ok = await saveAppConfig(config);
       return ok ? { success: true, compressVideos } : { success: false, error: 'save failed' };
     } catch { return { success: false, error: 'save failed' }; }
+  });
+
+  ipcMain.handle('set-recording-quality', async (_event, recordingQuality: RecordingQuality) => {
+    try {
+      if (!['performance', 'balanced', 'quality'].includes(recordingQuality)) {
+        return { success: false, error: 'invalid recording quality' };
+      }
+      const config = getGlobalConfig();
+      config.recordingQuality = recordingQuality;
+      const ok = await saveAppConfig(config);
+      return ok
+        ? { success: true, recordingQuality }
+        : { success: false, error: 'save failed' };
+    } catch {
+      return { success: false, error: 'save failed' };
+    }
   });
 
   ipcMain.handle('set-recordings-dir', async (_event, dirPath: string) => {

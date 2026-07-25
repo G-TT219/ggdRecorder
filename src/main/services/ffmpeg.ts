@@ -1,26 +1,5 @@
 import { spawn } from 'child_process';
-import path from 'path';
 import logger from '../logger';
-
-export const compressVideo = (inputPath: string, outputPath: string): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const ffmpeg = spawn('ffmpeg', [
-      '-i', inputPath,
-      '-vcodec', 'libx264',
-      '-crf', '28',
-      '-preset', 'fast',
-      '-y',
-      outputPath
-    ]);
-
-    ffmpeg.on('close', (code) => {
-      if (code === 0) resolve(outputPath);
-      else reject(new Error(`FFmpeg exited with code ${code}`));
-    });
-
-    ffmpeg.on('error', (err) => reject(new Error(`Failed to start FFmpeg: ${err.message}`)));
-  });
-};
 
 export const generateVideoThumbnail = (videoPath: string, thumbnailPath: string): Promise<{ data: string }> => {
   return new Promise((resolve, reject) => {

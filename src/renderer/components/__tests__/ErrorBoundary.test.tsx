@@ -63,7 +63,7 @@ describe('ErrorBoundary', () => {
   it('shows "未知错误" when error has no message', () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    function NoMessageComponent() {
+    function NoMessageComponent(): never {
       throw new Error()
     }
 

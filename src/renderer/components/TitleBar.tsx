@@ -9,7 +9,11 @@ function TitleBar({ isMaximized, onMinimize, onMaximize, onClose }: TitleBarProp
   return (
     <div className="custom-titlebar">
       <div className="titlebar-drag-region">
-        <span className="app-title">游戏录制助手</span>
+        <div className="titlebar-brand">
+          <span className="titlebar-brand-mark" aria-hidden="true">G</span>
+          <span className="app-title">GGD Recorder</span>
+          <span className="titlebar-context">录制与复盘工作台</span>
+        </div>
       </div>
       <div className="titlebar-controls">
         <button className="titlebar-button" onClick={onMinimize} title="最小化">

@@ -46,5 +46,9 @@ export const setRecordingUrl = (token: string, filePath: string): void => {
   recordingUrlMap.set(token, filePath);
 };
 
-export const pendingRecordingTarget: { current: string | null } = { current: null };
-export const setPendingRecordingTarget = (name: string): void => { pendingRecordingTarget.current = name; };
+export type PendingRecordingTarget = { name: string; pid: number };
+
+export const pendingRecordingTarget: { current: PendingRecordingTarget | null } = { current: null };
+export const setPendingRecordingTarget = (target: PendingRecordingTarget): void => {
+  pendingRecordingTarget.current = target;
+};

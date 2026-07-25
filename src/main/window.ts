@@ -5,6 +5,13 @@ import { pendingRecordingTarget } from './utils';
 
 const getAssetPath = (...paths: string[]) => path.join(__dirname, '..', '..', ...paths);
 
+const normalizeCaptureName = (value: string): string =>
+  value
+    .toLocaleLowerCase()
+    .replace(/\.exe$/i, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+
 export const createWindow = (): BrowserWindow => {
   const mainWindow = new BrowserWindow({
     width: 500,
@@ -43,15 +50,33 @@ export const createWindow = (): BrowserWindow => {
     desktopCapturer.getSources({ types: ['window', 'screen'] }).then((sources: any[]) => {
       let source: any;
       if (pendingRecordingTarget.current) {
-        source = sources.find(src =>
-          src.name.toLowerCase().includes(pendingRecordingTarget.current!.toLowerCase())
-        );
+        const target = pendingRecordingTarget.current;
+        const targetName = normalizeCaptureName(target.name);
+        const windowSources = sources.filter(src => String(src.id).startsWith('window:'));
+        source = windowSources.find(src => normalizeCaptureName(src.name) === targetName);
+        if (!source) {
+          source = windowSources
+            .filter(src => {
+              const sourceName = normalizeCaptureName(src.name);
+              return sourceName.includes(targetName) || targetName.includes(sourceName);
+            })
+            .sort((a, b) => a.name.length - b.name.length)[0];
+        }
         pendingRecordingTarget.current = null;
+        if (!source) {
+          logger.error(`No window capture source matched ${target.name} (PID ${target.pid})`);
+          callback({});
+          return;
+        }
       }
       if (!source) source = sources.find(src => (src as any).type === 'screen');
       if (!source) source = sources[0];
       callback({ video: source || (request as any).requestedVideoSources?.[0], audio: 'loopback' as const });
-    }).catch(() => callback({ video: (request as any).requestedVideoSources?.[0] }));
+    }).catch(error => {
+      logger.error('Unable to enumerate recording sources:', error);
+      pendingRecordingTarget.current = null;
+      callback({});
+    });
   });
 
   mainWindow.setMenu(null);

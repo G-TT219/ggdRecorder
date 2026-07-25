@@ -1,11 +1,19 @@
+import { createRecordingChunkAppender } from './recording-transport';
+
 const { contextBridge, ipcRenderer, shell } = require('electron');
 
+const appendRecordingChunk = createRecordingChunkAppender(
+  (channel, payload) => ipcRenderer.invoke(channel, payload)
+);
+
 contextBridge.exposeInMainWorld('electronAPI', {
-  startRecording: (options?: unknown) => ipcRenderer.invoke('start-recording', options),
-  stopRecording: () => ipcRenderer.invoke('stop-recording'),
   getGameProcesses: () => ipcRenderer.invoke('get-game-processes'),
-  saveRecording: (buffer: ArrayBuffer, filename: string, shouldCompress?: boolean) =>
-    ipcRenderer.invoke('save-recording', buffer, filename, shouldCompress),
+  startRecordingSession: (options: unknown) => ipcRenderer.invoke('start-recording-session', options),
+  appendRecordingChunk,
+  finishRecordingSession: (sessionId: string) =>
+    ipcRenderer.invoke('finish-recording-session', sessionId),
+  abortRecordingSession: (sessionId: string) =>
+    ipcRenderer.invoke('abort-recording-session', sessionId),
   getRecordings: () => ipcRenderer.invoke('get-recordings'),
   deleteRecording: (filename: string) => ipcRenderer.invoke('delete-recording', filename),
   getRecordingUrl: (filePath: string) => ipcRenderer.invoke('get-recording-url', filePath),
@@ -17,18 +25,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectGamePath: () => ipcRenderer.invoke('select-game-path'),
   startGame: (gamePath: string) => ipcRenderer.invoke('start-game', gamePath),
   generateThumbnail: (filePath: string) => ipcRenderer.invoke('generate-thumbnail', filePath),
-  onStopRecording: (callback: (...args: unknown[]) => void) =>
-    ipcRenderer.on('stop-recording', (_event: unknown, ...args: unknown[]) => callback(...args)),
   onStartRecordingShortcut: (callback: (...args: unknown[]) => void) =>
     ipcRenderer.on('start-recording-shortcut', (_event: unknown, ...args: unknown[]) => callback(...args)),
   onStopRecordingShortcut: (callback: (...args: unknown[]) => void) =>
     ipcRenderer.on('stop-recording-shortcut', (_event: unknown, ...args: unknown[]) => callback(...args)),
   removeAllListeners: (channel: string) => ipcRenderer.removeAllListeners(channel),
-  setRecordingTarget: (gameName: string) => ipcRenderer.invoke('set-recording-target', gameName),
+  setRecordingTarget: (target: { name: string; pid: number }) =>
+    ipcRenderer.invoke('set-recording-target', target),
   logInfo: (message: string) => ipcRenderer.invoke('log-info', message),
   logError: (message: string) => ipcRenderer.invoke('log-error', message),
   getAppConfig: () => ipcRenderer.invoke('get-app-config'),
-  setCompressVideosConfig: (value: boolean) => ipcRenderer.invoke('set-compressVideos', value),
+  setRecordingQualityConfig: (value: string) => ipcRenderer.invoke('set-recording-quality', value),
   analyzeRecording: (filePath: string) => ipcRenderer.invoke('analyze-recording', filePath),
   saveApiKey: (apiKey: string) => ipcRenderer.invoke('save-api-key', apiKey),
   loadApiKey: () => ipcRenderer.invoke('load-api-key'),
@@ -53,6 +60,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowMaximize: () => ipcRenderer.invoke('window-maximize'),
   windowClose: () => ipcRenderer.invoke('window-close'),
   resizeWindow: (width: number, height: number) => ipcRenderer.invoke('resize-window', width, height),
+  captureScreenRegion: () => ipcRenderer.invoke('capture-screen-region'),
+  onScreenshotSelectionInit: (callback: (payload: unknown) => void) => {
+    const listener = (_event: unknown, payload: unknown) => callback(payload);
+    ipcRenderer.once('screenshot-selection-init', listener);
+    return () => ipcRenderer.removeListener('screenshot-selection-init', listener);
+  },
+  completeScreenshotSelection: (rect: { x: number; y: number; width: number; height: number }) =>
+    ipcRenderer.invoke('complete-screenshot-selection', rect),
+  cancelScreenshotSelection: () => ipcRenderer.invoke('cancel-screenshot-selection'),
+  saveScreenshot: (dataUrl: string) => ipcRenderer.invoke('save-screenshot', dataUrl),
+  copyScreenshot: (dataUrl: string) => ipcRenderer.invoke('copy-screenshot', dataUrl),
   openExternal: (url: string) => shell.openExternal(url),
   fetchMatchData: (matchId: string) => ipcRenderer.invoke('fetch-match-data', matchId),
   fetchMatchHistory: (userId: string) => ipcRenderer.invoke('fetch-match-history', userId),

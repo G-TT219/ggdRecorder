@@ -1,15 +1,19 @@
 import logger from '../logger';
+import path from 'path';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const analyze = async (filePath: string, apiKey: string): Promise<string> => {
   const { GoogleGenAI, createUserContent, createPartFromUri } = await import('@google/genai');
+  const mimeType = path.extname(filePath).toLowerCase() === '.mp4'
+    ? 'video/mp4'
+    : 'video/webm';
 
   const ai = new GoogleGenAI({ apiKey });
 
   const myfile = await ai.files.upload({
     file: filePath,
-    config: { mimeType: 'video/webm' },
+    config: { mimeType },
   });
 
   let fileState = myfile.state;

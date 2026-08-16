@@ -12,15 +12,6 @@ export const registerConfigHandlers = (): void => {
     catch { return { success: false }; }
   });
 
-  ipcMain.handle('set-compressVideos', async (_event, compressVideos: boolean) => {
-    try {
-      const config = getGlobalConfig();
-      config.compressVideos = compressVideos;
-      const ok = await saveAppConfig(config);
-      return ok ? { success: true, compressVideos } : { success: false, error: 'save failed' };
-    } catch { return { success: false, error: 'save failed' }; }
-  });
-
   ipcMain.handle('set-recording-quality', async (_event, recordingQuality: RecordingQuality) => {
     try {
       if (!['performance', 'balanced', 'quality'].includes(recordingQuality)) {

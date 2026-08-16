@@ -523,7 +523,9 @@ function StatsTab() {
               <div className="stats-title-group">
                 <span className="stats-kicker">Gaggle Dashboard</span>
                 <h2>战绩查询</h2>
+                <p>生涯总览 · 最近对局 · 单局复盘</p>
               </div>
+              <span className="stats-header-signal" aria-hidden="true"><i /><i /><i /><i /></span>
               <button
                 className="open-browser-btn"
                 onClick={openStatsInBrowser}
@@ -700,18 +702,18 @@ function StatsTab() {
               </div>
               <div className="stats-v2-career-grid">
                 <article className="stats-v2-career-item">
-                  <span>总对局数</span>
+                  <span className="stats-v2-career-label"><Icon name="gamepad" size={13} /> 总对局数</span>
                   <strong>{formatNumber(playerStats.totalGamePlayed, 0)}</strong>
                   <small>生涯累计完成的对局</small>
                 </article>
                 <article className="stats-v2-career-item">
-                  <span>当前等级</span>
+                  <span className="stats-v2-career-label"><Icon name="trophy" size={13} /> 当前等级</span>
                   <strong>Lv. {formatNumber(playerStats.playerLv, 0)}</strong>
                   <small>当前游戏账号等级</small>
                 </article>
                 <article className="stats-v2-career-item stats-v2-achievement-item">
                   <div>
-                    <span>成就进度</span>
+                    <span className="stats-v2-career-label"><Icon name="chart" size={13} /> 成就进度</span>
                     <strong>{achievementCompleted}<em>/ {achievementTotal || '—'}</em></strong>
                   </div>
                   <div
@@ -827,7 +829,7 @@ function StatsTab() {
                     type="button"
                     role="row"
                     key={match.matchId || index}
-                    className={`stats-v2-match-row ${isSelected ? 'is-selected' : ''}`}
+                    className={`stats-v2-match-row faction-${match.faction} ${isSelected ? 'is-selected' : ''}`}
                     onClick={() => handleSelectMatch(match.matchId)}
                     title={`查看对局 ${match.matchId}`}
                   >
@@ -912,7 +914,7 @@ function StatsTab() {
               <span>对局 ID <code title={matchData.matchId}>{matchData.matchId}</code></span>
             </div>
 
-            <section className="stats-v2-detail-summary" aria-labelledby="match-detail-title">
+            <section className="stats-v2-detail-summary stats-v2-detail-hero" aria-labelledby="match-detail-title">
               <div className="stats-v2-detail-title">
                 <div>
                   <span className="stats-v2-eyebrow">单局详情</span>

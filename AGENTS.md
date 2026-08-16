@@ -29,15 +29,15 @@ npm run preview               # Vite preview of built frontend
 
 ### Two-Process Electron App
 
-- **electron-main.js** — Electron main process. Handles: desktop capture, IPC handlers (recording, file ops, config, game process monitoring, window controls), GGD match data fetching, ffmpeg video compression/thumbnails, system tray, custom `app://` protocol for asset serving.
-- **preload.js** — Context bridge via `contextBridge.exposeInMainWorld('electronAPI', ...)`. Exposes all IPC invoke calls to the renderer. This is the ONLY bridge between main and renderer.
-- **src/App.jsx** — React renderer (single-page, no router). 5 tabs: game recording, recordings playback, map tool, stats/query, settings. All state in a single `useState`-heavy component (~2970 lines).
-- **src/main.jsx** — React entry point.
-- **src/utils/logger.js** — Renderer-side logger that forwards to main process via IPC.
+- **src/main/index.ts** — Electron main process entry. Handles: desktop capture, IPC handlers (recording, file ops, config, game process monitoring, window controls), GGD match data fetching, ffmpeg thumbnail generation, system tray, custom `app://` protocol for asset serving.
+- **src/preload/index.ts** — Context bridge via `contextBridge.exposeInMainWorld('electronAPI', ...)`. Exposes all IPC invoke calls to the renderer. This is the ONLY bridge between main and renderer.
+- **src/renderer/App.tsx** — React renderer (single-page, no router). 6 tabs: recording, recordings, map, stats/query, settings, screenshot annotation.
+- **src/renderer/main.tsx** — React entry point.
+- **src/renderer/utils/logger.ts** — Renderer-side logger that forwards to main process via IPC.
 
 ### Key Files
 
-- **logger.js** — Main process logger using Winston + DailyRotateFile. Logs to `{userData}/logs/`.
+- **src/main/logger.ts** — Main process logger using Winston + DailyRotateFile. Logs to `{userData}/logs/`.
 - **vite.config.js** — Vite config with React plugin, base `./` for Electron compatibility.
 - **package.json** — Contains Electron Builder config under the `build` key (NSIS/DEB packaging).
 
@@ -47,7 +47,7 @@ Main process registers handlers via `ipcMain.handle('channel', handler)`. Preloa
 
 ### External Dependencies & Tools
 
-- **ffmpeg** — Required at system level for video compression and thumbnail generation (not bundled).
+- **ffmpeg** — Required at system level for thumbnail generation (not bundled).
 - **GGD API** — `gaggle.fun` API for match history/data query. Requires authentication token.
 - **Proxy** — Configured via `.env` (http_proxy, https_proxy, all_proxy). Used for GGD API calls.
 - **ENV file** — `.env` is loaded at runtime from `app.asar/resources/.env` (packaged) or project root (dev).
@@ -55,11 +55,11 @@ Main process registers handlers via `ipcMain.handle('channel', handler)`. Preloa
 ### Recording Flow
 
 1. Renderer calls `getGameProcesses()` → main process uses `ps-list` to get running processes
-2. User selects process → `preFetchSource()` → `desktopCapturer.getSources()` to get screen source ID
-3. Recording starts via `navigator.mediaDevices.getUserMedia()` with desktop capture constraints → `MediaRecorder` API
-4. On stop: chunks assembled into Blob → ArrayBuffer sent to main process via `saveRecording()` → written to filesystem (optionally compressed via ffmpeg)
+2. User selects process → `setRecordingTarget()` tells main which window to capture
+3. Recording starts via `navigator.mediaDevices.getDisplayMedia()` → `MediaRecorder` API
+4. On stop: chunks are sent through `startRecordingSession` / `appendRecordingChunk` / `finishRecordingSession` and written to disk
 
 ### Key Config Storage
 
-Config is stored as JSON at `{userData}/config.json`. Includes: `recordingsDir`, `gamePath`, `compressVideos`, `ggdToken`.
+Config is stored as JSON at `{userData}/config.json`. Includes: `recordingsDir`, `gamePath`, `recordingQuality`, `ggdToken`.
 Favorites are stored separately at `{userData}/favorites.json`.

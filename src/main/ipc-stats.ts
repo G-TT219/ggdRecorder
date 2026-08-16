@@ -11,15 +11,6 @@ const createProxyAgent = (preferHttps = false): unknown => {
     : process.env.http_proxy || process.env.https_proxy || process.env.all_proxy;
   if (!proxyUrl) return undefined;
 
-  if (proxyUrl.startsWith('socks5://') || proxyUrl.startsWith('socks://')) {
-    try {
-      const { SocksProxyAgent } = require('socks-proxy-agent');
-      return new SocksProxyAgent(proxyUrl);
-    } catch {
-      throw new Error('SOCKS proxy not available');
-    }
-  }
-
   const { HttpsProxyAgent } = require('https-proxy-agent');
   return new HttpsProxyAgent(proxyUrl);
 };

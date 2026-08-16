@@ -25,7 +25,7 @@
 - 玩家统计卡片（胜率 / 投票准确率 / 存活回合 / 击杀）
 - 角色分布（鹅/鸭/中立）
 - 单局详情（玩家列表、回合信息、投票详情）
-- 自动适配 SOCKS5 / HTTP 代理
+- 自动适配 HTTP / HTTPS 代理
 
 ### 地图辅助工具
 - 13 张内置地图
@@ -67,7 +67,7 @@ src/
 │   ├── main.tsx
 │   ├── App.tsx + App.css
 │   ├── index.html
-│   ├── components/       # 7 个 TSX 组件
+│   ├── components/       # TSX 组件
 │   ├── utils/            # logger + IPC 守卫
 │   ├── types/            # 类型声明
 │   └── public/img/       # 13 张地图图片
@@ -107,7 +107,7 @@ npm run dist:linux   # Linux .deb
 ## 前提条件
 
 - **Node.js** 18+
-- **ffmpeg**（可选，用于视频压缩和缩略图生成）
+- **ffmpeg**（可选，用于缩略图生成）
 - 部分地区访问 Gaggle 可能需要配置代理（修改 `.env` 中的 `https_proxy`）
 
 ## 快捷键

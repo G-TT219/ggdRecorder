@@ -61,7 +61,7 @@ export type FavoritesMetadata = {
 export type AppConfig = {
   recordingsDir?: string | null;
   gamePath?: string | null;
-  compressVideos?: boolean;
+
   recordingQuality?: RecordingQuality;
 };
 

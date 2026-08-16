@@ -29,7 +29,7 @@ npm run preview               # Vite preview of built frontend
 
 ### Two-Process Electron App
 
-- **electron-main.js** — Electron main process. Handles: desktop capture, IPC handlers (recording, file ops, config, game process monitoring, window controls), Google Gemini AI analysis, GGD match data fetching, ffmpeg video compression/thumbnails, system tray, custom `app://` protocol for asset serving.
+- **electron-main.js** — Electron main process. Handles: desktop capture, IPC handlers (recording, file ops, config, game process monitoring, window controls), GGD match data fetching, ffmpeg video compression/thumbnails, system tray, custom `app://` protocol for asset serving.
 - **preload.js** — Context bridge via `contextBridge.exposeInMainWorld('electronAPI', ...)`. Exposes all IPC invoke calls to the renderer. This is the ONLY bridge between main and renderer.
 - **src/App.jsx** — React renderer (single-page, no router). 5 tabs: game recording, recordings playback, map tool, stats/query, settings. All state in a single `useState`-heavy component (~2970 lines).
 - **src/main.jsx** — React entry point.
@@ -38,7 +38,6 @@ npm run preview               # Vite preview of built frontend
 ### Key Files
 
 - **logger.js** — Main process logger using Winston + DailyRotateFile. Logs to `{userData}/logs/`.
-- **video_analysis.js** — Standalone script for Google Gemini video analysis. Can be used independently of the main app.
 - **vite.config.js** — Vite config with React plugin, base `./` for Electron compatibility.
 - **package.json** — Contains Electron Builder config under the `build` key (NSIS/DEB packaging).
 
@@ -49,9 +48,8 @@ Main process registers handlers via `ipcMain.handle('channel', handler)`. Preloa
 ### External Dependencies & Tools
 
 - **ffmpeg** — Required at system level for video compression and thumbnail generation (not bundled).
-- **Google Gemini API** — AI video analysis. Requires user-provided API key and proxy for some regions.
 - **GGD API** — `gaggle.fun` API for match history/data query. Requires authentication token.
-- **Proxy** — Configured via `.env` (http_proxy, https_proxy, all_proxy). Used for Gemini API and GGD API calls.
+- **Proxy** — Configured via `.env` (http_proxy, https_proxy, all_proxy). Used for GGD API calls.
 - **ENV file** — `.env` is loaded at runtime from `app.asar/resources/.env` (packaged) or project root (dev).
 
 ### Recording Flow
@@ -63,5 +61,5 @@ Main process registers handlers via `ipcMain.handle('channel', handler)`. Preloa
 
 ### Key Config Storage
 
-Config is stored as JSON at `{userData}/config.json`. Includes: `recordingsDir`, `gamePath`, `compressVideos`, `apiKey` (Gemini), `ggdToken`.
+Config is stored as JSON at `{userData}/config.json`. Includes: `recordingsDir`, `gamePath`, `compressVideos`, `ggdToken`.
 Favorites are stored separately at `{userData}/favorites.json`.

@@ -8,7 +8,7 @@
 - 自动检测运行中的游戏进程（GGD 自动置顶）
 - `getDisplayMedia` 高画质录制（支持 60fps + 音频）
 - 暂停/继续录制
-- 可选 ffmpeg 自动压缩
+- 实时写盘，高质量编码
 - 可自定义录像保存路径
 - 快捷键：`Ctrl+Shift+S` 开始 / `Ctrl+Shift+D` 停止
 
@@ -18,7 +18,6 @@
 - 日期筛选 / 收藏筛选 / 批量删除
 - 收藏分组（精彩局 / 需要复盘 / 搞笑局…）
 - 手动复盘备注（每局可记录思路与操作）
-- AI 视频分析（Google Gemini API，自动生成行动轨迹 + 会议发言稿）
 - 收藏录像另存到指定目录
 
 ### 战绩查询
@@ -39,9 +38,8 @@
 
 ### 设置
 - 录像保存路径选择
-- 视频压缩开关
+- 录像质量设置（流畅/均衡/高质量）
 - 游戏程序路径 + 一键启动
-- Google Gemini API Key 管理
 - GGD Token 管理
 
 ## 技术架构
@@ -62,8 +60,7 @@ src/
 │   ├── ipc-misc.ts       # 进程 / 日志 IPC
 │   ├── ipc-stats.ts      # 战绩查询 IPC
 │   └── services/
-│       ├── ffmpeg.ts     # 视频压缩 + 缩略图
-│       └── gemini.ts     # Gemini AI 分析
+│       └── ffmpeg.ts     # 缩略图生成
 ├── preload/
 │   └── index.ts          # contextBridge 桥接
 ├── renderer/     # React 前端 (Vite → dist/)
@@ -88,7 +85,6 @@ src/
 | 录制 | `navigator.mediaDevices.getDisplayMedia()` |
 | 流式播放 | 自定义 `recording://` 协议 + `Readable.toWeb()` |
 | 日志 | Winston + DailyRotateFile |
-| AI 分析 | Google Gemini API（@google/genai） |
 | 打包 | Electron Builder |
 
 ## 开始使用
@@ -112,8 +108,7 @@ npm run dist:linux   # Linux .deb
 
 - **Node.js** 18+
 - **ffmpeg**（可选，用于视频压缩和缩略图生成）
-- **Google Gemini API Key**（可选，用于 AI 分析）
-- 部分地区使用 Gemini 可能需要配置代理（修改 `.env` 中的 `https_proxy`）
+- 部分地区访问 Gaggle 可能需要配置代理（修改 `.env` 中的 `https_proxy`）
 
 ## 快捷键
 

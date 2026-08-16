@@ -1,12 +1,8 @@
-import { useState, useEffect, useRef, useMemo, type ChangeEvent } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Logger from '../utils/logger';
 import Icon from './Icon';
 import type { Recording, RecordingNotes, FavoriteGroup, FavoriteRecordingGroups, RecordingThumbnails } from '../types/electron-api';
 
-type AnalysisResult = {
-  recording: Recording;
-  text: string;
-};
 
 type RecordingsTabProps = {
   recordings: Recording[];
@@ -34,8 +30,6 @@ function RecordingsTab({
 }: RecordingsTabProps & { onEnterReview?: () => void }) {
   const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
-  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-  const [analyzeStatus, setAnalyzeStatus] = useState('');
   const [selectedRecordings, setSelectedRecordings] = useState<Recording[]>([]);
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [startDate, setStartDate] = useState('');
@@ -437,31 +431,6 @@ function RecordingsTab({
     }
   };
 
-  // Analyze recording
-  const analyzeRecording = async (recording: Recording) => {
-    const analyzeResult: AnalysisResult = {
-      recording: recording,
-      text: ''
-    };
-    try {
-      setAnalyzeStatus('analyzing');
-      const result = await window.electronAPI.analyzeRecording(recording.filePath);
-      setAnalyzeStatus('');
-      if (result.success) {
-        analyzeResult.text = result.text;
-        setAnalysisResult(analyzeResult);
-        Logger.info('Recording analysis completed successfully');
-      } else {
-        Logger.error('Recording analysis failed:', result.error);
-        analyzeResult.text = `分析失败: ${result.error}`;
-        setAnalysisResult(analyzeResult);
-      }
-    } catch (error) {
-      Logger.error('Error analyzing recording:', error);
-      analyzeResult.text = `分析过程中出现错误: ${error instanceof Error ? error.message : String(error)}`;
-      setAnalysisResult(analyzeResult);
-    }
-  };
 
   return (
     <section className="recordings-section" ref={recordingsListRef}>
@@ -506,29 +475,6 @@ function RecordingsTab({
                     placeholder="记录这一局的关键操作、失误或复盘想法..."
                   />
                 </div>
-                <div className="analysis-bar">
-                  <button className="analyze-btn" onClick={() => analyzeRecording(selectedRecording)}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z"/>
-                      <path d="M12 6v6l4 2"/>
-                    </svg>
-                    分析录像
-                  </button>
-                  {analyzeStatus === 'analyzing' && (
-                    <span className="analyze-status">AI 分析中</span>
-                  )}
-                </div>
-                {analysisResult && analysisResult.recording.id === selectedRecording.id && (
-                  <div className="analysis-result">
-                    <h4>分析结果</h4>
-                    <textarea
-                      value={analysisResult.text}
-                      readOnly
-                      rows={4}
-                      className="analysis-textarea"
-                    />
-                  </div>
-                )}
               </>
             ) : (
               // 人生也常常在加载中，但至少播放器还有进度条

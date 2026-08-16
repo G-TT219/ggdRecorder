@@ -99,29 +99,4 @@ export const registerConfigHandlers = (): void => {
     } catch { return { success: false }; }
   });
 
-  ipcMain.handle('save-api-key', async (_event, apiKey: string) => {
-    try {
-      const config = getGlobalConfig();
-      config.apiKey = apiKey;
-      await saveAppConfig(config);
-      return { success: true };
-    } catch { return { success: false, error: 'save failed' }; }
-  });
-
-  ipcMain.handle('load-api-key', async () => {
-    try {
-      const config = getGlobalConfig();
-      return { success: true, apiKey: config.apiKey || '' };
-    } catch { return { success: true, apiKey: '' }; }
-  });
-
-  ipcMain.handle('clear-api-key', async () => {
-    try {
-      const config = getGlobalConfig();
-      config.apiKey = '';
-      await saveAppConfig(config);
-      return { success: true };
-    } catch { return { success: false, error: 'clear failed' }; }
-  });
-
 };

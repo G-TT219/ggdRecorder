@@ -14,7 +14,6 @@ export type {
   RecordingSessionFinishResult,
   FavoritesMetadata,
   AppConfig,
-  AnalyzeRecordingResult,
   GaggleAuthState,
   GaggleAuthStatus,
   ElectronAPI,

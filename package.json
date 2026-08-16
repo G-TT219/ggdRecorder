@@ -50,7 +50,6 @@
     "vitest": "^4.1.8"
   },
   "dependencies": {
-    "@google/genai": "^1.34.0",
     "dotenv": "^17.2.3",
     "https-proxy-agent": "^9.0.0",
     "minizlib": "2.1.2",

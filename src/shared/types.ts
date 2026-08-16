@@ -63,7 +63,6 @@ export type AppConfig = {
   gamePath?: string | null;
   compressVideos?: boolean;
   recordingQuality?: RecordingQuality;
-  apiKey?: string;
 };
 
 export type GaggleAuthState = 'disconnected' | 'connecting' | 'connected' | 'expired';
@@ -74,8 +73,6 @@ export type GaggleAuthStatus = {
   expiresAt?: string;
   source?: 'session' | 'manual';
 };
-
-export type AnalyzeRecordingResult = { text: string };
 
 export type ScreenshotSelectionRect = {
   x: number;
@@ -121,10 +118,6 @@ export interface ElectronAPI {
   logError: (message: string) => Promise<void>;
   getAppConfig: () => Promise<IpcResult<{ config: AppConfig }>>;
   setRecordingQualityConfig: (value: RecordingQuality) => Promise<IpcResult<{ recordingQuality: RecordingQuality }>>;
-  analyzeRecording: (filePath: string) => Promise<IpcResult<AnalyzeRecordingResult>>;
-  saveApiKey: (apiKey: string) => Promise<IpcResult>;
-  loadApiKey: () => Promise<IpcResult<{ apiKey: string }>>;
-  clearApiKey: () => Promise<IpcResult>;
   getGaggleAuthStatus: () => Promise<IpcResult<{ status: GaggleAuthStatus }>>;
   connectGaggle: () => Promise<IpcResult<{ status: GaggleAuthStatus }>>;
   refreshGaggleAuth: () => Promise<IpcResult<{ status: GaggleAuthStatus }>>;

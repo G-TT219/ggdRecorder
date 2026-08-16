@@ -389,15 +389,4 @@ export const registerRecordingHandlers = (): void => {
     return { success: true };
   });
 
-  ipcMain.handle('analyze-recording', async (_event, filePath: string) => {
-    try {
-      const { analyze } = await import('./services/gemini');
-      const config = getGlobalConfig();
-      if (!config.apiKey) return { success: false, error: 'API key not found' };
-      const text = await analyze(filePath, config.apiKey);
-      return { success: true, text };
-    } catch (error) {
-      return { success: false, error: (error as Error).message };
-    }
-  });
 };

@@ -15,6 +15,8 @@ export type {
   FavoritesMetadata,
   AppConfig,
   AnalyzeRecordingResult,
+  GaggleAuthState,
+  GaggleAuthStatus,
   ElectronAPI,
 } from '../../shared/types';
 

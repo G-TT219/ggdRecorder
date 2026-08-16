@@ -124,28 +124,4 @@ export const registerConfigHandlers = (): void => {
     } catch { return { success: false, error: 'clear failed' }; }
   });
 
-  ipcMain.handle('save-ggd-token', async (_event, token: string) => {
-    try {
-      const config = getGlobalConfig();
-      config.ggdToken = token;
-      await saveAppConfig(config);
-      return { success: true };
-    } catch { return { success: false, error: 'save failed' }; }
-  });
-
-  ipcMain.handle('load-ggd-token', async () => {
-    try {
-      const config = getGlobalConfig();
-      return { success: true, token: config.ggdToken || '' };
-    } catch { return { success: true, token: '' }; }
-  });
-
-  ipcMain.handle('clear-ggd-token', async () => {
-    try {
-      const config = getGlobalConfig();
-      config.ggdToken = '';
-      await saveAppConfig(config);
-      return { success: true };
-    } catch { return { success: false, error: 'clear failed' }; }
-  });
 };

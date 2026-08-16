@@ -25,6 +25,22 @@ try {
 registerPrivilegedSchemes();
 
 app.whenReady().then(async () => {
+  try {
+    const { config } = await import('dotenv');
+    const envPath = app.isPackaged
+      ? require('path').join(process.resourcesPath, '.env')
+      : require('path').join(__dirname, '..', '..', '.env');
+    config({ path: envPath });
+    const { setGlobalDispatcher, ProxyAgent } = await import('undici');
+    if (process.env.https_proxy) {
+      logger.info('Using configured network proxy');
+      const dispatcher = new ProxyAgent({ uri: new URL(process.env.https_proxy).toString() });
+      setGlobalDispatcher(dispatcher);
+    }
+  } catch (error) {
+    logger.error('Error loading env file:', error);
+  }
+
   registerProtocolHandlers();
 
   const mainWindow = createWindow();
@@ -57,21 +73,6 @@ app.whenReady().then(async () => {
     globalShortcut.unregisterAll();
   });
 
-  try {
-    const { config } = await import('dotenv');
-    const envPath = app.isPackaged
-      ? require('path').join(process.resourcesPath, '.env')
-      : require('path').join(__dirname, '..', '..', '.env');
-    config({ path: envPath });
-    const { setGlobalDispatcher, ProxyAgent } = await import('undici');
-    if (process.env.https_proxy) {
-      logger.info('Using proxy: ' + process.env.https_proxy);
-      const dispatcher = new ProxyAgent({ uri: new URL(process.env.https_proxy).toString() });
-      setGlobalDispatcher(dispatcher);
-    }
-  } catch (error) {
-    logger.error('Error loading env file:', error);
-  }
 });
 
 app.on('window-all-closed', () => {

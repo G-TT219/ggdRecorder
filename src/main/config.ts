@@ -22,7 +22,17 @@ export const getAppConfig = async (): Promise<AppConfig> => {
   try {
     const configPath = getAppConfigPath();
     const data = await fs.readFile(configPath, 'utf8');
-    return JSON.parse(data);
+    const config = JSON.parse(data) as AppConfig & { ggdToken?: unknown };
+    if (Object.prototype.hasOwnProperty.call(config, 'ggdToken')) {
+      delete config.ggdToken;
+      try {
+        await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+        logger.info('Removed legacy plaintext Gaggle token from app config');
+      } catch (error) {
+        logger.warn('Could not rewrite app config after removing the legacy Gaggle token:', error);
+      }
+    }
+    return config;
   } catch {
     return {};
   }

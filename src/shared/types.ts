@@ -1,5 +1,11 @@
 export type IpcSuccess<T = Record<never, never>> = T & { success: true; error?: undefined; canceled?: undefined };
-export type IpcFailure = { success: false; error: string; canceled?: boolean };
+export type IpcFailure = {
+  success: false;
+  error: string;
+  canceled?: boolean;
+  code?: string;
+  statusCode?: number;
+};
 export type IpcResult<T = Record<never, never>> = IpcSuccess<T> | IpcFailure;
 
 export type Recording = {
@@ -58,7 +64,15 @@ export type AppConfig = {
   compressVideos?: boolean;
   recordingQuality?: RecordingQuality;
   apiKey?: string;
-  ggdToken?: string;
+};
+
+export type GaggleAuthState = 'disconnected' | 'connecting' | 'connected' | 'expired';
+
+export type GaggleAuthStatus = {
+  state: GaggleAuthState;
+  userId?: string;
+  expiresAt?: string;
+  source?: 'session' | 'manual';
 };
 
 export type AnalyzeRecordingResult = { text: string };
@@ -111,9 +125,12 @@ export interface ElectronAPI {
   saveApiKey: (apiKey: string) => Promise<IpcResult>;
   loadApiKey: () => Promise<IpcResult<{ apiKey: string }>>;
   clearApiKey: () => Promise<IpcResult>;
-  saveGgdToken: (token: string) => Promise<IpcResult>;
-  loadGgdToken: () => Promise<IpcResult<{ token: string }>>;
-  clearGgdToken: () => Promise<IpcResult>;
+  getGaggleAuthStatus: () => Promise<IpcResult<{ status: GaggleAuthStatus }>>;
+  connectGaggle: () => Promise<IpcResult<{ status: GaggleAuthStatus }>>;
+  refreshGaggleAuth: () => Promise<IpcResult<{ status: GaggleAuthStatus }>>;
+  disconnectGaggle: () => Promise<IpcResult<{ status: GaggleAuthStatus }>>;
+  setManualGaggleAuth: (token: string) => Promise<IpcResult<{ status: GaggleAuthStatus }>>;
+  onGaggleAuthStatusChanged: (callback: (status: GaggleAuthStatus) => void) => () => void;
   getFavoriteRecordings: () => Promise<IpcResult<FavoritesMetadata>>;
   toggleFavoriteRecording: (recordingId: string, isFavorite: boolean) => Promise<IpcResult<FavoritesMetadata>>;
   saveRecordingNote: (recordingId: string, note: string) => Promise<IpcResult<FavoritesMetadata>>;
@@ -134,5 +151,5 @@ export interface ElectronAPI {
   copyScreenshot: (dataUrl: string) => Promise<IpcResult>;
   openExternal: (url: string) => Promise<unknown>;
   fetchMatchData: (matchId: string) => Promise<IpcResult<{ data: unknown; statusCode?: number }>>;
-  fetchMatchHistory: (userId: string) => Promise<IpcResult<{ data: unknown; statusCode?: number }>>;
+  fetchMyMatchHistory: () => Promise<IpcResult<{ data: unknown; statusCode?: number }>>;
 }

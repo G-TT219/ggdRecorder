@@ -40,9 +40,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveApiKey: (apiKey: string) => ipcRenderer.invoke('save-api-key', apiKey),
   loadApiKey: () => ipcRenderer.invoke('load-api-key'),
   clearApiKey: () => ipcRenderer.invoke('clear-api-key'),
-  saveGgdToken: (token: string) => ipcRenderer.invoke('save-ggd-token', token),
-  loadGgdToken: () => ipcRenderer.invoke('load-ggd-token'),
-  clearGgdToken: () => ipcRenderer.invoke('clear-ggd-token'),
+  getGaggleAuthStatus: () => ipcRenderer.invoke('get-gaggle-auth-status'),
+  connectGaggle: () => ipcRenderer.invoke('connect-gaggle'),
+  refreshGaggleAuth: () => ipcRenderer.invoke('refresh-gaggle-auth'),
+  disconnectGaggle: () => ipcRenderer.invoke('disconnect-gaggle'),
+  setManualGaggleAuth: (token: string) => ipcRenderer.invoke('set-manual-gaggle-auth', token),
+  onGaggleAuthStatusChanged: (callback: (status: unknown) => void) => {
+    const listener = (_event: unknown, status: unknown) => callback(status);
+    ipcRenderer.on('gaggle-auth-status-changed', listener);
+    return () => ipcRenderer.removeListener('gaggle-auth-status-changed', listener);
+  },
   getFavoriteRecordings: () => ipcRenderer.invoke('get-favorite-recordings'),
   toggleFavoriteRecording: (recordingId: string, isFavorite: boolean) =>
     ipcRenderer.invoke('toggle-favorite-recording', recordingId, isFavorite),
@@ -73,5 +80,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   copyScreenshot: (dataUrl: string) => ipcRenderer.invoke('copy-screenshot', dataUrl),
   openExternal: (url: string) => shell.openExternal(url),
   fetchMatchData: (matchId: string) => ipcRenderer.invoke('fetch-match-data', matchId),
-  fetchMatchHistory: (userId: string) => ipcRenderer.invoke('fetch-match-history', userId),
+  fetchMyMatchHistory: () => ipcRenderer.invoke('fetch-my-match-history'),
 });

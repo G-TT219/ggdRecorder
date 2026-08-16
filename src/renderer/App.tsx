@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 import Logger from './utils/logger';
+import { useRecording } from './hooks/useRecording';
 import ErrorBoundary from './components/ErrorBoundary';
 import SettingsTab from './components/SettingsTab';
 import TitleBar from './components/TitleBar';
@@ -11,12 +12,6 @@ import StatsTab from './components/StatsTab';
 import ScreenshotTab from './components/ScreenshotTab';
 import type { Connection, MapMarker, Position, RoleKey } from './components/MapTab';
 import type { GameProcess, Recording, RecordingThumbnails, FavoriteGroup, RecordingNotes, FavoriteRecordingGroups, RecordingQuality } from './types/electron-api';
-import {
-  calculateRecordingBitrates,
-  getCaptureFrameRate,
-  getRecordingExtension,
-  getSupportedRecordingMimeTypes,
-} from './utils/recording';
 
 type ActiveTab = 'games' | 'recordings' | 'settings' | 'entertainment' | 'stats' | 'review' | 'capture';
 
@@ -63,12 +58,9 @@ const loadMapWorkspace = (): PersistedMapWorkspace => {
 function App() {
   const [gameProcesses, setGameProcesses] = useState<GameProcess[]>([]);
   const [selectedGame, setSelectedGame] = useState<GameProcess | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>('games');
   const [recordingsDir, setRecordingsDir] = useState('');
-  const [recordingTime, setRecordingTime] = useState(0);
   const [gamePath, setGamePath] = useState('');
   const [recordingQuality, setRecordingQuality] = useState<RecordingQuality>('balanced');
   const [recordingThumbnails, setRecordingThumbnails] = useState<RecordingThumbnails>({});
@@ -97,22 +89,23 @@ function App() {
   const [sharedDeadMarkers, setSharedDeadMarkers] = useState<Record<string, boolean>>(
     initialMapWorkspace.deadMarkers
   );
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordingSessionIdRef = useRef<string | null>(null);
-  const recordingWriteChainRef = useRef<Promise<void>>(Promise.resolve());
-  const recordingChunkIdRef = useRef(0);
-  const recordingStreamRef = useRef<MediaStream | null>(null);
-  const recordingWriteErrorRef = useRef<Error | null>(null);
-  const recordingStartTimeRef = useRef<number | null>(null);
-  const recordingPausedAtRef = useRef<number | null>(null);
-  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingsCacheRef = useRef<Recording[]>([]);
   const lastRefreshTimeRef = useRef(0);
   const REFRESH_DEBOUNCE_MS = 5000;
-  const isRecordingRef = useRef(isRecording);
-  const isPausedRef = useRef(isPaused);
+  const isRecordingRef = useRef(false);
   const selectedGameRef = useRef(selectedGame);
   const recordingQualityRef = useRef(recordingQuality);
+  const {
+    isRecording,
+    isPaused,
+    recordingTime,
+    recordingError,
+    startRecording,
+    stopRecording,
+    togglePause,
+  } = useRecording({
+    onRecordingSaved: () => loadRecordings(true),
+  });
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -149,7 +142,6 @@ function App() {
   }, [isRecording]);
 
   useEffect(() => {
-    isPausedRef.current = isPaused;
   }, [isPaused]);
 
   useEffect(() => {
@@ -189,7 +181,7 @@ function App() {
     // Listen for start recording shortcut
     const handleStartRecordingShortcut = () => {
       if (selectedGameRef.current && !isRecordingRef.current) {
-        startMediaRecording_new(selectedGameRef.current);
+        startRecording(selectedGameRef.current, recordingQualityRef.current);
       }
     };
 
@@ -327,232 +319,6 @@ function App() {
   };
 
 
-  const clearRecordingTimer = () => {
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
-    }
-  };
-
-  const updateRecordingTimer = () => {
-    const startedAt = recordingStartTimeRef.current;
-    if (startedAt === null) return;
-    setRecordingTime(Math.floor((Date.now() - startedAt) / 1000));
-  };
-
-  const resetRecordingState = () => {
-    clearRecordingTimer();
-    setIsRecording(false);
-    setIsPaused(false);
-    setRecordingTime(0);
-    recordingStartTimeRef.current = null;
-    recordingPausedAtRef.current = null;
-  };
-
-  const startMediaRecording_new = async (game: GameProcess) => {
-    if (!game) {
-      Logger.error('No game selected');
-      return;
-    }
-
-    if (recordingSessionIdRef.current || (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive')) {
-      Logger.info('A recording is already active or being finalized');
-      return;
-    }
-
-    const sourceName = game.name;
-    const quality = recordingQualityRef.current;
-    let stream: MediaStream | null = null;
-    let sessionId: string | null = null;
-
-    try {
-      const targetResult = await window.electronAPI.setRecordingTarget({ name: game.name, pid: game.pid });
-      if (!targetResult.success) {
-        throw new Error(targetResult.error);
-      }
-
-      const targetFrameRate = getCaptureFrameRate(quality);
-      Logger.info('Trying getDisplayMedia API...');
-      stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          width: { ideal: 1920, max: 3840 },
-          height: { ideal: 1080, max: 2160 },
-          frameRate: { ideal: targetFrameRate, max: targetFrameRate },
-          cursor: 'always'
-        } as MediaTrackConstraints,
-        audio: true
-      });
-      Logger.info('getDisplayMedia succeeded');
-
-      const videoTrack = stream.getVideoTracks()[0];
-      if (!videoTrack) {
-        throw new Error('未获取到可录制的视频画面');
-      }
-      const settings = videoTrack.getSettings();
-      Logger.info('Actual recording resolution: ' + settings.width + 'x' + settings.height + '@' + settings.frameRate + 'fps');
-
-      const bitrates = calculateRecordingBitrates(
-        settings.width || 1920,
-        settings.height || 1080,
-        settings.frameRate || targetFrameRate,
-        quality
-      );
-      const supportedMimeTypes = getSupportedRecordingMimeTypes(type => MediaRecorder.isTypeSupported(type));
-      let recorder: MediaRecorder | null = null;
-
-      for (const candidate of supportedMimeTypes) {
-        try {
-          recorder = new MediaRecorder(stream, { mimeType: candidate, ...bitrates });
-          break;
-        } catch {
-          try {
-            recorder = new MediaRecorder(stream, { mimeType: candidate });
-            break;
-          } catch {
-            // Try the next container/codec combination.
-          }
-        }
-      }
-
-      if (!recorder) {
-        try {
-          recorder = new MediaRecorder(stream, bitrates);
-        } catch {
-          recorder = new MediaRecorder(stream);
-        }
-      }
-
-      const mimeType = recorder.mimeType || supportedMimeTypes[0] || 'video/webm';
-      const extension = getRecordingExtension(mimeType);
-      const now = new Date();
-      const chinaTime = new Intl.DateTimeFormat('zh-CN', {
-        timeZone: 'Asia/Shanghai',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      }).format(now);
-      const filename = `${sourceName}_${chinaTime.replace(/[/: ]/g, '-')}.${extension}`;
-      const sessionResult = await window.electronAPI.startRecordingSession({ filename, mimeType });
-      if (!sessionResult.success) {
-        throw new Error(sessionResult.error);
-      }
-
-      sessionId = sessionResult.sessionId;
-      recordingSessionIdRef.current = sessionId;
-      recordingWriteChainRef.current = Promise.resolve();
-      recordingChunkIdRef.current = 0;
-      recordingWriteErrorRef.current = null;
-      recordingStreamRef.current = stream;
-      mediaRecorderRef.current = recorder;
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          const chunk = event.data;
-          const chunkId = recordingChunkIdRef.current;
-          recordingChunkIdRef.current += 1;
-          recordingWriteChainRef.current = recordingWriteChainRef.current
-            .then(async () => {
-              if (recordingWriteErrorRef.current) return;
-              const buffer = await chunk.arrayBuffer();
-              const result = await window.electronAPI.appendRecordingChunk(sessionId!, chunkId, buffer);
-              if (!result.success) throw new Error(result.error);
-            })
-            .catch(error => {
-              if (recordingWriteErrorRef.current) return;
-              const writeError = error instanceof Error ? error : new Error(String(error));
-              recordingWriteErrorRef.current = writeError;
-              Logger.error('Recording chunk write failed:', writeError);
-              if (recorder.state !== 'inactive') recorder.stop();
-              window.alert(`录像写入失败，录制已停止：${writeError.message}`);
-            });
-        }
-      };
-
-      recorder.onerror = (event) => {
-        const mediaError = (event as Event & { error?: DOMException }).error;
-        recordingWriteErrorRef.current = mediaError || new Error('录像编码器发生错误');
-        Logger.error('MediaRecorder error:', recordingWriteErrorRef.current);
-      };
-
-      recorder.onstop = async () => {
-        try {
-          await recordingWriteChainRef.current;
-          if (recordingWriteErrorRef.current) {
-            const abortResult = await window.electronAPI.abortRecordingSession(sessionId!);
-            if (abortResult.success && abortResult.filePath) {
-              Logger.error('Recording interrupted; partial file recovered at: ' + abortResult.filePath);
-            } else if (!abortResult.success) {
-              Logger.error('Failed to recover interrupted recording:', abortResult.error);
-            }
-          } else {
-            const result = await window.electronAPI.finishRecordingSession(sessionId!);
-            if (result.success) {
-              Logger.info(`Recording saved: ${filename} (${result.chunks} chunks, ${result.size} bytes)`);
-            } else {
-              Logger.error('Failed to finish recording:', result.error);
-              window.alert(`录像保存失败：${result.error}`);
-            }
-          }
-          await loadRecordings(true);
-        } catch (error) {
-          Logger.error('Error finalizing recording:', error);
-          const abortResult = await window.electronAPI.abortRecordingSession(sessionId!);
-          if (!abortResult.success) Logger.error('Failed to abort recording session:', abortResult.error);
-        } finally {
-          stream?.getTracks().forEach(track => track.stop());
-          if (mediaRecorderRef.current === recorder) mediaRecorderRef.current = null;
-          if (recordingSessionIdRef.current === sessionId) recordingSessionIdRef.current = null;
-          recordingStreamRef.current = null;
-          resetRecordingState();
-        }
-      };
-
-      videoTrack.addEventListener('ended', () => {
-        if (recorder.state !== 'inactive') recorder.stop();
-      }, { once: true });
-
-      recorder.start(1000);
-      setIsRecording(true);
-      setIsPaused(false);
-      recordingStartTimeRef.current = Date.now();
-      recordingPausedAtRef.current = null;
-      timerIntervalRef.current = setInterval(updateRecordingTimer, 1000);
-      Logger.info(
-        `Recording started: ${mimeType}, ${Math.round(bitrates.videoBitsPerSecond / 1_000_000)}Mbps, ${quality}`
-      );
-    } catch (error) {
-      Logger.error('Error starting media recording:', error);
-      if (sessionId) {
-        const abortResult = await window.electronAPI.abortRecordingSession(sessionId);
-        if (!abortResult.success) Logger.error('Failed to abort recording session:', abortResult.error);
-      }
-      stream?.getTracks().forEach(track => track.stop());
-      mediaRecorderRef.current = null;
-      recordingSessionIdRef.current = null;
-      recordingStreamRef.current = null;
-      resetRecordingState();
-    }
-  };
-
-  const stopRecording = () => {
-    try {
-      const recorder = mediaRecorderRef.current;
-      if (recorder && recorder.state !== 'inactive') {
-        recorder.stop();
-        setIsRecording(false);
-        setIsPaused(false);
-        clearRecordingTimer();
-        Logger.info('Recording stopped; finalizing file');
-      }
-    } catch (error) {
-      Logger.error('Error stopping recording:', error);
-    }
-  };
-
   // 切换标签时 yield 给浏览器事件循环，让 DOM 先刷完
   useEffect(() => {
     const timer = setTimeout(() => {}, 0);
@@ -625,39 +391,6 @@ function App() {
       stopButton.title = '快捷键: Ctrl+Shift+D';
     }
   }, [isRecording]);
-
-  const pauseRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.pause();
-      setIsPaused(true);
-      recordingPausedAtRef.current = Date.now();
-      // Pause the timer
-      clearRecordingTimer();
-      Logger.info('Recording paused');
-    }
-  };
-
-  const resumeRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
-      mediaRecorderRef.current.resume();
-      setIsPaused(false);
-      if (recordingPausedAtRef.current !== null && recordingStartTimeRef.current !== null) {
-        recordingStartTimeRef.current += Date.now() - recordingPausedAtRef.current;
-      }
-      recordingPausedAtRef.current = null;
-      // Resume the timer
-      timerIntervalRef.current = setInterval(updateRecordingTimer, 1000);
-      Logger.info('Recording resumed');
-    }
-  };
-
-  const togglePauseResume = () => {
-    if (isPaused) {
-      resumeRecording();
-    } else {
-      pauseRecording();
-    }
-  };
 
   return (
     <div className="app">
@@ -783,12 +516,13 @@ function App() {
             selectedGame={selectedGame}
             isRecording={isRecording}
             isPaused={isPaused}
+            recordingError={recordingError}
             gamePath={gamePath}
             onSelectGame={setSelectedGame}
             onRefreshProcesses={loadGameProcesses}
-            onStartRecording={startMediaRecording_new}
+            onStartRecording={(game) => startRecording(game, recordingQuality)}
             onStopRecording={stopRecording}
-            onPauseResume={togglePauseResume}
+            onPauseResume={togglePause}
             onStartGame={startGame}
           />
         ) : activeTab === 'settings' ? (

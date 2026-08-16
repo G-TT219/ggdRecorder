@@ -377,6 +377,21 @@ export const registerRecordingHandlers = (): void => {
     }
   });
 
+  ipcMain.handle('check-recording-disk-space', async () => {
+    try {
+      const recordingsDir = await getConfiguredRecordingsDir();
+      const stats = await fs.statfs(recordingsDir);
+      return {
+        success: true,
+        freeBytes: stats.bavail * stats.bsize,
+        totalBytes: stats.blocks * stats.bsize,
+      };
+    } catch (error) {
+      logger.error('Error checking recording disk space:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
   ipcMain.handle('set-recording-target', async (
     _event,
     target: { name: string; pid: number }

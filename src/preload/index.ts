@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteRecording: (filename: string) => ipcRenderer.invoke('delete-recording', filename),
   getRecordingUrl: (filePath: string) => ipcRenderer.invoke('get-recording-url', filePath),
   getRecordingsDir: () => ipcRenderer.invoke('get-recordings-dir'),
+  checkRecordingDiskSpace: () => ipcRenderer.invoke('check-recording-disk-space'),
   setRecordingsDir: (dirPath: string) => ipcRenderer.invoke('set-recordings-dir', dirPath),
   selectRecordingsDir: () => ipcRenderer.invoke('select-recordings-dir'),
   openDir: (path: string) => ipcRenderer.invoke('open-dir', path),

@@ -103,6 +103,7 @@ export interface ElectronAPI {
   deleteRecording: (filename: string) => Promise<IpcResult>;
   getRecordingUrl: (filePath: string) => Promise<IpcResult<{ url: string }>>;
   getRecordingsDir: () => Promise<IpcResult<{ recordingsDir: string }>>;
+  checkRecordingDiskSpace: () => Promise<IpcResult<{ freeBytes: number; totalBytes: number }>>;
   setRecordingsDir: (dirPath: string) => Promise<IpcResult<{ recordingsDir: string }>>;
   selectRecordingsDir: () => Promise<IpcResult<{ recordingsDir: string }>>;
   openDir: (path: string) => Promise<IpcResult>;

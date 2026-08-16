@@ -6,6 +6,7 @@ type GameTabProps = {
   selectedGame: GameProcess | null;
   isRecording: boolean;
   isPaused: boolean;
+  recordingError: string | null;
   gamePath: string;
   onSelectGame: (game: GameProcess) => void;
   onRefreshProcesses: () => void;
@@ -20,6 +21,7 @@ function GameTab({
   selectedGame,
   isRecording,
   isPaused,
+  recordingError,
   gamePath,
   onSelectGame,
   onRefreshProcesses,
@@ -85,6 +87,15 @@ function GameTab({
           </div>
         )}
       </section>
+      {recordingError && (
+        <div
+          className="recording-error"
+          role="alert"
+          style={{ color: '#c93a45', margin: '0 0 12px', padding: '10px 12px', border: '1px solid #ecd5d7', borderRadius: 8, background: '#fdf5f5' }}
+        >
+          {recordingError}
+        </div>
+      )}
       <section className="game-selection">
         <div className="section-heading compact">
           <div>

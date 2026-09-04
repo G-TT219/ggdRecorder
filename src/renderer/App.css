@@ -6526,7 +6526,11 @@ h3 .app-icon,
     padding: 0;
   }
   .workspace-rail-item .workspace-rail-icon {
-    margin-inline: auto;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    margin: 0;
+    transform: translate(-50%, -50%);
   }
   .workspace-rail-item.is-active::before { top: 8px; bottom: 8px; left: -6px; }
   .workspace-rail-icon { width: 28px; height: 28px; }

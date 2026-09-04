@@ -6366,6 +6366,30 @@ h3 .app-icon,
 
 .workspace-stage > .app-main > .tab-pane.active { min-height: 0; flex: 1 1 auto; overflow: auto; }
 .workspace-stage > .app-main > .tab-pane.hidden { display: none; }
+.workspace-stage > .app-main > .workspace-pane.active {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+.workspace-pane.active > .entertainment-section,
+.workspace-pane.active > .stats-section,
+.workspace-pane.active > .screenshot-section,
+.workspace-pane.active > .recordings-section {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  flex: 1 1 auto;
+}
+.workspace-pane.map-pane.active,
+.workspace-pane.stats-pane.active,
+.workspace-pane.capture-pane.active { overflow: hidden; }
+.workspace-pane.stats-pane.active > .stats-section,
+.workspace-pane.capture-pane.active > .screenshot-section { overflow: auto; }
 
 .recording-dock {
   position: fixed;
@@ -6402,20 +6426,10 @@ h3 .app-icon,
 
 @media (max-width: 840px) {
   .workspace-shell { padding: 7px; gap: 7px; }
-  .workspace-rail { flex-basis: 64px; padding: 10px 6px; }
-  .workspace-rail-brand { justify-content: center; padding: 0 0 14px; }
-  .workspace-rail-wordmark,
-  .workspace-rail-section-label,
-  .workspace-rail-copy,
-  .workspace-rail-count,
-  .workspace-rail-recording-state { display: none; }
-  .workspace-rail-item { min-height: 42px; justify-content: center; padding: 6px; }
-  .workspace-rail-item.is-active::before { top: 8px; bottom: 8px; left: -6px; }
-  .workspace-rail-icon { width: 28px; height: 28px; }
-  .workspace-rail-footer { padding-top: 7px; }
+  .workspace-rail { flex-basis: 208px; padding: 10px 8px; }
   .context-bar { min-height: 58px; padding: 9px 12px; }
   .context-bar-description, .context-bar-slash { display: none; }
-  .recording-dock { right: 12px; bottom: 12px; left: 83px; }
+  .recording-dock { right: 12px; bottom: 12px; left: 228px; }
   .recording-dock-library { display: none; }
 }
 
@@ -6467,6 +6481,17 @@ h3 .app-icon,
 
 @media (max-width: 520px) {
   .workspace-shell { padding: 0; }
+  .workspace-rail { flex-basis: 64px; padding: 10px 6px; }
+  .workspace-rail-brand { justify-content: center; padding: 0 0 14px; }
+  .workspace-rail-wordmark,
+  .workspace-rail-section-label,
+  .workspace-rail-copy,
+  .workspace-rail-count,
+  .workspace-rail-recording-state { display: none; }
+  .workspace-rail-item { min-height: 42px; justify-content: center; padding: 6px; }
+  .workspace-rail-item.is-active::before { top: 8px; bottom: 8px; left: -6px; }
+  .workspace-rail-icon { width: 28px; height: 28px; }
+  .workspace-rail-footer { padding-top: 7px; }
   .workspace-rail { border-top: 0; border-bottom: 0; border-left: 0; border-radius: 0; }
   .workspace-stage { border-right: 0; border-radius: 0; }
   .recording-dock { right: 8px; bottom: 8px; left: 72px; }
@@ -13474,7 +13499,7 @@ body,
 .workspace-stage > .app-main > .tab-pane.active { min-height: 0; flex: 1 1 auto; overflow: auto; }
 .workspace-stage > .app-main > .tab-pane.hidden { display: none; }
 
-@media (max-width: 840px) {
+@media (max-width: 520px) {
   .workspace-rail { flex-basis: 64px; }
   .workspace-rail-wordmark,
   .workspace-rail-section-label,

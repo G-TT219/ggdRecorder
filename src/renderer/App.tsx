@@ -440,7 +440,7 @@ function App() {
           />
           <ErrorBoundary>
           <main className={`app-main ${activeTab === 'review' ? 'review-mode' : ''}`}>
-        <div className={`tab-pane map-pane ${activeTab === 'entertainment' || activeTab === 'review' ? 'active' : 'hidden'}`}>
+        <div className={`tab-pane workspace-pane map-pane ${activeTab === 'entertainment' || activeTab === 'review' ? 'active' : 'hidden'}`}>
           <MapTab
             selectedMap={sharedMapId}
             setSelectedMap={setSharedMapId}
@@ -458,7 +458,7 @@ function App() {
             setDeadMarkers={setSharedDeadMarkers}
           />
         </div>
-        <div className={`tab-pane recordings-pane ${activeTab === 'recordings' || activeTab === 'review' ? 'active' : 'hidden'}`}>
+        <div className={`tab-pane workspace-pane recordings-pane ${activeTab === 'recordings' || activeTab === 'review' ? 'active' : 'hidden'}`}>
           <RecordingsTab
             recordings={recordings}
             recordingThumbnails={recordingThumbnails}
@@ -472,10 +472,10 @@ function App() {
             onEnterReview={() => setActiveTab('review')}
           />
         </div>
-        <div className={`tab-pane ${activeTab === 'stats' ? 'active' : 'hidden'}`}>
+        <div className={`tab-pane workspace-pane stats-pane ${activeTab === 'stats' ? 'active' : 'hidden'}`}>
           <StatsTab />
         </div>
-        <div className={`tab-pane ${activeTab === 'capture' ? 'active' : 'hidden'}`}>
+        <div className={`tab-pane workspace-pane capture-pane ${activeTab === 'capture' ? 'active' : 'hidden'}`}>
           <ScreenshotTab />
         </div>
         {activeTab === 'games' ? (

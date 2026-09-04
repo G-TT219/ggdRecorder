@@ -6173,6 +6173,32 @@ h3 .app-icon,
   background: #e8edf6;
 }
 
+.workspace-rail-item.is-active .workspace-rail-icon svg {
+  stroke-width: 2.25;
+}
+
+.workspace-rail-icon-games {
+  color: #687895;
+}
+
+.workspace-rail-item.is-active .workspace-rail-icon-games {
+  color: #3f5f9a;
+  border-color: #c5d1e6;
+  background: #e6ecf7;
+  box-shadow: 0 0 0 3px rgba(83, 112, 166, 0.09);
+}
+
+.workspace-rail-item.is-active .workspace-rail-icon-games svg circle {
+  color: #5372a8;
+}
+
+.workspace-rail-icon-recordings,
+.workspace-rail-icon-entertainment,
+.workspace-rail-icon-stats,
+.workspace-rail-icon-capture {
+  color: #7d8795;
+}
+
 .workspace-rail-copy {
   display: flex;
   min-width: 0;

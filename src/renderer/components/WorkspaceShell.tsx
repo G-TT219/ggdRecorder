@@ -14,13 +14,13 @@ const workspaceItems: Array<{
   id: Exclude<WorkspaceId, 'review'>;
   label: string;
   hint: string;
-  icon: 'gamepad' | 'play' | 'clipboard' | 'chart' | 'warning' | 'ghost';
+  icon: 'record' | 'film' | 'clipboard' | 'chart' | 'image';
 }> = [
-  { id: 'games', label: '录制', hint: '捕捉当前游戏', icon: 'gamepad' },
-  { id: 'recordings', label: '录像库', hint: '浏览与复盘', icon: 'play' },
+  { id: 'games', label: '录制', hint: '捕捉当前游戏', icon: 'record' },
+  { id: 'recordings', label: '录像库', hint: '浏览与复盘', icon: 'film' },
   { id: 'entertainment', label: '标注工作区', hint: '地图与截图', icon: 'clipboard' },
   { id: 'stats', label: '战绩分析', hint: '对局与玩家', icon: 'chart' },
-  { id: 'capture', label: '截图', hint: '快速截取画面', icon: 'ghost' },
+  { id: 'capture', label: '截图', hint: '快速截取画面', icon: 'image' },
 ];
 
 export function WorkspaceRail({ activeWorkspace, recordingsCount, isRecording, onNavigate }: WorkspaceRailProps) {
@@ -44,7 +44,7 @@ export function WorkspaceRail({ activeWorkspace, recordingsCount, isRecording, o
               aria-current={active ? 'page' : undefined}
               title={item.hint}
             >
-              <span className="workspace-rail-icon"><Icon name={item.icon} size={17} /></span>
+              <span className={`workspace-rail-icon workspace-rail-icon-${item.id}`}><Icon name={item.icon} size={18} /></span>
               <span className="workspace-rail-copy">
                 <strong>{item.label}</strong>
                 <small>{item.hint}</small>

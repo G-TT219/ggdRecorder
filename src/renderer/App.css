@@ -6519,7 +6519,12 @@ h3 .app-icon,
   .workspace-rail-copy,
   .workspace-rail-count,
   .workspace-rail-recording-state { display: none; }
-  .workspace-rail-item { min-height: 42px; justify-content: center; padding: 6px; }
+  .workspace-rail-item {
+    display: grid;
+    min-height: 42px;
+    place-items: center;
+    padding: 0;
+  }
   .workspace-rail-item .workspace-rail-icon {
     margin-inline: auto;
   }

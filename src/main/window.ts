@@ -64,9 +64,15 @@ export const createWindow = (): BrowserWindow => {
         }
         pendingRecordingTarget.current = null;
         if (!source) {
-          logger.error(`No window capture source matched ${target.name} (PID ${target.pid})`);
-          callback({});
-          return;
+          // Chromium reports an empty source as NotAllowedError, which looks
+          // like a permission problem to the renderer. Keep recording usable
+          // when a game renamed/restarted between selection and capture by
+          // falling back to the first available window (or screen below).
+          source = windowSources[0];
+          logger.warn(
+            `No window capture source matched ${target.name} (PID ${target.pid}); ` +
+            `${source ? `falling back to ${source.name}` : 'falling back to screen'}`
+          );
         }
       }
       if (!source) source = sources.find(src => (src as any).type === 'screen');

@@ -34,6 +34,7 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
   const recordingWriteErrorRef = useRef<Error | null>(null);
   const recordingStartTimeRef = useRef<number | null>(null);
   const recordingPausedAtRef = useRef<number | null>(null);
+  const stoppingRef = useRef(false);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const diskCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onRecordingSavedRef = useRef(onRecordingSaved);
@@ -73,6 +74,7 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
     userPausedRef.current = false;
     backpressurePausedRef.current = false;
     pendingChunksRef.current = 0;
+    stoppingRef.current = false;
   }, [clearDiskCheckTimer, clearRecordingTimer]);
 
   const checkDiskSpace = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
@@ -93,7 +95,12 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
   const stopRecording = useCallback(() => {
     try {
       const recorder = mediaRecorderRef.current;
-      if (recorder && recorder.state !== 'inactive') {
+      if (recorder && recorder.state !== 'inactive' && !stoppingRef.current) {
+        stoppingRef.current = true;
+        // Ask MediaRecorder to emit the current partial slice before stopping.
+        // This reduces the chance of losing the final few hundred milliseconds
+        // when the user stops between two timeslice boundaries.
+        try { recorder.requestData(); } catch { /* some Chromium versions do not support it while paused */ }
         recorder.stop();
         setIsRecording(false);
         setIsPaused(false);

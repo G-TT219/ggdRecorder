@@ -29,6 +29,31 @@ export const getSupportedRecordingMimeTypes = (
   isTypeSupported: (mimeType: string) => boolean
 ): string[] => MIME_TYPE_PREFERENCE.filter(isTypeSupported);
 
+export type RecordingCapabilitySummary = {
+  supportedMimeTypes: string[];
+  recommendedMimeType: string | null;
+  prefersHardwareFriendlyPath: boolean;
+};
+
+/**
+ * Build a capability report once per recording attempt. Chromium's support
+ * matrix differs by OS, GPU and Electron build, so selection must be based on
+ * the actual runtime rather than a hard-coded codec assumption.
+ */
+export const getRecordingCapabilitySummary = (
+  isTypeSupported: (mimeType: string) => boolean
+): RecordingCapabilitySummary => {
+  const supportedMimeTypes = getSupportedRecordingMimeTypes(isTypeSupported);
+  const recommendedMimeType = supportedMimeTypes[0] || null;
+  return {
+    supportedMimeTypes,
+    recommendedMimeType,
+    prefersHardwareFriendlyPath: Boolean(
+      recommendedMimeType && /avc1|h264|hevc|h265/i.test(recommendedMimeType)
+    ),
+  };
+};
+
 export const calculateRecordingBitrates = (
   width: number,
   height: number,

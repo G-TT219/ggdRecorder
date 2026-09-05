@@ -4,7 +4,7 @@ import {
   calculateRecordingBitrates,
   getCaptureFrameRate,
   getRecordingExtension,
-  getSupportedRecordingMimeTypes,
+  getRecordingCapabilitySummary,
 } from '../utils/recording';
 import type { GameProcess, RecordingQuality } from '../types/electron-api';
 
@@ -217,8 +217,13 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
         settings.frameRate || targetFrameRate,
         quality
       );
-      const supportedMimeTypes = getSupportedRecordingMimeTypes((type) =>
+      const capability = getRecordingCapabilitySummary((type) =>
         MediaRecorder.isTypeSupported(type)
+      );
+      const supportedMimeTypes = capability.supportedMimeTypes;
+      Logger.info(
+        `Recording capabilities: ${supportedMimeTypes.join(', ') || 'browser default'}; ` +
+        `hardware-friendly=${capability.prefersHardwareFriendlyPath}`
       );
       let recorder: MediaRecorder | null = null;
 
@@ -244,7 +249,7 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
         }
       }
 
-      const mimeType = recorder.mimeType || supportedMimeTypes[0] || 'video/webm';
+      const mimeType = recorder.mimeType || capability.recommendedMimeType || 'video/webm';
       Logger.info(`Selected recorder: ${mimeType}; candidates: ${supportedMimeTypes.join(', ') || 'browser default'}`);
       const extension = getRecordingExtension(mimeType);
       const now = new Date();

@@ -185,15 +185,43 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
 
       const targetFrameRate = getCaptureFrameRate(quality);
       Logger.info('Trying getDisplayMedia API...');
-      stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          width: { ideal: 1920, max: 3840 },
-          height: { ideal: 1080, max: 2160 },
-          frameRate: { ideal: targetFrameRate, max: targetFrameRate },
-          cursor: 'always',
-        } as MediaTrackConstraints,
-        audio: true,
-      });
+      const videoConstraints = {
+        width: { ideal: 1920, max: 3840 },
+        height: { ideal: 1080, max: 2160 },
+        frameRate: { ideal: targetFrameRate, max: targetFrameRate },
+        cursor: 'always',
+      } as MediaTrackConstraints;
+      try {
+        // System audio is supported on Windows in most Electron builds, but
+        // some GPU/OS combinations reject the entire request when loopback
+        // audio is unavailable. Keep video recording usable in that case.
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: videoConstraints,
+          audio: true,
+        });
+      } catch (captureError) {
+        const errorName = captureError instanceof DOMException ? captureError.name : '';
+        if (errorName === 'NotAllowedError' || errorName === 'AbortError') {
+          throw new Error('未获得屏幕录制权限，或你取消了窗口选择');
+        }
+        Logger.info(`Display capture with audio failed (${errorName || 'unknown'}); retrying video-only`);
+        try {
+          stream = await navigator.mediaDevices.getDisplayMedia({
+            video: videoConstraints,
+            audio: false,
+          });
+        } catch (videoOnlyError) {
+          const name = videoOnlyError instanceof DOMException ? videoOnlyError.name : '';
+          const message = videoOnlyError instanceof Error ? videoOnlyError.message : String(videoOnlyError);
+          if (name === 'NotAllowedError' || name === 'AbortError') {
+            throw new Error('未获得屏幕录制权限，或你取消了窗口选择');
+          }
+          if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+            throw new Error('没有找到可录制的窗口，请确认游戏正在运行');
+          }
+          throw new Error(`无法开始屏幕捕获${message ? `：${message}` : ''}`);
+        }
+      }
       Logger.info('getDisplayMedia succeeded');
 
       const videoTrack = stream.getVideoTracks()[0];

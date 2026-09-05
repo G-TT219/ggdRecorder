@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Logger from '../utils/logger';
 import Icon from './Icon';
+import { emitAppError } from './WorkspaceShell';
 import type { GaggleAuthStatus } from '../../shared/types';
 
 type TimestampValue = string | number;
@@ -255,9 +256,14 @@ function StatsTab() {
     try {
       const result = await window.electronAPI.connectGaggle();
       if (result.success) setAuthStatus(result.status);
-      else setAuthError(result.error);
+      else {
+        setAuthError(result.error);
+        emitAppError(result.error || '无法连接 Gaggle');
+      }
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : '无法打开 Gaggle 登录窗口');
+      const message = error instanceof Error ? error.message : '无法打开 Gaggle 登录窗口';
+      setAuthError(message);
+      emitAppError(message);
     } finally {
       setAuthActionLoading(false);
     }
@@ -269,9 +275,14 @@ function StatsTab() {
     try {
       const result = await window.electronAPI.disconnectGaggle();
       if (result.success) setAuthStatus(result.status);
-      else setAuthError(result.error);
+      else {
+        setAuthError(result.error);
+        emitAppError(result.error || '断开 Gaggle 连接失败');
+      }
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : '断开连接失败');
+      const message = error instanceof Error ? error.message : '断开连接失败';
+      setAuthError(message);
+      emitAppError(message);
     } finally {
       setAuthActionLoading(false);
     }
@@ -280,6 +291,7 @@ function StatsTab() {
   const useManualToken = async () => {
     if (!manualToken.trim()) {
       setAuthError('请输入 Bearer Token');
+      emitAppError('请输入 Bearer Token');
       return;
     }
     setAuthActionLoading(true);
@@ -291,9 +303,12 @@ function StatsTab() {
         setManualToken('');
       } else {
         setAuthError(result.error);
+        emitAppError(result.error || 'Token 无效');
       }
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Token 无效');
+      const message = error instanceof Error ? error.message : 'Token 无效';
+      setAuthError(message);
+      emitAppError(message);
     } finally {
       setAuthActionLoading(false);
     }
@@ -345,6 +360,7 @@ function StatsTab() {
       const errMsg = error instanceof Error ? error.message : String(error);
       Logger.error(`Failed to fetch match data: ${errMsg}`);
       setMatchError(`查询失败: ${errMsg}`);
+      emitAppError(`查询失败: ${errMsg}`);
 
       // 开发测试：如果没有API，使用本地示例数据
       if (process.env.NODE_ENV === 'development') {
@@ -431,7 +447,9 @@ function StatsTab() {
       }
     } catch (error) {
       Logger.error('Failed to fetch match history:', error);
-      setMatchHistoryError(`获取历史失败: ${error instanceof Error ? error.message : String(error)}`);
+      const message = `获取历史失败: ${error instanceof Error ? error.message : String(error)}`;
+      setMatchHistoryError(message);
+      emitAppError(message);
     } finally {
       setMatchHistoryLoading(false);
     }
@@ -1017,120 +1035,105 @@ function StatsTab() {
 
             {/* 回合信息 */}
             {matchData.rounds && matchData.rounds.length > 0 && (
-              <div className="rounds-card">
-                <h3>回合信息 ({matchData.rounds.length}回合)</h3>
-                <div className="rounds-list">
-                  {matchData.rounds.map((round, index) => (
-                    <div key={index} className="round-card">
-                      <div className="round-header">
-                        <h4>第 {index + 1} 回合</h4>
-                        <span className="round-duration">
-                          {calculateDuration(round.startAt, round.endAt)}
-                        </span>
-                      </div>
+              <section className="rounds-card rounds-v2" aria-labelledby="rounds-title">
+                <div className="rounds-v2-heading">
+                  <div>
+                    <span className="stats-v2-eyebrow">MATCH TIMELINE</span>
+                    <h3 id="rounds-title">回合记录</h3>
+                    <p>按时间顺序查看会议发起、投票去向与最终结果</p>
+                  </div>
+                  <span className="rounds-v2-count">{matchData.rounds.length} 个回合</span>
+                </div>
+                <div className="rounds-v2-timeline">
+                  {matchData.rounds.map((round, index) => {
+                    const meeting = round.meetingInfo;
+                    const starter = meeting ? matchData.playerData[meeting.starter] : null;
+                    const resultPlayer = meeting && meeting.result !== 'skip'
+                      ? matchData.playerData[meeting.result]
+                      : null;
+                    const voteEntries = meeting?.votes ? Object.entries(meeting.votes) : [];
+                    const isSkipped = meeting?.result === 'skip';
 
-                      {/* 会议信息 */}
-                      {round.meetingInfo && (
-                        <div className="meeting-info">
-                          <div className="meeting-header">
-                            <div className="meeting-type">
-                              <span className="meeting-icon">
-                                {round.meetingInfo.type === 'Report' ? '📢' : '🚨'}
-                              </span>
-                              <span className="meeting-type-text">
-                                {round.meetingInfo.type === 'Report' ? '报告尸体' : '紧急会议'}
-                              </span>
+                    return (
+                      <article key={index} className="round-v2-item">
+                        <div className="round-v2-rail" aria-hidden="true">
+                          <span>{String(index + 1).padStart(2, '0')}</span>
+                          {index < matchData.rounds!.length - 1 && <i />}
+                        </div>
+                        <div className="round-v2-content">
+                          <header className="round-v2-header">
+                            <div>
+                              <h4>第 {index + 1} 回合</h4>
+                              <span>{formatTimestamp(round.startAt)} — {formatTimestamp(round.endAt)}</span>
                             </div>
-                            <div className="meeting-starter">
-                              <span className="label">发起人:</span>
-                              <span
-                                className={`player-name-tag faction-${matchData.playerData[round.meetingInfo.starter]?.faction || 0}`}
-                              >
-                                {matchData.playerData[round.meetingInfo.starter]?.nickname || '未知'}
-                              </span>
-                            </div>
-                          </div>
+                            <strong>{calculateDuration(round.startAt, round.endAt)}</strong>
+                          </header>
 
-                          <div className="meeting-result-section">
-                            <div className="result-label">投票结果</div>
-                            <div className={`result-value ${round.meetingInfo.result === 'skip' ? 'skip' : ''}`}>
-                              {round.meetingInfo.result === 'skip' ? <><Icon name="skip" size={16} /> 平票/跳过</> :
-                               <>
-                                 <span className="result-icon"><Icon name="vote" size={16} /></span>
-                                 <span
-                                   className={`player-name-tag faction-${matchData.playerData[round.meetingInfo.result]?.faction || 0}`}
-                                 >
-                                   {matchData.playerData[round.meetingInfo.result]?.nickname || '未知'}
-                                 </span>
-                                 <span className="result-action">被投票出局</span>
-                               </>}
-                            </div>
-                          </div>
-
-                          {/* 投票详情 - 优化版 */}
-                          {round.meetingInfo.votes && (
-                            <div className="votes-detail-enhanced">
-                              <div className="votes-header">
-                                <span className="votes-title"><Icon name="chart" size={16} /> 投票详情</span>
-                                <span className="votes-count">
-                                  共 {Object.keys(round.meetingInfo.votes).length} 人投票
+                          {meeting ? (
+                            <div className="round-v2-meeting">
+                              <div className="round-v2-meeting-meta">
+                                <span className={`round-v2-meeting-type ${meeting.type === 'Report' ? 'is-report' : 'is-emergency'}`}>
+                                  <Icon name={meeting.type === 'Report' ? 'warning' : 'vote'} size={14} />
+                                  {meeting.type === 'Report' ? '报告尸体' : '紧急会议'}
+                                </span>
+                                <span className="round-v2-starter">
+                                  由
+                                  <i className={`faction-${starter?.faction || 0}`}>{starter?.nickname?.charAt(0) || '?'}</i>
+                                  <strong>{starter?.nickname || '未知玩家'}</strong>
+                                  发起
                                 </span>
                               </div>
-                              <div className="votes-grid-enhanced">
-                                {Object.entries(round.meetingInfo.votes).map(([voterId, voteTarget]) => {
-                                  const voter = matchData.playerData[voterId];
-                                  const target = voteTarget !== 'skip' ? matchData.playerData[voteTarget] : null;
-                                  const isSkip = voteTarget === 'skip';
 
-                                  return (
-                                    <div key={voterId} className={`vote-card ${isSkip ? 'vote-skip' : ''}`}>
-                                      <div className="vote-row">
-                                        <div className="voter-section">
-                                          <span
-                                            className={`voter-avatar faction-${voter?.faction || 0}`}
-                                          >
-                                            {voter?.nickname?.charAt(0) || '?'}
-                                          </span>
-                                          <span
-                                            className={`voter-name faction-${voter?.faction || 0}`}
-                                          >
-                                            {voter?.nickname || '未知'}
-                                          </span>
-                                        </div>
-                                        <div className="vote-arrow-container">
-                                          <span className="vote-arrow"><Icon name="arrowRight" size={14} /></span>
-                                        </div>
-                                        <div className="target-section">
-                                          {isSkip ? (
-                                            <span className="target-skip"><Icon name="skip" size={14} /> 跳过</span>
-                                          ) : (
-                                            <>
-                                              <span
-                                                className={`target-avatar faction-${target?.faction || 0}`}
-                                              >
-                                                {target?.nickname?.charAt(0) || '?'}
-                                              </span>
-                                              <span
-                                                className={`target-name faction-${target?.faction || 0}`}
-                                              >
-                                                {target?.nickname || '未知'}
-                                              </span>
-                                            </>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
+                              <div className={`round-v2-outcome ${isSkipped ? 'is-skipped' : 'is-ejected'}`}>
+                                <span className="round-v2-outcome-icon"><Icon name={isSkipped ? 'skip' : 'vote'} size={18} /></span>
+                                <div>
+                                  <small>本轮结论</small>
+                                  <strong>{isSkipped ? '无人被放逐' : `${resultPlayer?.nickname || '未知玩家'} 被投票出局`}</strong>
+                                </div>
+                                <span>{isSkipped ? '平票或多数玩家选择跳过' : getFactionName(resultPlayer?.faction || 0)}</span>
                               </div>
+
+                              {voteEntries.length > 0 && (
+                                <div className="round-v2-votes">
+                                  <div className="round-v2-votes-header">
+                                    <span>投票明细</span>
+                                    <small>{voteEntries.length} 票已记录</small>
+                                  </div>
+                                  <div className="round-v2-vote-list" role="table" aria-label={`第 ${index + 1} 回合投票明细`}>
+                                    {voteEntries.map(([voterId, voteTarget]) => {
+                                      const voter = matchData.playerData[voterId];
+                                      const target = voteTarget !== 'skip' ? matchData.playerData[voteTarget] : null;
+                                      const voteSkipped = voteTarget === 'skip';
+                                      return (
+                                        <div key={voterId} className="round-v2-vote-row" role="row">
+                                          <span className="round-v2-vote-player" role="cell">
+                                            <i className={`faction-${voter?.faction || 0}`}>{voter?.nickname?.charAt(0) || '?'}</i>
+                                            <strong>{voter?.nickname || '未知玩家'}</strong>
+                                          </span>
+                                          <span className="round-v2-vote-direction" aria-hidden="true"><Icon name="arrowRight" size={13} /></span>
+                                          <span className={`round-v2-vote-target ${voteSkipped ? 'is-skipped' : ''}`} role="cell">
+                                            {voteSkipped ? (
+                                              <><Icon name="skip" size={13} /><strong>跳过</strong></>
+                                            ) : (
+                                              <><i className={`faction-${target?.faction || 0}`}>{target?.nickname?.charAt(0) || '?'}</i><strong>{target?.nickname || '未知玩家'}</strong></>
+                                            )}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
                             </div>
+                          ) : (
+                            <div className="round-v2-no-meeting">本回合没有会议记录</div>
                           )}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      </article>
+                    );
+                  })}
                 </div>
-              </div>
+              </section>
             )}
           </div>
         )}

@@ -1,6 +1,6 @@
 import type { ReactElement, SVGProps } from 'react';
 
-export type IconName = 'refresh' | 'star' | 'starFilled' | 'play' | 'trash' | 'x' | 'warning' | 'globe' | 'clipboard' | 'chart' | 'trophy' | 'check' | 'ghost' | 'skip' | 'vote' | 'gamepad' | 'arrowRight';
+export type IconName = 'refresh' | 'star' | 'starFilled' | 'play' | 'record' | 'film' | 'image' | 'trash' | 'x' | 'warning' | 'globe' | 'clipboard' | 'chart' | 'trophy' | 'check' | 'ghost' | 'skip' | 'vote' | 'gamepad' | 'arrowRight';
 
 type IconProps = {
   name: IconName;
@@ -35,6 +35,15 @@ function Icon({ name, size = 18, strokeWidth = 2, className = '' }: IconProps): 
     ),
     play: (
       <svg {...common} fill="currentColor" stroke="none"><path d="M8 5.5v13l11-6.5-11-6.5Z" /></svg>
+    ),
+    record: (
+      <svg {...common}><rect x="4" y="5" width="16" height="14" rx="3" /><circle cx="12" cy="12" r="3.3" fill="currentColor" stroke="none" /></svg>
+    ),
+    film: (
+      <svg {...common}><rect x="4" y="5" width="16" height="14" rx="2.5" /><path d="M8 5v14M16 5v14M4 9h4M12 9h4M4 15h4M12 15h4" /></svg>
+    ),
+    image: (
+      <svg {...common}><rect x="4" y="5" width="16" height="14" rx="2.5" /><circle cx="9" cy="10" r="1.2" fill="currentColor" stroke="none" /><path d="m5.5 17 4.2-4 2.7 2.5 2.2-2 3.9 3.5" /></svg>
     ),
     trash: (
       <svg {...common}><path d="M4 7h16" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M6 7l1 14h10l1-14" /><path d="M9 7V4h6v3" /></svg>

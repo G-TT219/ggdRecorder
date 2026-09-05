@@ -1,0 +1,63 @@
+:root {
+  font-family: Inter, "Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  color: #25282d;
+  background: transparent;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; height: 100%; margin: 0; }
+body { overflow: hidden; background: transparent; }
+button { font: inherit; cursor: pointer; }
+
+.recording-float {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: calc(100% - 12px);
+  height: calc(100% - 12px);
+  margin: 6px;
+  padding: 13px 12px 13px 16px;
+  overflow: hidden;
+  border: 1px solid #e1e3e6;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 10px 30px rgba(31, 37, 45, 0.16), 0 2px 8px rgba(31, 37, 45, 0.08);
+  -webkit-app-region: drag;
+}
+
+.recording-float::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  content: '';
+  background: #d1575f;
+}
+
+.recording-float.is-paused::before { background: #c28b35; }
+.recording-float-drag { position: absolute; inset: 0; pointer-events: none; }
+.recording-float-status, .recording-float-actions { position: relative; z-index: 1; }
+.recording-float-status { display: flex; align-items: center; min-width: 0; flex: 1 1 auto; gap: 9px; }
+.recording-float-dot { width: 9px; height: 9px; flex: 0 0 9px; border-radius: 50%; background: #d1575f; box-shadow: 0 0 0 4px rgba(209, 87, 95, .12); animation: float-pulse 1.7s ease-in-out infinite; }
+.is-paused .recording-float-dot { background: #c28b35; box-shadow: 0 0 0 4px rgba(194, 139, 53, .13); animation: none; }
+.recording-float-copy { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.recording-float-copy strong { color: #2f3338; font-size: 12px; font-weight: 700; line-height: 1.1; white-space: nowrap; }
+.recording-float-copy span { max-width: 110px; overflow: hidden; color: #81868d; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.recording-float time { margin-left: auto; color: #292d33; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 15px; font-variant-numeric: tabular-nums; letter-spacing: .03em; white-space: nowrap; }
+.recording-float-actions { display: flex; align-items: center; flex: 0 0 auto; gap: 5px; -webkit-app-region: no-drag; }
+.float-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; gap: 4px; min-width: 56px; height: 30px; padding: 0 7px; border: 1px solid transparent; border-radius: 7px; font-size: 10px; font-weight: 650; white-space: nowrap; transition: background .15s ease, transform .15s ease, border-color .15s ease; }
+.float-button:hover { transform: translateY(-1px); }
+.float-button:focus-visible { outline: 2px solid #5576b8; outline-offset: 2px; }
+.float-button-icon { font-size: 10px; line-height: 1; }
+.float-button-quiet { color: #61666e; border-color: #e1e3e6; background: #fafafa; }
+.float-button-quiet:hover { border-color: #cfd3d8; background: #f4f5f6; }
+.float-button-stop { color: #fff; border-color: #bd4f58; background: #cb5961; }
+.float-button-stop:hover { background: #bb4c54; }
+.float-button-main { min-width: 64px; color: #656b73; background: transparent; }
+.float-button-main:hover { background: #f1f2f3; }
+
+@keyframes float-pulse { 0%, 100% { opacity: .65; transform: scale(.9); } 50% { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .recording-float-dot { animation: none; } .float-button { transition: none; } }

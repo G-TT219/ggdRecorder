@@ -232,10 +232,37 @@ class GaggleAuthService {
     });
 
     try {
-      await authWindow.loadURL(DASHBOARD_URL);
+      await this.loadDashboardWithFallback(authWindow);
     } catch (error) {
       if (!authWindow.isDestroyed()) authWindow.close();
       logger.warn('Failed to load the Gaggle dashboard:', error);
+      if (interactive) throw error;
+    }
+  }
+
+  /**
+   * The dashboard is also used for interactive login. Some local HTTP/SOCKS
+   * proxies accept the CONNECT tunnel but close the TLS connection afterwards,
+   * which Electron reports as ERR_CONNECTION_CLOSED. Retry once without a
+   * proxy so a healthy direct connection can still open the login window.
+   */
+  private async loadDashboardWithFallback(authWindow: BrowserWindow): Promise<void> {
+    try {
+      await authWindow.loadURL(DASHBOARD_URL);
+      return;
+    } catch (proxyError) {
+      const proxyUrl = process.env.https_proxy || process.env.http_proxy || process.env.all_proxy;
+      if (!proxyUrl || !this.authSession) throw proxyError;
+
+      logger.warn('Gaggle dashboard load failed through the configured proxy; retrying direct:', proxyError);
+      await this.authSession.setProxy({ mode: 'direct' });
+      try {
+        await authWindow.loadURL(DASHBOARD_URL);
+        logger.info('Loaded the Gaggle dashboard through a direct connection');
+      } catch (directError) {
+        logger.warn('Direct Gaggle dashboard retry failed:', directError);
+        throw directError;
+      }
     }
   }
 

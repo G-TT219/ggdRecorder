@@ -10,6 +10,7 @@ import RecordingsTab from './components/RecordingsTab';
 import MapTab from './components/MapTab';
 import StatsTab from './components/StatsTab';
 import ScreenshotTab from './components/ScreenshotTab';
+import { APP_ERROR_EVENT, CommandPalette, ContextBar, RecordingDock, TopErrorToast, WorkspaceRail, WorkspaceStage, emitAppError, type CommandPaletteAction } from './components/WorkspaceShell';
 import type { Connection, MapMarker, Position, RoleKey } from './components/MapTab';
 import type { GameProcess, Recording, RecordingThumbnails, FavoriteGroup, RecordingNotes, FavoriteRecordingGroups, RecordingQuality } from './types/electron-api';
 
@@ -60,6 +61,8 @@ function App() {
   const [selectedGame, setSelectedGame] = useState<GameProcess | null>(null);
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>('games');
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [topError, setTopError] = useState('');
   const [recordingsDir, setRecordingsDir] = useState('');
   const [gamePath, setGamePath] = useState('');
   const [recordingQuality, setRecordingQuality] = useState<RecordingQuality>('balanced');
@@ -141,6 +144,53 @@ function App() {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
 
+  // Keep the independent recording control surface in sync while the main window is hidden.
+  useEffect(() => {
+    window.electronAPI.updateRecordingFloatState({
+      isRecording,
+      isPaused,
+      recordingTime,
+      gameName: selectedGame?.name || '',
+    });
+  }, [isRecording, isPaused, recordingTime, selectedGame?.name]);
+
+  // Actions originate in the floating window and must be executed by this renderer,
+  // where the MediaRecorder instance lives.
+  useEffect(() => {
+    const unsubscribe = window.electronAPI.onRecordingFloatAction(action => {
+      if (action === 'toggle-pause') togglePause();
+      if (action === 'stop') stopRecording();
+    });
+    return unsubscribe;
+  }, [stopRecording, togglePause]);
+
+  useEffect(() => {
+    const handleAppError = (event: Event) => {
+      const message = (event as CustomEvent<{ message?: string }>).detail?.message;
+      if (!message) return;
+      setTopError(message);
+      window.setTimeout(() => setTopError(current => current === message ? '' : current), 4000);
+    };
+    window.addEventListener(APP_ERROR_EVENT, handleAppError);
+    return () => window.removeEventListener(APP_ERROR_EVENT, handleAppError);
+  }, []);
+
+  useEffect(() => {
+    if (recordingError) emitAppError(recordingError);
+  }, [recordingError]);
+
+  useEffect(() => {
+    const handleCommandShortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandPaletteOpen(open => !open);
+      }
+      if (event.key === 'Escape') setCommandPaletteOpen(false);
+    };
+    window.addEventListener('keydown', handleCommandShortcut);
+    return () => window.removeEventListener('keydown', handleCommandShortcut);
+  }, []);
+
   useEffect(() => {
   }, [isPaused]);
 
@@ -162,6 +212,12 @@ function App() {
       m.toString().padStart(2, '0'),
       s.toString().padStart(2, '0')
     ].join(':');
+  };
+
+  const navigateWorkspace = (workspace: ActiveTab) => {
+    setCommandPaletteOpen(false);
+    setActiveTab(workspace);
+    if (workspace === 'recordings') loadRecordings();
   };
 
   useEffect(() => {
@@ -392,87 +448,35 @@ function App() {
     }
   }, [isRecording]);
 
+  const commandActions: CommandPaletteAction[] = [
+    { id: 'go-record', label: '打开录制', detail: '选择游戏并开始捕捉', shortcut: '⌘1', run: () => navigateWorkspace('games') },
+    { id: 'go-library', label: '打开录像库', detail: '浏览、筛选和复盘录像', shortcut: '⌘2', run: () => navigateWorkspace('recordings') },
+    { id: 'go-annotate', label: '打开标注工作区', detail: '地图、截图与玩家关系', shortcut: '⌘3', run: () => navigateWorkspace('entertainment') },
+    { id: 'go-stats', label: '打开战绩分析', detail: '查看对局与玩家数据', shortcut: '⌘4', run: () => navigateWorkspace('stats') },
+    { id: 'go-settings', label: '打开设置', detail: '管理应用偏好和连接', shortcut: '⌘5', run: () => navigateWorkspace('settings') },
+    ...(isRecording ? [{ id: 'stop-recording', label: '结束录制', detail: '保存当前录像并打开录像库', shortcut: '⌘⇧D', run: stopRecording }] : []),
+  ];
+
   return (
     <div className="app">
       <TitleBar isMaximized={isMaximized} onMinimize={handleMinimize} onMaximize={handleMaximize} onClose={handleClose} />
-
-      <header className="app-header">
-        <div className="app-header-topline">
-          <div className="app-header-copy">
-            <span className="app-header-eyebrow">WORKSPACE</span>
-            <h1>游戏录制助手</h1>
-          </div>
-          {isRecording ? (
-            <div className="recording-indicator">
-              <span className="recording-dot"></span>
-              <span>录制中</span>
-              <strong>{formatTime(recordingTime)}</strong>
-            </div>
-          ) : (
-            <div className="workspace-status">
-              <span className="workspace-status-dot" aria-hidden="true" />
-              本地就绪
-            </div>
-          )}
-        </div>
-        <nav className="tabs" aria-label="主功能">
-          <button
-            type="button"
-            className={activeTab === 'games' ? 'active' : ''}
-            onClick={() => setActiveTab('games')}
-          >
-            录制
-          </button>
-          <button
-            type="button"
-            className={activeTab === 'recordings' ? 'active' : ''}
-            onClick={() => {
-              setActiveTab('recordings');
-              loadRecordings();
-            }}
-          >
-            录像 <span className="tab-count">{recordings.length}</span>
-          </button>
-          <button
-            type="button"
-            className={activeTab === 'entertainment' ? 'active' : ''}
-            onClick={() => setActiveTab('entertainment')}
-          >
-            地图
-          </button>
-          <button
-            type="button"
-            className={activeTab === 'stats' ? 'active' : ''}
-            onClick={() => setActiveTab('stats')}
-          >
-            战绩查询
-          </button>
-          <button
-            type="button"
-            className={activeTab === 'settings' ? 'active' : ''}
-            onClick={() => setActiveTab('settings')}
-          >
-            设置
-          </button>
-          <button
-            type="button"
-            className={activeTab === 'capture' ? 'active' : ''}
-            onClick={() => setActiveTab('capture')}
-          >
-            截图标注
-          </button>
-        </nav>
-        {activeTab === 'review' && (
-          <button className="back-btn" onClick={() => setActiveTab('recordings')}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
-            退出复盘
-          </button>
-        )}
-      </header>
-
-      <ErrorBoundary>
-      <main className={`app-main ${activeTab === 'review' ? 'review-mode' : ''}`}>
-        <div className={`tab-pane map-pane ${activeTab === 'entertainment' || activeTab === 'review' ? 'active' : 'hidden'}`}>
+      <div className="workspace-shell">
+        <WorkspaceRail
+          activeWorkspace={activeTab}
+          recordingsCount={recordings.length}
+          isRecording={isRecording}
+          onNavigate={navigateWorkspace}
+        />
+        <WorkspaceStage>
+          <ContextBar
+            activeWorkspace={activeTab}
+            isRecording={isRecording}
+            onNavigate={navigateWorkspace}
+            onOpenCommand={() => setCommandPaletteOpen(true)}
+          />
+          <ErrorBoundary>
+          <main className={`app-main ${activeTab === 'review' ? 'review-mode' : ''}`}>
+        <div className={`tab-pane workspace-pane map-pane ${activeTab === 'entertainment' || activeTab === 'review' ? 'active' : 'hidden'}`}>
           <MapTab
             selectedMap={sharedMapId}
             setSelectedMap={setSharedMapId}
@@ -490,7 +494,7 @@ function App() {
             setDeadMarkers={setSharedDeadMarkers}
           />
         </div>
-        <div className={`tab-pane recordings-pane ${activeTab === 'recordings' || activeTab === 'review' ? 'active' : 'hidden'}`}>
+        <div className={`tab-pane workspace-pane recordings-pane ${activeTab === 'recordings' || activeTab === 'review' ? 'active' : 'hidden'}`}>
           <RecordingsTab
             recordings={recordings}
             recordingThumbnails={recordingThumbnails}
@@ -504,10 +508,10 @@ function App() {
             onEnterReview={() => setActiveTab('review')}
           />
         </div>
-        <div className={`tab-pane ${activeTab === 'stats' ? 'active' : 'hidden'}`}>
+        <div className={`tab-pane workspace-pane stats-pane ${activeTab === 'stats' ? 'active' : 'hidden'}`}>
           <StatsTab />
         </div>
-        <div className={`tab-pane ${activeTab === 'capture' ? 'active' : 'hidden'}`}>
+        <div className={`tab-pane workspace-pane capture-pane ${activeTab === 'capture' ? 'active' : 'hidden'}`}>
           <ScreenshotTab />
         </div>
         {activeTab === 'games' ? (
@@ -535,8 +539,29 @@ function App() {
             onRecordingQualityChange={setRecordingQuality}
           />
         ) : null}
-      </main>
-    </ErrorBoundary>
+          </main>
+          </ErrorBoundary>
+        </WorkspaceStage>
+      </div>
+      <RecordingDock
+        isRecording={isRecording}
+        isPaused={isPaused}
+        recordingTime={recordingTime}
+        selectedGameName={selectedGame?.name}
+        formatTime={formatTime}
+        onTogglePause={togglePause}
+        onStop={stopRecording}
+        onOpenLibrary={() => {
+          setActiveTab('recordings');
+          loadRecordings();
+        }}
+      />
+      <TopErrorToast message={topError} onClose={() => setTopError('')} />
+      <CommandPalette
+        open={commandPaletteOpen}
+        actions={commandActions}
+        onClose={() => setCommandPaletteOpen(false)}
+      />
     </div>
   );
 }

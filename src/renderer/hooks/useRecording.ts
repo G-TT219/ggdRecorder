@@ -161,6 +161,7 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
 
     const diskCheck = await checkDiskSpace();
     if (!diskCheck.ok) {
+      setRecordingStatus('error');
       setRecordingError(diskCheck.error || '磁盘空间不足');
       Logger.error(diskCheck.error || 'Disk space check failed');
       return;

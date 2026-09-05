@@ -149,7 +149,7 @@ function App() {
       const message = (event as CustomEvent<{ message?: string }>).detail?.message;
       if (!message) return;
       setTopError(message);
-      window.setTimeout(() => setTopError(current => current === message ? '' : current), 6500);
+      window.setTimeout(() => setTopError(current => current === message ? '' : current), 4000);
     };
     window.addEventListener(APP_ERROR_EVENT, handleAppError);
     return () => window.removeEventListener(APP_ERROR_EVENT, handleAppError);

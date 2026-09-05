@@ -9,9 +9,13 @@ import {
 import type { GameProcess, RecordingQuality } from '../types/electron-api';
 
 const MIN_FREE_DISK_BYTES = 1024 * 1024 * 1024; // 1 GB
-const MAX_PENDING_CHUNKS = 4;
+const MAX_PENDING_CHUNKS = 8;
 const DISK_CHECK_INTERVAL_MS = 30_000;
-const CHUNK_INTERVAL_MS = 1000;
+// Half-second slices reduce the visible startup gap and make recovery files usable
+// without creating a large IPC backlog (the queue is bounded below).
+const CHUNK_INTERVAL_MS = 500;
+
+export type RecordingStatus = 'idle' | 'preparing' | 'recording' | 'paused' | 'finalizing' | 'error';
 
 type UseRecordingOptions = {
   onRecordingSaved?: () => void;
@@ -22,6 +26,7 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
   const [isPaused, setIsPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [recordingStatus, setRecordingStatus] = useState<RecordingStatus>('idle');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingSessionIdRef = useRef<string | null>(null);
@@ -69,6 +74,7 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
     setIsRecording(false);
     setIsPaused(false);
     setRecordingTime(0);
+    setRecordingStatus('idle');
     recordingStartTimeRef.current = null;
     recordingPausedAtRef.current = null;
     userPausedRef.current = false;
@@ -97,6 +103,7 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
       const recorder = mediaRecorderRef.current;
       if (recorder && recorder.state !== 'inactive' && !stoppingRef.current) {
         stoppingRef.current = true;
+        setRecordingStatus('finalizing');
         // Ask MediaRecorder to emit the current partial slice before stopping.
         // This reduces the chance of losing the final few hundred milliseconds
         // when the user stops between two timeslice boundaries.
@@ -120,6 +127,7 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
       userPausedRef.current = true;
       recorder.pause();
       setIsPaused(true);
+      setRecordingStatus('paused');
       recordingPausedAtRef.current = Date.now();
       clearRecordingTimer();
       Logger.info('Recording paused');
@@ -127,6 +135,7 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
       userPausedRef.current = false;
       recorder.resume();
       setIsPaused(false);
+      setRecordingStatus('recording');
       if (recordingPausedAtRef.current !== null && recordingStartTimeRef.current !== null) {
         recordingStartTimeRef.current += Date.now() - recordingPausedAtRef.current;
       }
@@ -148,6 +157,7 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
     }
 
     setRecordingError(null);
+    setRecordingStatus('preparing');
 
     const diskCheck = await checkDiskSpace();
     if (!diskCheck.ok) {
@@ -301,6 +311,7 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
       recorder.onerror = (event) => {
         const mediaError = (event as Event & { error?: DOMException }).error;
         recordingWriteErrorRef.current = mediaError || new Error('录像编码器发生错误');
+        setRecordingStatus('error');
         Logger.error('MediaRecorder error:', recordingWriteErrorRef.current);
       };
 
@@ -353,6 +364,7 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
       recorder.start(CHUNK_INTERVAL_MS);
       setIsRecording(true);
       setIsPaused(false);
+      setRecordingStatus('recording');
       recordingStartTimeRef.current = Date.now();
       recordingPausedAtRef.current = null;
       timerIntervalRef.current = setInterval(updateRecordingTimer, CHUNK_INTERVAL_MS);
@@ -384,6 +396,7 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
       recordingSessionIdRef.current = null;
       recordingStreamRef.current = null;
       resetRecordingState();
+      setRecordingStatus('error');
       setRecordingError(error instanceof Error ? error.message : String(error));
     }
   }, [checkDiskSpace, resetRecordingState, updateRecordingTimer]);
@@ -407,6 +420,7 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
     isPaused,
     recordingTime,
     recordingError,
+    recordingStatus,
     startRecording,
     stopRecording,
     togglePause,

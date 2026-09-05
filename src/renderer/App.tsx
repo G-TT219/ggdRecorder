@@ -384,8 +384,10 @@ function App() {
   // 复盘工作区统一使用同一尺寸，避免在地图、战绩和截图之间切换时跳变。
   useEffect(() => {
     if (activeTab === 'review' || activeTab === 'entertainment' || activeTab === 'stats' || activeTab === 'capture') {
-      // 统一给地图高度留出完整画布，同时满足表格和截图工作区的宽度。
-      window.electronAPI.resizeWindow(1400, 1000);
+      // 恢复用户上次手动调整的大工作区尺寸；首次使用时为 1400×1000。
+      window.electronAPI.getWorkspaceWindowSize().then(size => {
+        if (size.success) window.electronAPI.resizeWindow(size.width, size.height);
+      });
     } else {
       // 切换到其他标签时恢复默认大小
       window.electronAPI.resizeWindow(500, 800);

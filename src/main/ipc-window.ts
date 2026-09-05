@@ -1,6 +1,17 @@
 import { ipcMain, BrowserWindow } from 'electron';
 
-export const registerWindowHandlers = (): void => {
+const DEFAULT_WORKSPACE_SIZE = { width: 1400, height: 1000 };
+let rememberedWorkspaceSize = { ...DEFAULT_WORKSPACE_SIZE };
+
+export const registerWindowHandlers = (mainWindow?: BrowserWindow): void => {
+  // BrowserWindow resize events also capture manual edge resizing, which does
+  // not pass through the renderer's resizeWindow IPC call.
+  mainWindow?.on('resize', () => {
+    if (!mainWindow.isDestroyed() && !mainWindow.isMaximized()) {
+      const [width, height] = mainWindow.getSize();
+      if (width >= 700 && height >= 600) rememberedWorkspaceSize = { width, height };
+    }
+  });
   ipcMain.handle('window-minimize', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win) win.minimize();
@@ -32,4 +43,6 @@ export const registerWindowHandlers = (): void => {
       return { success: true };
     } catch { return { success: false, error: 'resize failed' }; }
   });
+
+  ipcMain.handle('get-workspace-window-size', () => ({ success: true, ...rememberedWorkspaceSize }));
 };

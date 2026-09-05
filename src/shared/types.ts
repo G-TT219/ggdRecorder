@@ -144,6 +144,7 @@ export interface ElectronAPI {
   windowMaximize: () => Promise<void>;
   windowClose: () => Promise<void>;
   resizeWindow: (width: number, height: number) => Promise<IpcResult>;
+  getWorkspaceWindowSize: () => Promise<IpcResult<{ width: number; height: number }>>;
   captureScreenRegion: () => Promise<IpcResult<ScreenshotCaptureResult>>;
   onScreenshotSelectionInit: (callback: (payload: ScreenshotSelectionInit) => void) => () => void;
   completeScreenshotSelection: (rect: ScreenshotSelectionRect) => Promise<IpcResult>;

@@ -64,6 +64,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowMaximize: () => ipcRenderer.invoke('window-maximize'),
   windowClose: () => ipcRenderer.invoke('window-close'),
   resizeWindow: (width: number, height: number) => ipcRenderer.invoke('resize-window', width, height),
+  getWorkspaceWindowSize: () => ipcRenderer.invoke('get-workspace-window-size'),
   captureScreenRegion: () => ipcRenderer.invoke('capture-screen-region'),
   onScreenshotSelectionInit: (callback: (payload: unknown) => void) => {
     const listener = (_event: unknown, payload: unknown) => callback(payload);

@@ -1,6 +1,14 @@
 import type { ReactNode } from 'react';
 import Icon from './Icon';
 
+export const APP_ERROR_EVENT = 'ggd-app-error';
+
+export function emitAppError(message: string): void {
+  if (typeof window !== 'undefined' && message.trim()) {
+    window.dispatchEvent(new CustomEvent(APP_ERROR_EVENT, { detail: { message: message.trim() } }));
+  }
+}
+
 export type WorkspaceId = 'games' | 'recordings' | 'entertainment' | 'stats' | 'settings' | 'capture' | 'review';
 
 type WorkspaceRailProps = {
@@ -224,4 +232,23 @@ type WorkspaceStageProps = {
 
 export function WorkspaceStage({ children }: WorkspaceStageProps) {
   return <div className="workspace-stage">{children}</div>;
+}
+
+type TopErrorToastProps = {
+  message: string;
+  onClose: () => void;
+};
+
+export function TopErrorToast({ message, onClose }: TopErrorToastProps) {
+  if (!message) return null;
+  return (
+    <div className="top-error-toast" role="alert" aria-live="assertive">
+      <span className="top-error-toast-icon" aria-hidden="true">!</span>
+      <div className="top-error-toast-copy">
+        <strong>操作未完成</strong>
+        <span>{message}</span>
+      </div>
+      <button type="button" className="top-error-toast-close" onClick={onClose} aria-label="关闭错误提示">×</button>
+    </div>
+  );
 }

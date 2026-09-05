@@ -10,7 +10,7 @@ import RecordingsTab from './components/RecordingsTab';
 import MapTab from './components/MapTab';
 import StatsTab from './components/StatsTab';
 import ScreenshotTab from './components/ScreenshotTab';
-import { CommandPalette, ContextBar, RecordingDock, WorkspaceRail, WorkspaceStage, type CommandPaletteAction } from './components/WorkspaceShell';
+import { APP_ERROR_EVENT, CommandPalette, ContextBar, RecordingDock, TopErrorToast, WorkspaceRail, WorkspaceStage, emitAppError, type CommandPaletteAction } from './components/WorkspaceShell';
 import type { Connection, MapMarker, Position, RoleKey } from './components/MapTab';
 import type { GameProcess, Recording, RecordingThumbnails, FavoriteGroup, RecordingNotes, FavoriteRecordingGroups, RecordingQuality } from './types/electron-api';
 
@@ -62,6 +62,7 @@ function App() {
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>('games');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [topError, setTopError] = useState('');
   const [recordingsDir, setRecordingsDir] = useState('');
   const [gamePath, setGamePath] = useState('');
   const [recordingQuality, setRecordingQuality] = useState<RecordingQuality>('balanced');
@@ -142,6 +143,21 @@ function App() {
   useEffect(() => {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
+
+  useEffect(() => {
+    const handleAppError = (event: Event) => {
+      const message = (event as CustomEvent<{ message?: string }>).detail?.message;
+      if (!message) return;
+      setTopError(message);
+      window.setTimeout(() => setTopError(current => current === message ? '' : current), 6500);
+    };
+    window.addEventListener(APP_ERROR_EVENT, handleAppError);
+    return () => window.removeEventListener(APP_ERROR_EVENT, handleAppError);
+  }, []);
+
+  useEffect(() => {
+    if (recordingError) emitAppError(recordingError);
+  }, [recordingError]);
 
   useEffect(() => {
     const handleCommandShortcut = (event: KeyboardEvent) => {
@@ -520,6 +536,7 @@ function App() {
           loadRecordings();
         }}
       />
+      <TopErrorToast message={topError} onClose={() => setTopError('')} />
       <CommandPalette
         open={commandPaletteOpen}
         actions={commandActions}

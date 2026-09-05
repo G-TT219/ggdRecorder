@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Logger from '../utils/logger';
 import Icon from './Icon';
+import { emitAppError } from './WorkspaceShell';
 import type { GaggleAuthStatus } from '../../shared/types';
 
 type TimestampValue = string | number;
@@ -255,9 +256,14 @@ function StatsTab() {
     try {
       const result = await window.electronAPI.connectGaggle();
       if (result.success) setAuthStatus(result.status);
-      else setAuthError(result.error);
+      else {
+        setAuthError(result.error);
+        emitAppError(result.error || '无法连接 Gaggle');
+      }
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : '无法打开 Gaggle 登录窗口');
+      const message = error instanceof Error ? error.message : '无法打开 Gaggle 登录窗口';
+      setAuthError(message);
+      emitAppError(message);
     } finally {
       setAuthActionLoading(false);
     }
@@ -269,9 +275,14 @@ function StatsTab() {
     try {
       const result = await window.electronAPI.disconnectGaggle();
       if (result.success) setAuthStatus(result.status);
-      else setAuthError(result.error);
+      else {
+        setAuthError(result.error);
+        emitAppError(result.error || '断开 Gaggle 连接失败');
+      }
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : '断开连接失败');
+      const message = error instanceof Error ? error.message : '断开连接失败';
+      setAuthError(message);
+      emitAppError(message);
     } finally {
       setAuthActionLoading(false);
     }
@@ -280,6 +291,7 @@ function StatsTab() {
   const useManualToken = async () => {
     if (!manualToken.trim()) {
       setAuthError('请输入 Bearer Token');
+      emitAppError('请输入 Bearer Token');
       return;
     }
     setAuthActionLoading(true);
@@ -291,9 +303,12 @@ function StatsTab() {
         setManualToken('');
       } else {
         setAuthError(result.error);
+        emitAppError(result.error || 'Token 无效');
       }
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Token 无效');
+      const message = error instanceof Error ? error.message : 'Token 无效';
+      setAuthError(message);
+      emitAppError(message);
     } finally {
       setAuthActionLoading(false);
     }
@@ -345,6 +360,7 @@ function StatsTab() {
       const errMsg = error instanceof Error ? error.message : String(error);
       Logger.error(`Failed to fetch match data: ${errMsg}`);
       setMatchError(`查询失败: ${errMsg}`);
+      emitAppError(`查询失败: ${errMsg}`);
 
       // 开发测试：如果没有API，使用本地示例数据
       if (process.env.NODE_ENV === 'development') {
@@ -431,7 +447,9 @@ function StatsTab() {
       }
     } catch (error) {
       Logger.error('Failed to fetch match history:', error);
-      setMatchHistoryError(`获取历史失败: ${error instanceof Error ? error.message : String(error)}`);
+      const message = `获取历史失败: ${error instanceof Error ? error.message : String(error)}`;
+      setMatchHistoryError(message);
+      emitAppError(message);
     } finally {
       setMatchHistoryLoading(false);
     }

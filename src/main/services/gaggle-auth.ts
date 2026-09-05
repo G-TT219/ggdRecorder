@@ -236,6 +236,7 @@ class GaggleAuthService {
     } catch (error) {
       if (!authWindow.isDestroyed()) authWindow.close();
       logger.warn('Failed to load the Gaggle dashboard:', error);
+      if (interactive) throw error;
     }
   }
 

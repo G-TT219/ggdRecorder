@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { CommandPalette, ContextBar, WorkspaceRail } from './WorkspaceShell';
+import { CommandPalette, ContextBar, TopErrorToast, WorkspaceRail, emitAppError } from './WorkspaceShell';
 
 describe('workspace shell navigation', () => {
   it('keeps the active workspace visible in the rail and routes recordings', () => {
@@ -49,5 +49,21 @@ describe('workspace shell navigation', () => {
     expect(run).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
-});
 
+  it('renders a dismissible top-level error toast', () => {
+    const onClose = vi.fn();
+    render(<TopErrorToast message="无法连接 Gaggle" onClose={onClose} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('无法连接 Gaggle');
+    fireEvent.click(screen.getByRole('button', { name: '关闭错误提示' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('emits app errors through the shared event channel', () => {
+    const listener = vi.fn();
+    window.addEventListener('ggd-app-error', listener);
+    emitAppError('测试错误');
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect((listener.mock.calls[0][0] as CustomEvent).detail.message).toBe('测试错误');
+    window.removeEventListener('ggd-app-error', listener);
+  });
+});

@@ -10,7 +10,7 @@ import type { GameProcess, RecordingQuality } from '../types/electron-api';
 
 const MIN_FREE_DISK_BYTES = 1024 * 1024 * 1024; // 1 GB
 const MAX_PENDING_CHUNKS = 8;
-const DISK_CHECK_INTERVAL_MS = 30_000;
+const DISK_CHECK_INTERVAL_MS = 10_000;
 // Half-second slices reduce the visible startup gap and make recovery files usable
 // without creating a large IPC backlog (the queue is bounded below).
 const CHUNK_INTERVAL_MS = 500;
@@ -37,6 +37,9 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
   const userPausedRef = useRef(false);
   const recordingStreamRef = useRef<MediaStream | null>(null);
   const recordingWriteErrorRef = useRef<Error | null>(null);
+  const recordingBytesRef = useRef(0);
+  const recordingChunksRef = useRef(0);
+  const recordingMetricsAtRef = useRef<number | null>(null);
   const recordingStartTimeRef = useRef<number | null>(null);
   const recordingPausedAtRef = useRef<number | null>(null);
   const stoppingRef = useRef(false);
@@ -80,6 +83,9 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
     userPausedRef.current = false;
     backpressurePausedRef.current = false;
     pendingChunksRef.current = 0;
+    recordingBytesRef.current = 0;
+    recordingChunksRef.current = 0;
+    recordingMetricsAtRef.current = null;
     stoppingRef.current = false;
   }, [clearDiskCheckTimer, clearRecordingTimer]);
 
@@ -195,6 +201,12 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
         throw new Error('未获取到可录制的视频画面');
       }
       const settings = videoTrack.getSettings();
+      // Tell Chromium this is a motion-heavy game capture so its encoder
+      // prioritizes temporal detail over still-image sharpness.
+      try { videoTrack.contentHint = 'motion'; } catch { /* older Chromium */ }
+      stream.getAudioTracks().forEach(track => {
+        try { track.contentHint = 'music'; } catch { /* older Chromium */ }
+      });
       Logger.info(
         `Actual recording resolution: ${settings.width}x${settings.height}@${settings.frameRate}fps`
       );
@@ -233,6 +245,7 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
       }
 
       const mimeType = recorder.mimeType || supportedMimeTypes[0] || 'video/webm';
+      Logger.info(`Selected recorder: ${mimeType}; candidates: ${supportedMimeTypes.join(', ') || 'browser default'}`);
       const extension = getRecordingExtension(mimeType);
       const now = new Date();
       const chinaTime = new Intl.DateTimeFormat('zh-CN', {
@@ -257,6 +270,9 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
       recordingChunkIdRef.current = 0;
       pendingChunksRef.current = 0;
       recordingWriteErrorRef.current = null;
+      recordingBytesRef.current = 0;
+      recordingChunksRef.current = 0;
+      recordingMetricsAtRef.current = Date.now();
       recordingStreamRef.current = stream;
       mediaRecorderRef.current = recorder;
 
@@ -283,6 +299,15 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
               buffer
             );
             if (!result.success) throw new Error(result.error);
+            recordingBytesRef.current += buffer.byteLength;
+            recordingChunksRef.current += 1;
+            if (recordingChunksRef.current % 20 === 0 && recordingMetricsAtRef.current) {
+              const elapsed = Math.max(1, (Date.now() - recordingMetricsAtRef.current) / 1000);
+              Logger.info(
+                `Recording throughput: ${(recordingBytesRef.current / elapsed / 1024 / 1024).toFixed(2)} MiB/s, ` +
+                `${recordingChunksRef.current} chunks, pending ${pendingChunksRef.current}`
+              );
+            }
           })
           .catch((error) => {
             if (recordingWriteErrorRef.current) return;

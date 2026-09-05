@@ -144,6 +144,26 @@ function App() {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
 
+  // Keep the independent recording control surface in sync while the main window is hidden.
+  useEffect(() => {
+    window.electronAPI.updateRecordingFloatState({
+      isRecording,
+      isPaused,
+      recordingTime,
+      gameName: selectedGame?.name || '',
+    });
+  }, [isRecording, isPaused, recordingTime, selectedGame?.name]);
+
+  // Actions originate in the floating window and must be executed by this renderer,
+  // where the MediaRecorder instance lives.
+  useEffect(() => {
+    const unsubscribe = window.electronAPI.onRecordingFloatAction(action => {
+      if (action === 'toggle-pause') togglePause();
+      if (action === 'stop') stopRecording();
+    });
+    return unsubscribe;
+  }, [stopRecording, togglePause]);
+
   useEffect(() => {
     const handleAppError = (event: Event) => {
       const message = (event as CustomEvent<{ message?: string }>).detail?.message;

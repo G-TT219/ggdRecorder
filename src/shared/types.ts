@@ -93,6 +93,13 @@ export type ScreenshotCaptureResult = {
   height: number;
 };
 
+export type RecordingFloatState = {
+  isRecording: boolean;
+  isPaused: boolean;
+  recordingTime: number;
+  gameName?: string;
+};
+
 export interface ElectronAPI {
   getGameProcesses: () => Promise<GameProcess[]>;
   startRecordingSession: (options: RecordingSessionStartOptions) => Promise<IpcResult<RecordingSessionStartResult>>;
@@ -146,4 +153,8 @@ export interface ElectronAPI {
   openExternal: (url: string) => Promise<unknown>;
   fetchMatchData: (matchId: string) => Promise<IpcResult<{ data: unknown; statusCode?: number }>>;
   fetchMyMatchHistory: () => Promise<IpcResult<{ data: unknown; statusCode?: number }>>;
+  updateRecordingFloatState: (state: RecordingFloatState) => void;
+  sendRecordingFloatAction: (action: 'toggle-pause' | 'stop' | 'show-main') => void;
+  onRecordingFloatState: (callback: (state: RecordingFloatState) => void) => () => void;
+  onRecordingFloatAction: (callback: (action: 'toggle-pause' | 'stop' | 'show-main') => void) => () => void;
 }

@@ -10,6 +10,7 @@ import { registerWindowHandlers } from './ipc-window';
 import { registerStatsHandlers } from './ipc-stats';
 import { registerMiscHandlers } from './ipc-misc';
 import { registerScreenshotHandlers } from './ipc-screenshot';
+import { createRecordingFloatWindow, registerRecordingFloatHandlers, destroyRecordingFloatWindow } from './recording-float-window';
 
 try {
   if (process.env.NODE_ENV === 'development') {
@@ -44,6 +45,8 @@ app.whenReady().then(async () => {
   registerProtocolHandlers();
 
   const mainWindow = createWindow();
+  createRecordingFloatWindow(mainWindow);
+  registerRecordingFloatHandlers(mainWindow);
   createTray(mainWindow);
 
   try {
@@ -71,6 +74,7 @@ app.whenReady().then(async () => {
 
   app.on('will-quit', () => {
     globalShortcut.unregisterAll();
+    destroyRecordingFloatWindow();
   });
 
 });

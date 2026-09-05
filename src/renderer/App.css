@@ -6564,6 +6564,36 @@ h3 .app-icon,
   .command-palette-scrim { padding-top: 8vh; }
 }
 
+/* Keep the compact rail icon optically centered inside every navigation button. */
+@media (max-width: 520px) {
+  .workspace-rail-item {
+    position: relative;
+    align-items: center;
+    justify-content: center;
+    transform: none;
+  }
+
+  .workspace-rail-item:hover {
+    transform: none;
+  }
+
+  .workspace-rail-item .workspace-rail-icon {
+    top: 50%;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    margin: 0;
+    transform: translate(-50%, -50%);
+  }
+
+  .workspace-rail-icon .app-icon {
+    display: block;
+    width: 18px;
+    height: 18px;
+    margin: 0 auto;
+  }
+}
+
 @media (max-width: 520px) {
   .workspace-shell { padding: 0; }
   .workspace-rail { flex-basis: 64px; padding: 10px 6px; }

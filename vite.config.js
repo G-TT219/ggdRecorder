@@ -12,6 +12,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'src/renderer/index.html'),
         screenshotSelection: resolve(__dirname, 'src/renderer/screenshot-selection.html'),
+        recordingFloat: resolve(__dirname, 'src/renderer/recording-float.html'),
       },
     },
   },

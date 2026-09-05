@@ -78,4 +78,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url: string) => shell.openExternal(url),
   fetchMatchData: (matchId: string) => ipcRenderer.invoke('fetch-match-data', matchId),
   fetchMyMatchHistory: () => ipcRenderer.invoke('fetch-my-match-history'),
+  updateRecordingFloatState: (state: unknown) => ipcRenderer.send('recording-float-state-update', state),
+  sendRecordingFloatAction: (action: 'toggle-pause' | 'stop' | 'show-main') =>
+    ipcRenderer.send('recording-float-action', action),
+  onRecordingFloatState: (callback: (state: unknown) => void) => {
+    const listener = (_event: unknown, state: unknown) => callback(state);
+    ipcRenderer.on('recording-float-state', listener);
+    return () => ipcRenderer.removeListener('recording-float-state', listener);
+  },
+  onRecordingFloatAction: (callback: (action: unknown) => void) => {
+    const listener = (_event: unknown, action: unknown) => callback(action);
+    ipcRenderer.on('recording-float-action', listener);
+    return () => ipcRenderer.removeListener('recording-float-action', listener);
+  },
 });

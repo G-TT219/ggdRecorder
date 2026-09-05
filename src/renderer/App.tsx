@@ -381,18 +381,11 @@ function App() {
     return () => clearTimeout(timer);
   }, [activeTab]);
 
-  // 切换到娱乐（地图辅助工具）或战绩查询界面时调整窗口大小
+  // 复盘工作区统一使用同一尺寸，避免在地图、战绩和截图之间切换时跳变。
   useEffect(() => {
-    if (activeTab === 'review') {
-      window.electronAPI.resizeWindow(1500, 900);
-    } else if (activeTab === 'entertainment') {
-      // 调整为适合地图工具的窗口大小（更宽更高）
+    if (activeTab === 'review' || activeTab === 'entertainment' || activeTab === 'stats' || activeTab === 'capture') {
+      // 统一给地图高度留出完整画布，同时满足表格和截图工作区的宽度。
       window.electronAPI.resizeWindow(1400, 1000);
-    } else if (activeTab === 'stats') {
-      // 战绩查询界面也需要较大窗口
-      window.electronAPI.resizeWindow(1200, 800);
-    } else if (activeTab === 'capture') {
-      window.electronAPI.resizeWindow(1400, 900);
     } else {
       // 切换到其他标签时恢复默认大小
       window.electronAPI.resizeWindow(500, 800);

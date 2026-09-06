@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron';
+import { detectFfmpegCapabilities } from './services/ffmpeg';
 import Logger from './logger';
 
 type PsListFn = () => Promise<Array<{ pid: number; name: string; cmd?: string }>>;
@@ -14,6 +15,7 @@ let psList: PsListFn | undefined;
 })();
 
 export const registerMiscHandlers = (): void => {
+  ipcMain.handle('get-ffmpeg-capabilities', () => detectFfmpegCapabilities());
   ipcMain.handle('log-info', async (_event, message: string) => {
     Logger.info(`[RENDERER] ${message}`);
   });

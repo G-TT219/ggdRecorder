@@ -100,8 +100,18 @@ export type RecordingFloatState = {
   gameName?: string;
 };
 
+export type FfmpegCapabilities = {
+  available: boolean;
+  version?: string;
+  encoders: string[];
+  hardwareEncoders: string[];
+  recommendedEncoder?: string;
+  error?: string;
+};
+
 export interface ElectronAPI {
   getGameProcesses: () => Promise<GameProcess[]>;
+  getFfmpegCapabilities: () => Promise<FfmpegCapabilities>;
   startRecordingSession: (options: RecordingSessionStartOptions) => Promise<IpcResult<RecordingSessionStartResult>>;
   appendRecordingChunk: (sessionId: string, chunkId: number, buffer: ArrayBuffer) => Promise<IpcResult<{ bytesWritten: number }>>;
   finishRecordingSession: (sessionId: string) => Promise<IpcResult<RecordingSessionFinishResult>>;

@@ -8,6 +8,7 @@ const appendRecordingChunk = createRecordingChunkAppender(
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getGameProcesses: () => ipcRenderer.invoke('get-game-processes'),
+  getFfmpegCapabilities: () => ipcRenderer.invoke('get-ffmpeg-capabilities'),
   startRecordingSession: (options: unknown) => ipcRenderer.invoke('start-recording-session', options),
   appendRecordingChunk,
   finishRecordingSession: (sessionId: string) =>

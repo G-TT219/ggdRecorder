@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Logger from '../utils/logger';
-import type { RecordingQuality } from '../../shared/types';
+import type { RecordingQuality, FfmpegCapabilities } from '../../shared/types';
 
 type SettingsTabProps = {
   recordingsDir: string;
@@ -20,11 +20,16 @@ function SettingsTab({
   onRecordingQualityChange,
 }: SettingsTabProps) {
   const sectionRef = useRef<HTMLElement | null>(null);
+  const [ffmpeg, setFfmpeg] = useState<FfmpegCapabilities | null>(null);
 
   useEffect(() => {
     if (sectionRef.current) {
       sectionRef.current.scrollTop = 0;
     }
+  }, []);
+
+  useEffect(() => {
+    window.electronAPI.getFfmpegCapabilities().then(setFfmpeg).catch(() => setFfmpeg({ available: false, encoders: [], hardwareEncoders: [], error: '探测失败' }));
   }, []);
 
   const selectRecordingsDir = async () => {
@@ -187,6 +192,15 @@ function SettingsTab({
               分辨率跟随录制源，帧率最高 60 FPS；程序会根据实际画面尺寸自动计算码率。
             </p>
           </div>
+        </div>
+
+        <div className="settings-card">
+          <div className="settings-card-header">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 8h8v8H8z"/></svg>
+            <div><span className="settings-card-title">录制引擎诊断</span><span className="settings-card-subtitle">自动选择硬件编码，异常时回退软件编码</span></div>
+            <span className={`settings-badge ${ffmpeg?.available ? 'active' : ''}`}>{ffmpeg ? (ffmpeg.available ? '可用' : '未安装') : '检测中'}</span>
+          </div>
+          {ffmpeg && <div className="settings-field"><p className="recording-quality-note">{ffmpeg.available ? `推荐编码器：${ffmpeg.recommendedEncoder || 'libx264'} · 已发现 ${ffmpeg.encoders.length} 个视频编码器` : `FFmpeg 不可用：${ffmpeg.error || '请安装 FFmpeg 并加入 PATH'}`}</p></div>}
         </div>
 
         {/* Game path */}

@@ -13,7 +13,8 @@ const MAX_PENDING_CHUNKS = 8;
 const DISK_CHECK_INTERVAL_MS = 10_000;
 // Half-second slices reduce the visible startup gap and make recovery files usable
 // without creating a large IPC backlog (the queue is bounded below).
-const CHUNK_INTERVAL_MS = 500;
+// 300ms keeps the first persisted chunk responsive while avoiding excessive IPC/write overhead.
+const CHUNK_INTERVAL_MS = 300;
 
 export type RecordingStatus = 'idle' | 'preparing' | 'recording' | 'paused' | 'finalizing' | 'error';
 
@@ -421,6 +422,14 @@ export function useRecording({ onRecordingSaved }: UseRecordingOptions = {}) {
       );
 
       recorder.start(CHUNK_INTERVAL_MS);
+      // Ask Chromium for the first available segment immediately instead of waiting
+      // for a full timeslice. Some implementations emit an empty blob here; the
+      // data handler already ignores empty chunks safely.
+      queueMicrotask(() => {
+        if (recorder?.state === 'recording') {
+          try { recorder.requestData(); } catch { /* recorder may still be starting */ }
+        }
+      });
       setIsRecording(true);
       setIsPaused(false);
       setRecordingStatus('recording');

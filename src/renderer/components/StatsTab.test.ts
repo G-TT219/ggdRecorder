@@ -25,6 +25,17 @@ describe('Gaggle stats enum labels', () => {
     expect(getModeName(254)).toBe('教程');
   });
 
+  it('maps the new official Swordsman and Magpie role ids', () => {
+    expect(getRoleName(112)).toBe('剑客');
+    expect(getRoleName(113)).toBe('喜鹊');
+    expect(isSpectator(112, 1)).toBe(false);
+    expect(isSpectator(113, 3)).toBe(false);
+  });
+
+  it('preserves unknown role ids for future game updates', () => {
+    expect(getRoleName(9999)).toBe('未知角色（9999）');
+  });
+
   it('recognizes spectators by either role or faction', () => {
     expect(isSpectator(47, 12)).toBe(true);
     expect(isSpectator(47, 1)).toBe(true);

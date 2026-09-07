@@ -1,5 +1,10 @@
 node_modules/
 public/
+!src/renderer/public/
+src/renderer/public/*
+!src/renderer/public/assets/
+src/renderer/public/assets/*
+!src/renderer/public/assets/role-icons/
 out/
 dist/
 dist-main/

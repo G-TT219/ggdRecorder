@@ -1,0 +1,660 @@
+{
+  "downloadedAt": "2026-09-07T17:50:51.869Z",
+  "source": "https://gaggle.fun/",
+  "notice": "Official Goose Goose Duck role artwork belongs to its respective rights holders.",
+  "assets": [
+    {
+      "name": "Adventurer",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Adventurer.png",
+      "bytes": 12854,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Assassin",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Assassin.png",
+      "bytes": 15221,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Astral",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Astral.png",
+      "bytes": 16808,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Avenger",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Avenger.png",
+      "bytes": 15899,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Birdwatcher",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Birdwatcher.png",
+      "bytes": 17024,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Bodyguard",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Bodyguard.png",
+      "bytes": 15405,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "CamoDuck",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Camo%20Duck.png",
+      "bytes": 18130,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Canadian",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Canadian.png",
+      "bytes": 15582,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Cannibal",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Cannibal.png",
+      "bytes": 13652,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Carrier",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Carrier.png",
+      "bytes": 15689,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Celebrity",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Celebrity.png",
+      "bytes": 17812,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Chicken",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Chicken.png",
+      "bytes": 14714,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Clown",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Clown.png",
+      "bytes": 19031,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Coroner",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Coroner.png",
+      "bytes": 16348,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Crow",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Crow.png",
+      "bytes": 19492,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Cuckoo",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Cuckoo.png",
+      "bytes": 23259,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Cupid",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Cupid.png",
+      "bytes": 17979,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Demolitionist",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Demolitionist.png",
+      "bytes": 14562,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "DemonHunter",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Demon%20Hunter.png",
+      "bytes": 16489,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Detective",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Detective.png",
+      "bytes": 14170,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Dodo",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Dodo.png",
+      "bytes": 17560,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Drone",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Drone.png",
+      "bytes": 22469,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "DrTurducken",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Dr%20Turducken.png",
+      "bytes": 20706,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Duck",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Duck.png",
+      "bytes": 12884,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "DuelingDodo",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Dueling%20Dodo.png",
+      "bytes": 20881,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Engineer",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Engineer.png",
+      "bytes": 18162,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "EsperDuck",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Esper%20Duck.png",
+      "bytes": 15913,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Falcon",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Falcon.png",
+      "bytes": 15633,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "FortuneTeller",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Fortune%20Teller.png",
+      "bytes": 20332,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Goose",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Goose.png",
+      "bytes": 13208,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Gravy",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Gravy.png",
+      "bytes": 14940,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Hawk",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Hawk.png",
+      "bytes": 18590,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "HighPriest",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/High%20Priest.png",
+      "bytes": 22585,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Hitman",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Hitman.png",
+      "bytes": 16049,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "IdentityThief",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Identity%20Thief.png",
+      "bytes": 17864,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Initiate",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Initiate.png",
+      "bytes": 15424,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Inquisitor",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Inquisitor.png",
+      "bytes": 12141,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Invisibility",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Invisibility.png",
+      "bytes": 12392,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Lobbyist",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Lobbyist.png",
+      "bytes": 16648,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Locksmith",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Locksmith.png",
+      "bytes": 15391,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Looter",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Looter.png",
+      "bytes": 17417,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "LostDuckling",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Lost%20Duckling.png",
+      "bytes": 15115,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "LoverDuck",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Lover%20Duck.png",
+      "bytes": 11562,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "LoverGoose",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Lover%20Goose.png",
+      "bytes": 11342,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "LucidDreamer",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Lucid%20Dreamer.png",
+      "bytes": 20010,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Magpie",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Magpie.png",
+      "bytes": 18784,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Medium",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Medium.png",
+      "bytes": 13957,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Mime",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Mime.png",
+      "bytes": 19295,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Mimic",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Mimic.png",
+      "bytes": 14374,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Morphling",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Morphling.png",
+      "bytes": 17893,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Mortician",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Mortician.png",
+      "bytes": 15692,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Mummy",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Mummy.png",
+      "bytes": 20482,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Ninja",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Ninja.png",
+      "bytes": 16451,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Owl",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Owl.png",
+      "bytes": 17360,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Parasite",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Parasite.png",
+      "bytes": 17599,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Party",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Party.png",
+      "bytes": 13819,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Pelican",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Pelican.png",
+      "bytes": 16638,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Pigeon",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Pigeon.png",
+      "bytes": 19284,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Politician",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Politician.png",
+      "bytes": 11434,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Preacher",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Preacher.png",
+      "bytes": 16052,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Professional",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Professional.png",
+      "bytes": 13711,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Rabbit",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Rabbit.png",
+      "bytes": 14984,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Raven",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Raven.png",
+      "bytes": 19027,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Saint",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Saint.png",
+      "bytes": 16569,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Scientist",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Scientist.png",
+      "bytes": 17490,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Seamstress",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Seamstress.png",
+      "bytes": 16871,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Sensor",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Sensor.png",
+      "bytes": 16884,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "SerialKiller",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Serial%20Killer.png",
+      "bytes": 16152,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Sheriff",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Sheriff.png",
+      "bytes": 17040,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Silencer",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Silencer.png",
+      "bytes": 13641,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "SinEater",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Sin%20Eater.png",
+      "bytes": 26225,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Sniper",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Sniper.png",
+      "bytes": 17464,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Snitch",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Snitch.png",
+      "bytes": 15312,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Soldier",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Soldier.png",
+      "bytes": 16184,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Spectator",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Spectator.png",
+      "bytes": 7724,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Spotter",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Spotter.png",
+      "bytes": 18795,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Spy",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Spy.png",
+      "bytes": 14333,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Stalker",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Stalker.png",
+      "bytes": 20031,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "StreetUrchin",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Street%20Urchin.png",
+      "bytes": 15451,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Survivalist",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Survivalist.png",
+      "bytes": 19653,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Swordsman",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Swordsman.png",
+      "bytes": 15229,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Technician",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Technician.png",
+      "bytes": 15721,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Thrall",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Thrall.png",
+      "bytes": 17264,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Tracker",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Tracker.png",
+      "bytes": 14125,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "TurduckensMonster",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Turduckens%20Monster.png",
+      "bytes": 18723,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Undertaker",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Undertaker.png",
+      "bytes": 17897,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Vampire",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Vampire.png",
+      "bytes": 13127,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Vigilante",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Vigilante.png",
+      "bytes": 14287,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Villager",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Villager.png",
+      "bytes": 13891,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Vulture",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Vulture.png",
+      "bytes": 17403,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Warlock",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Warlock.png",
+      "bytes": 20257,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "WitchDoctor",
+      "source": "https://gaggle.fun/assets/images/ggd/role-icons/Witch%20Doctor.png",
+      "bytes": 19679,
+      "width": 128,
+      "height": 128
+    }
+  ],
+  "missing": [
+    "AI",
+    "Delusional",
+    "EThrall",
+    "Esper",
+    "Mechanic",
+    "Role",
+    "Snoop"
+  ]
+}

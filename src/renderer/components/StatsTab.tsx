@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import Logger from '../utils/logger';
 import Icon from './Icon';
+import RoleIcon from './RoleIcon';
 import { emitAppError } from './WorkspaceShell';
 import type { GaggleAuthStatus } from '../../shared/types';
+import { getEndGameResult, getPlayerOutcome, type MatchTimelineEvent } from '../utils/match-result';
 
 type TimestampValue = string | number;
 
-// These IDs follow the enums used by the current Gaggle dashboard bundle.
+// IDs verified against https://gaggle.fun/main.15d885d4e8b5d6e6.js (2026-09-08).
+// Chinese labels: https://gaggle.fun/assets/i18n/cn.json.
 const ROLE_NAMES: Record<number, string> = {
   1: '鹅', 2: '鸭', 3: '呆呆鸟', 4: '肉汁', 5: '机械师', 6: '技术员',
   7: '通灵者', 8: '正义使者', 9: '食鸟鸭', 10: '变形者', 11: '警长',
@@ -30,6 +33,7 @@ const ROLE_NAMES: Record<number, string> = {
   100: '士兵', 101: '验尸官', 102: '探测员', 103: '掠夺者', 104: '狙击手',
   105: '妄想症', 106: '老鹰', 107: 'AI', 108: '特大啃博士',
   109: '特大啃怪物', 110: '巫医', 111: '布谷鸟',
+  112: '剑客', 113: '喜鹊',
 };
 
 const FACTION_NAMES: Record<number, string> = {
@@ -139,6 +143,7 @@ type PlayerData = {
 type RoundData = {
   startAt: TimestampValue;
   endAt: TimestampValue;
+  timeline?: MatchTimelineEvent[];
   meetingInfo?: {
     type: string;
     starter: string;
@@ -513,7 +518,10 @@ function StatsTab() {
   const achievementPercent = achievementTotal > 0
     ? Math.min(100, Math.max(0, (achievementCompleted / achievementTotal) * 100))
     : 0;
-  const detailPlayers = matchData ? Object.values(matchData.playerData || {}) : [];
+  const endGameResult = matchData ? getEndGameResult(matchData) : null;
+  const detailPlayers = matchData ? Object.entries(matchData.playerData || {}).map(([playerKey, player]) => ({
+    ...player, playerKey,
+  })) : [];
   const focusedPlayer = focusedPlayerId
     ? detailPlayers.find(player => player.userId === focusedPlayerId) || null
     : null;
@@ -852,9 +860,7 @@ function StatsTab() {
                     title={`查看对局 ${match.matchId}`}
                   >
                     <span className="stats-v2-role-cell" role="cell">
-                      <i className={`faction-${match.faction}`} aria-hidden="true">
-                        {getRoleName(match.role).charAt(0) || '?'}
-                      </i>
+                      <RoleIcon roleId={match.role} label={getRoleName(match.role)} faction={match.faction} />
                       <span>
                         <strong>{getRoleName(match.role)}</strong>
                         <small>{getFactionName(match.faction)}</small>
@@ -956,7 +962,7 @@ function StatsTab() {
               <div className="stats-v2-players-heading">
                 <div>
                   <h3 id="match-players-title">玩家数据</h3>
-                  <p>状态指对局记录结束时是否存活；结果指该玩家是否属于获胜方</p>
+                  <p>结束状态与胜负独立；结果按官网最终结束事件判定，缺少记录时显示未知</p>
                 </div>
                 <span>{focusedPlayer
                   ? `已定位共同对局玩家：${focusedPlayer.nickname}`
@@ -977,7 +983,9 @@ function StatsTab() {
                     <span role="columnheader">破坏</span>
                     <span aria-hidden="true" />
                   </div>
-                  {activeDetailPlayers.map((player) => (
+                  {activeDetailPlayers.map((player) => {
+                    const outcome = getPlayerOutcome(endGameResult, player.playerKey);
+                    return (
                   <div
                     key={player.userId}
                     role="row"
@@ -985,7 +993,7 @@ function StatsTab() {
                       player.userId === focusedPlayerId ? 'is-focused' : ''}`}
                   >
                     <span className="stats-v2-player-name" role="cell">
-                      <i aria-hidden="true">{player.nickname?.charAt(0) || '?'}</i>
+                      <RoleIcon roleId={player.role} label={getRoleName(player.role)} faction={player.faction} />
                       <span><strong>{player.nickname || '未知玩家'}</strong><small>{maskUserId(player.userId)}</small></span>
                     </span>
                     <span className="stats-v2-player-role" role="cell">
@@ -994,8 +1002,8 @@ function StatsTab() {
                     <span role="cell"><em className={player.isGhost ? 'is-dead' : 'is-alive'}>
                       {player.isGhost ? '已死亡' : '存活至结束'}
                     </em></span>
-                    <span role="cell"><em className={player.win ? 'is-win' : 'is-loss'}>
-                      {player.win ? '胜方' : '负方'}
+                    <span role="cell"><em className={`is-${outcome}`}>
+                      {outcome === 'win' ? '胜方' : outcome === 'loss' ? '负方' : '结果未知'}
                     </em></span>
                     <strong role="cell">{formatNumber(player.tasks, 0)}</strong>
                     <strong role="cell">{formatNumber(player.correctVotes, 0)}</strong>
@@ -1007,7 +1015,8 @@ function StatsTab() {
                       {player.userId === focusedPlayerId ? '已定位' : ''}
                     </span>
                   </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </section>
@@ -1025,7 +1034,7 @@ function StatsTab() {
                       className={`stats-v2-spectator-item ${
                         player.userId === focusedPlayerId ? 'is-focused' : ''}`}
                     >
-                      <i aria-hidden="true">{player.nickname?.charAt(0) || '?'}</i>
+                      <RoleIcon roleId={player.role} label={getRoleName(player.role)} faction={player.faction} />
                       <span><strong>{player.nickname || '未知玩家'}</strong><small>{maskUserId(player.userId)}</small></span>
                     </div>
                   ))}
@@ -1078,7 +1087,7 @@ function StatsTab() {
                                 </span>
                                 <span className="round-v2-starter">
                                   由
-                                  <i className={`faction-${starter?.faction || 0}`}>{starter?.nickname?.charAt(0) || '?'}</i>
+                                  <RoleIcon roleId={starter?.role || 0} label={getRoleName(starter?.role || 0)} faction={starter?.faction} />
                                   <strong>{starter?.nickname || '未知玩家'}</strong>
                                   发起
                                 </span>
@@ -1107,7 +1116,7 @@ function StatsTab() {
                                       return (
                                         <div key={voterId} className="round-v2-vote-row" role="row">
                                           <span className="round-v2-vote-player" role="cell">
-                                            <i className={`faction-${voter?.faction || 0}`}>{voter?.nickname?.charAt(0) || '?'}</i>
+                                            <RoleIcon roleId={voter?.role || 0} label={getRoleName(voter?.role || 0)} faction={voter?.faction} />
                                             <strong>{voter?.nickname || '未知玩家'}</strong>
                                           </span>
                                           <span className="round-v2-vote-direction" aria-hidden="true"><Icon name="arrowRight" size={13} /></span>
@@ -1115,7 +1124,7 @@ function StatsTab() {
                                             {voteSkipped ? (
                                               <><Icon name="skip" size={13} /><strong>跳过</strong></>
                                             ) : (
-                                              <><i className={`faction-${target?.faction || 0}`}>{target?.nickname?.charAt(0) || '?'}</i><strong>{target?.nickname || '未知玩家'}</strong></>
+                                              <><RoleIcon roleId={target?.role || 0} label={getRoleName(target?.role || 0)} faction={target?.faction} /><strong>{target?.nickname || '未知玩家'}</strong></>
                                             )}
                                           </span>
                                         </div>

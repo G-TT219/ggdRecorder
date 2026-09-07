@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import StatsTab from './StatsTab';
 
 const recentPlayersKey = 'ggd-recorder.recent-players.v2';
@@ -80,5 +80,33 @@ describe('StatsTab recent common-match players', () => {
     expect(document.querySelector('.stats-section.is-detail-view')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '战绩查询' })).not.toBeInTheDocument();
     expect(screen.queryByText('查询我的战绩')).not.toBeInTheDocument();
+  });
+
+  it('shows a dead player as a winner from final events, not the player win flag', async () => {
+    const response = await window.electronAPI.fetchMatchData('shared-match-id');
+    const data = (response as { data: { rounds: unknown[]; playerData: Record<string, { win: boolean; isGhost: boolean }> } }).data;
+    data.playerData.current.win = false;
+    data.playerData.current.isGhost = true;
+    data.playerData.recent.win = true;
+    data.rounds = [{ startAt: 100, endAt: 200, timeline: [
+      { uid: 'current', type: 0, timestamp: 200, targetId: '' },
+      { uid: 'recent', type: 1, timestamp: 200, targetId: '' },
+    ] }];
+    render(<StatsTab />);
+    fireEvent.click(await screen.findByTitle('打开与 最近玩家 的最近共同对局'));
+    const table = await screen.findByRole('table', { name: '玩家单局数据' });
+    const winner = within(table).getByText('当前账号').closest('[role="row"]') as HTMLElement;
+    expect(within(winner).getByText('已死亡')).toBeInTheDocument();
+    expect(within(winner).getByText('胜方')).toBeInTheDocument();
+    const loser = within(table).getByText('最近玩家').closest('[role="row"]') as HTMLElement;
+    expect(within(loser).getByText('负方')).toBeInTheDocument();
+  });
+
+  it('shows unknown results when ending events are unavailable', async () => {
+    render(<StatsTab />);
+    fireEvent.click(await screen.findByTitle('打开与 最近玩家 的最近共同对局'));
+    const table = await screen.findByRole('table', { name: '玩家单局数据' });
+    expect(within(table).getAllByText('结果未知')).toHaveLength(2);
+    expect(within(table).queryByText('负方')).not.toBeInTheDocument();
   });
 });

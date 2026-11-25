@@ -54,10 +54,10 @@ body {
   position: fixed;
   z-index: 4;
   border: 1px solid rgba(255, 255, 255, 0.96);
-  outline: 2px solid #5a8fc6;
+  outline: 2px solid #4fa8ff;
   outline-offset: 0;
   background: transparent;
-  box-shadow: 0 0 0 1px rgba(12, 30, 48, 0.36);
+  box-shadow: 0 0 0 1px rgba(11, 14, 20, 0.55), 0 0 18px rgba(79, 168, 255, 0.35);
   cursor: move;
 }
 
@@ -170,13 +170,14 @@ body {
 }
 
 #selection-toolbar button.primary {
-  color: #ffffff;
-  border-color: #5e8fbe;
-  background: #4f7eac;
+  color: #0b0e14;
+  border-color: rgba(114, 191, 255, 0.65);
+  background: linear-gradient(135deg, #62b5ff 0%, #3b8ef0 100%);
+  font-weight: 700;
 }
 
 #selection-toolbar button.primary:hover {
-  background: #5b8bb9;
+  filter: brightness(1.08);
 }
 
 #selection-toolbar button:disabled {

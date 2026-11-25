@@ -34,11 +34,13 @@ export const registerWindowHandlers = (mainWindow?: BrowserWindow): void => {
     }
   });
 
-  ipcMain.handle('resize-window', async (_event, width: number, height: number) => {
+  ipcMain.handle('resize-window', async (event, width: number, height: number) => {
     try {
-      const win = BrowserWindow.getFocusedWindow();
-      if (win) {
-        win.setBounds({ width, height });
+      const win = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow();
+      if (win && !win.isDestroyed()) {
+        if (win.isMaximized()) win.unmaximize();
+        win.setSize(width, height, true);
+        win.center();
       }
       return { success: true };
     } catch { return { success: false, error: 'resize failed' }; }

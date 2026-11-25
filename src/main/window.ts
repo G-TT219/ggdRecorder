@@ -14,12 +14,15 @@ const normalizeCaptureName = (value: string): string =>
 
 export const createWindow = (): BrowserWindow => {
   const mainWindow = new BrowserWindow({
-    width: 500,
-    height: 800,
-    minWidth: 480,
-    minHeight: 600,
+    width: 1240,
+    height: 820,
+    minWidth: 440,
+    minHeight: 620,
+    center: true,
     icon: getAssetPath('recorder.ico'),
     frame: false,
+    show: true,
+    backgroundColor: '#13110f',
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'index.js'),
       nodeIntegration: false,
@@ -28,6 +31,19 @@ export const createWindow = (): BrowserWindow => {
       sandbox: false
     },
   });
+
+  const bringToFront = () => {
+    if (mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.setAlwaysOnTop(true);
+    mainWindow.focus();
+    mainWindow.moveTop();
+    mainWindow.setAlwaysOnTop(false);
+  };
+
+  mainWindow.once('ready-to-show', bringToFront);
+  mainWindow.webContents.once('did-finish-load', bringToFront);
 
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = { ...details.responseHeaders };
@@ -87,24 +103,35 @@ export const createWindow = (): BrowserWindow => {
 
   mainWindow.setMenu(null);
 
+  const isDev = process.env.NODE_ENV === 'development' || !!process.env.VITE_DEV_SERVER_URL;
+  logger.info('isDev:', isDev);
+
   mainWindow.on('close', (event) => {
-    if (!(app as unknown as Record<string, boolean>).isQuiting) {
+    if (!isDev && !(app as unknown as Record<string, boolean>).isQuiting) {
       event.preventDefault();
       mainWindow.hide();
     }
   });
 
-  const isDev = process.env.NODE_ENV === 'development' || !!process.env.VITE_DEV_SERVER_URL;
-  logger.info('isDev:', isDev);
-
   if (isDev) {
     const url = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
-    mainWindow.loadURL(url);
+    let retryCount = 0;
+    const maxRetries = 30;
+    const loadDevUrl = () => {
+      if (mainWindow.isDestroyed()) return;
+      mainWindow.loadURL(url).catch((error) => {
+        if (retryCount < maxRetries && !mainWindow.isDestroyed()) {
+          retryCount += 1;
+          setTimeout(loadDevUrl, 300);
+        } else {
+          logger.error('Failed to load Vite dev server URL:', error);
+        }
+      });
+    };
+    loadDevUrl();
   } else {
     mainWindow.loadURL('app://./index.html');
   }
-
-  if (isDev) mainWindow.webContents.openDevTools();
 
   globalShortcut.register('CommandOrControl+Shift+I', () => mainWindow.webContents.toggleDevTools());
   globalShortcut.register('F12', () => mainWindow.webContents.toggleDevTools());

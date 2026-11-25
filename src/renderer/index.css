@@ -1,12 +1,18 @@
 :root {
-  font-family: Inter, "Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI", sans-serif;
-  color: #202124;
-  background: #f7f7f8;
-  color-scheme: light;
+  font-family: "Inter", "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  color: #f4ede2;
+  background: #12100e;
+  color-scheme: dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+:root[data-theme="cream"] {
+  color: #221c16;
+  background: #f2eadc;
+  color-scheme: light;
 }
 
 * {
@@ -24,7 +30,8 @@ body,
 body {
   min-width: 320px;
   overflow: hidden;
-  background: #f7f7f8;
+  background: inherit;
+  color: inherit;
 }
 
 button,
@@ -42,11 +49,11 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #4d74b8;
+  outline: 2px solid #dda444;
   outline-offset: 2px;
 }
 
 ::selection {
-  color: #172033;
-  background: #cddcf5;
+  color: #17130e;
+  background: rgba(221, 164, 68, 0.45);
 }

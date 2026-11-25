@@ -1,69 +1,139 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { CommandPalette, ContextBar, TopErrorToast, WorkspaceRail, emitAppError } from './WorkspaceShell';
+import {
+  APP_TOAST_EVENT,
+  CommandPalette,
+  StudioTopBar,
+  TopErrorToast,
+  TopStatusToast,
+  emitAppError,
+  emitAppToast,
+} from './WorkspaceShell';
 
-describe('workspace shell navigation', () => {
-  it('keeps the active workspace visible in the rail and routes recordings', () => {
+describe('studio top bar and shell navigation', () => {
+  const baseTopBarProps = {
+    activeWorkspace: 'recordings' as const,
+    recordingsCount: 4,
+    isRecording: false,
+    isPaused: false,
+    recordingTimeLabel: '00:00:00',
+    theme: 'noir' as const,
+    miniMode: false,
+    isMaximized: false,
+    onNavigate: vi.fn(),
+    onToggleTheme: vi.fn(),
+    onToggleMiniMode: vi.fn(),
+    onOpenCommand: vi.fn(),
+    onMinimize: vi.fn(),
+    onMaximize: vi.fn(),
+    onClose: vi.fn(),
+  };
+
+  it('keeps the active workspace pill highlighted and routes navigation', () => {
     const onNavigate = vi.fn();
-    render(
-      <WorkspaceRail
-        activeWorkspace="recordings"
-        recordingsCount={4}
-        isRecording={false}
-        onNavigate={onNavigate}
-      />
-    );
+    render(<StudioTopBar {...baseTopBarProps} onNavigate={onNavigate} />);
 
-    expect(screen.getByRole('button', { name: /录像库/ })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: /录像影院/ })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByText('4')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /战绩分析/ }));
+    fireEvent.click(screen.getByRole('button', { name: /战绩档案/ }));
     expect(onNavigate).toHaveBeenCalledWith('stats');
   });
 
-  it('opens the command palette from the context bar', () => {
+  it('toggles theme, mini mode, command palette, and shows live recording capsule', () => {
+    const onToggleTheme = vi.fn();
+    const onToggleMiniMode = vi.fn();
     const onOpenCommand = vi.fn();
     render(
-      <ContextBar
+      <StudioTopBar
+        {...baseTopBarProps}
         activeWorkspace="games"
         isRecording={true}
-        onNavigate={vi.fn()}
+        recordingTimeLabel="00:03:18"
+        onToggleTheme={onToggleTheme}
+        onToggleMiniMode={onToggleMiniMode}
         onOpenCommand={onOpenCommand}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: /命令面板/ }));
+
+    expect(screen.getByText('REC')).toBeInTheDocument();
+    expect(screen.getByText('00:03:18')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /奶油桌游浅色主题/ }));
+    expect(onToggleTheme).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: /迷你侧边录制窗/ }));
+    expect(onToggleMiniMode).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: /打开命令面板/ }));
     expect(onOpenCommand).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('LIVE')).toBeInTheDocument();
   });
 
-  it('runs a command and closes the palette', () => {
-    const run = vi.fn();
+  it('cycles persona sticker on click and emits a status toast', () => {
+    window.localStorage.clear();
+    const toastListener = vi.fn();
+    window.addEventListener(APP_TOAST_EVENT, toastListener);
+
+    render(<StudioTopBar {...baseTopBarProps} activeWorkspace="games" />);
+    fireEvent.click(screen.getByRole('button', { name: /当前身份：侦探鹅/ }));
+
+    expect(screen.getByRole('button', { name: /当前身份：警长鹅/ })).toBeInTheDocument();
+    expect(toastListener).toHaveBeenCalledTimes(1);
+    window.removeEventListener(APP_TOAST_EVENT, toastListener);
+  });
+
+  it('filters commands and supports Enter execution in the command palette', () => {
+    const runFirst = vi.fn();
+    const runSecond = vi.fn();
     const onClose = vi.fn();
     render(
       <CommandPalette
         open
         onClose={onClose}
-        actions={[{ id: 'test', label: '测试动作', detail: '验证命令执行', run }]}
+        actions={[
+          { id: 'record', label: '打开录制台', detail: '双栏导播台', run: runFirst },
+          { id: 'theme', label: '切换奶油桌游浅色主题', detail: '双主题切换', run: runSecond },
+        ]}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: /测试动作/ }));
-    expect(run).toHaveBeenCalledTimes(1);
+
+    const searchInput = screen.getByRole('textbox', { name: /搜索动作或工作区/ });
+    fireEvent.change(searchInput, { target: { value: '奶油' } });
+    expect(screen.queryByRole('option', { name: /打开录制台/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /切换奶油桌游浅色主题/ })).toBeInTheDocument();
+
+    fireEvent.keyDown(searchInput, { key: 'Enter' });
+    expect(runSecond).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('renders a dismissible top-level error toast', () => {
-    const onClose = vi.fn();
-    render(<TopErrorToast message="无法连接 Gaggle" onClose={onClose} />);
+  it('renders dismissible error and status toasts via shared channels', () => {
+    const errListener = vi.fn();
+    window.addEventListener('ggd-app-error', errListener);
+    emitAppError('测试错误');
+    expect(errListener).toHaveBeenCalledTimes(1);
+    window.removeEventListener('ggd-app-error', errListener);
+
+    const onCloseErr = vi.fn();
+    render(<TopErrorToast message="无法连接 Gaggle" onClose={onCloseErr} />);
     expect(screen.getByRole('alert')).toHaveTextContent('无法连接 Gaggle');
     fireEvent.click(screen.getByRole('button', { name: '关闭错误提示' }));
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
+    expect(onCloseErr).toHaveBeenCalledTimes(1);
 
-  it('emits app errors through the shared event channel', () => {
-    const listener = vi.fn();
-    window.addEventListener('ggd-app-error', listener);
-    emitAppError('测试错误');
-    expect(listener).toHaveBeenCalledTimes(1);
-    expect((listener.mock.calls[0][0] as CustomEvent).detail.message).toBe('测试错误');
-    window.removeEventListener('ggd-app-error', listener);
+    const toastListener = vi.fn();
+    window.addEventListener(APP_TOAST_EVENT, toastListener);
+    emitAppToast('复盘笔记已保存', 'success');
+    expect(toastListener).toHaveBeenCalledTimes(1);
+    window.removeEventListener(APP_TOAST_EVENT, toastListener);
+
+    const onCloseToast = vi.fn();
+    render(
+      <TopStatusToast
+        toast={{ id: 1, message: '复盘笔记已保存', tone: 'success' }}
+        onClose={onCloseToast}
+      />
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('复盘笔记已保存');
+    fireEvent.click(screen.getByRole('button', { name: '关闭提示' }));
+    expect(onCloseToast).toHaveBeenCalledTimes(1);
   });
 });

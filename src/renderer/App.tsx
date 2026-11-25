@@ -1,20 +1,46 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
+import './theme-command-deck.css';
 import Logger from './utils/logger';
 import { useRecording } from './hooks/useRecording';
 import ErrorBoundary from './components/ErrorBoundary';
 import SettingsTab from './components/SettingsTab';
-import TitleBar from './components/TitleBar';
 import GameTab from './components/GameTab';
 import RecordingsTab from './components/RecordingsTab';
 import MapTab from './components/MapTab';
 import StatsTab from './components/StatsTab';
 import ScreenshotTab from './components/ScreenshotTab';
-import { APP_ERROR_EVENT, CommandPalette, ContextBar, RecordingDock, TopErrorToast, WorkspaceRail, WorkspaceStage, emitAppError, type CommandPaletteAction } from './components/WorkspaceShell';
+import {
+  APP_ERROR_EVENT,
+  APP_TOAST_EVENT,
+  CommandPalette,
+  RecordingDock,
+  StudioTopBar,
+  TopErrorToast,
+  TopStatusToast,
+  WorkspaceStage,
+  emitAppError,
+  emitAppToast,
+  type AppToastPayload,
+  type CommandPaletteAction,
+  type StudioTheme,
+} from './components/WorkspaceShell';
 import type { Connection, MapMarker, Position, RoleKey } from './components/MapTab';
 import type { GameProcess, Recording, RecordingThumbnails, FavoriteGroup, RecordingNotes, FavoriteRecordingGroups, RecordingQuality } from './types/electron-api';
 
 type ActiveTab = 'games' | 'recordings' | 'settings' | 'entertainment' | 'stats' | 'review' | 'capture';
+
+const THEME_STORAGE_KEY = 'ggd-recorder.theme.v2';
+const REVIEW_SPLIT_STORAGE_KEY = 'ggd-recorder.review-split.v1';
+
+const WORKSPACE_SHORTCUTS: Record<string, ActiveTab> = {
+  '1': 'games',
+  '2': 'recordings',
+  '3': 'entertainment',
+  '4': 'stats',
+  '5': 'capture',
+  '6': 'settings',
+};
 
 type PersistedMapWorkspace = {
   version: 2;
@@ -56,6 +82,26 @@ const loadMapWorkspace = (): PersistedMapWorkspace => {
   }
 };
 
+const loadInitialTheme = (): StudioTheme => {
+  try {
+    const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (saved === 'cream' || saved === 'noir') return saved;
+  } catch {
+    // Ignore storage errors.
+  }
+  return 'noir';
+};
+
+const loadInitialSplit = (): number => {
+  try {
+    const saved = Number(window.localStorage.getItem(REVIEW_SPLIT_STORAGE_KEY));
+    if (Number.isFinite(saved) && saved >= 28 && saved <= 64) return saved;
+  } catch {
+    // Ignore storage errors.
+  }
+  return 44;
+};
+
 function App() {
   const [gameProcesses, setGameProcesses] = useState<GameProcess[]>([]);
   const [selectedGame, setSelectedGame] = useState<GameProcess | null>(null);
@@ -63,6 +109,12 @@ function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('games');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [topError, setTopError] = useState('');
+  const [statusToast, setStatusToast] = useState<AppToastPayload | null>(null);
+  const [theme, setTheme] = useState<StudioTheme>(loadInitialTheme);
+  const [miniMode, setMiniMode] = useState(false);
+  const [reviewSplitRatio, setReviewSplitRatio] = useState<number>(loadInitialSplit);
+  const [isDraggingSplit, setIsDraggingSplit] = useState(false);
+  const [pendingRecordingId, setPendingRecordingId] = useState<string | null>(null);
   const [recordingsDir, setRecordingsDir] = useState('');
   const [gamePath, setGamePath] = useState('');
   const [recordingQuality, setRecordingQuality] = useState<RecordingQuality>('balanced');
@@ -92,12 +144,15 @@ function App() {
   const [sharedDeadMarkers, setSharedDeadMarkers] = useState<Record<string, boolean>>(
     initialMapWorkspace.deadMarkers
   );
+
+  const mainStageRef = useRef<HTMLElement | null>(null);
   const recordingsCacheRef = useRef<Recording[]>([]);
   const lastRefreshTimeRef = useRef(0);
   const REFRESH_DEBOUNCE_MS = 5000;
   const isRecordingRef = useRef(false);
   const selectedGameRef = useRef(selectedGame);
   const recordingQualityRef = useRef(recordingQuality);
+
   const {
     isRecording,
     isPaused,
@@ -107,8 +162,21 @@ function App() {
     stopRecording,
     togglePause,
   } = useRecording({
-    onRecordingSaved: () => loadRecordings(true),
+    onRecordingSaved: () => {
+      loadRecordings(true);
+      emitAppToast('录像已写入本地录像影院', 'success', '录制完成');
+    },
   });
+
+  // Sync theme to document root for scrollbars & native popups
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // Ignore storage errors.
+    }
+  }, [theme]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -125,7 +193,7 @@ function App() {
       try {
         window.localStorage.setItem(MAP_WORKSPACE_STORAGE_KEY, JSON.stringify(workspace));
       } catch {
-        // Keep the map tool usable when storage is unavailable or full.
+        // Ignore storage errors.
       }
     }, 180);
 
@@ -140,11 +208,10 @@ function App() {
     sharedDeadMarkers,
   ]);
 
-  useEffect(() => {
-    isRecordingRef.current = isRecording;
-  }, [isRecording]);
+  useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
+  useEffect(() => { selectedGameRef.current = selectedGame; }, [selectedGame]);
+  useEffect(() => { recordingQualityRef.current = recordingQuality; }, [recordingQuality]);
 
-  // Keep the independent recording control surface in sync while the main window is hidden.
   useEffect(() => {
     window.electronAPI.updateRecordingFloatState({
       isRecording,
@@ -154,8 +221,6 @@ function App() {
     });
   }, [isRecording, isPaused, recordingTime, selectedGame?.name]);
 
-  // Actions originate in the floating window and must be executed by this renderer,
-  // where the MediaRecorder instance lives.
   useEffect(() => {
     const unsubscribe = window.electronAPI.onRecordingFloatAction(action => {
       if (action === 'toggle-pause') togglePause();
@@ -171,77 +236,84 @@ function App() {
       setTopError(message);
       window.setTimeout(() => setTopError(current => current === message ? '' : current), 4000);
     };
+    const handleAppToast = (event: Event) => {
+      const detail = (event as CustomEvent<AppToastPayload>).detail;
+      if (!detail?.message) return;
+      setStatusToast(detail);
+      window.setTimeout(() => {
+        setStatusToast(current => (current?.id === detail.id ? null : current));
+      }, 3200);
+    };
     window.addEventListener(APP_ERROR_EVENT, handleAppError);
-    return () => window.removeEventListener(APP_ERROR_EVENT, handleAppError);
+    window.addEventListener(APP_TOAST_EVENT, handleAppToast);
+    return () => {
+      window.removeEventListener(APP_ERROR_EVENT, handleAppError);
+      window.removeEventListener(APP_TOAST_EVENT, handleAppToast);
+    };
   }, []);
 
   useEffect(() => {
     if (recordingError) emitAppError(recordingError);
   }, [recordingError]);
 
-  useEffect(() => {
-    const handleCommandShortcut = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        setCommandPaletteOpen(open => !open);
-      }
-      if (event.key === 'Escape') setCommandPaletteOpen(false);
-    };
-    window.addEventListener('keydown', handleCommandShortcut);
-    return () => window.removeEventListener('keydown', handleCommandShortcut);
-  }, []);
-
-  useEffect(() => {
-  }, [isPaused]);
-
-  useEffect(() => {
-    selectedGameRef.current = selectedGame;
-  }, [selectedGame]);
-
-  useEffect(() => {
-    recordingQualityRef.current = recordingQuality;
-  }, [recordingQuality]);
-
-  // Format time for display (seconds to HH:mm:ss)
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
-    return [
-      h.toString().padStart(2, '0'),
-      m.toString().padStart(2, '0'),
-      s.toString().padStart(2, '0')
-    ].join(':');
+    return [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
   };
 
   const navigateWorkspace = (workspace: ActiveTab) => {
     setCommandPaletteOpen(false);
+    if (miniMode && (workspace === 'review' || workspace === 'entertainment' || workspace === 'stats' || workspace === 'capture')) {
+      setMiniMode(false);
+      window.electronAPI.resizeWindow(1240, 820);
+    }
     setActiveTab(workspace);
     if (workspace === 'recordings') loadRecordings();
   };
 
   useEffect(() => {
-    // Load game processes
+    const handleCommandShortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandPaletteOpen(open => !open);
+        return;
+      }
+      if (event.key === 'Escape') {
+        setCommandPaletteOpen(false);
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest('input, textarea, select')) return;
+        const nextWorkspace = WORKSPACE_SHORTCUTS[event.key];
+        if (nextWorkspace) {
+          event.preventDefault();
+          navigateWorkspace(nextWorkspace);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleCommandShortcut);
+    return () => window.removeEventListener('keydown', handleCommandShortcut);
+  }, [miniMode]);
+
+  useEffect(() => {
     loadGameProcesses();
     loadRecordings();
     loadingConfig();
+    loadFavoriteRecordings();
 
-    // Remove focus from any element on app load to prevent button highlight
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
 
-    // Load favorite recordings
-    loadFavoriteRecordings();
-
-    // Listen for start recording shortcut
     const handleStartRecordingShortcut = () => {
       if (selectedGameRef.current && !isRecordingRef.current) {
         startRecording(selectedGameRef.current, recordingQualityRef.current);
       }
     };
 
-    // Listen for stop recording shortcut
     const handleStopRecordingShortcut = () => {
       if (isRecordingRef.current) {
         stopRecording();
@@ -251,7 +323,6 @@ function App() {
     window.electronAPI.onStartRecordingShortcut(handleStartRecordingShortcut);
     window.electronAPI.onStopRecordingShortcut(handleStopRecordingShortcut);
 
-    // Clean up event listeners
     return () => {
       window.electronAPI.removeAllListeners('start-recording-shortcut');
       window.electronAPI.removeAllListeners('stop-recording-shortcut');
@@ -269,68 +340,14 @@ function App() {
         return 0;
       });
       setGameProcesses(processes);
+      // Auto-lock Goose Goose Duck if detected and nothing is selected yet
+      if (!selectedGameRef.current) {
+        const ggd = processes.find(p => p.name.toLowerCase().includes('duck'));
+        if (ggd) setSelectedGame(ggd);
+      }
       Logger.info(`Loaded ${processes.length} game processes`);
     } catch (error) {
       Logger.error('Error loading game processes:', error);
-    }
-  };
-
-  const loadRecordings = async (forceRefresh = false) => {
-    try {
-      // Check if we should skip refresh due to debounce
-      const now = Date.now();
-      if (!forceRefresh && (now - lastRefreshTimeRef.current) < REFRESH_DEBOUNCE_MS) {
-        Logger.info('Skipping recordings refresh (debounced)');
-        return;
-      }
-
-      if (recordings == null && recordingsCacheRef.current == null) {
-        const recordingsList = await window.electronAPI.getRecordings();
-        recordingsCacheRef.current = recordingsList;
-        setRecordings(recordingsList);
-
-        Logger.info(`Loaded ${recordingsList.length} recordings (updated)`);
-      } else {
-        setRecordings(recordingsCacheRef.current);
-        Logger.info(`Loaded ${recordingsCacheRef.current.length} recordings (loaded with cache)`);
-        // loadRecordingThumbnails(recordingsCacheRef.current);
-        const recordingsList = window.electronAPI.getRecordings();
-        recordingsList.then(recordingsList => {
-          // Compare new data with cache to avoid unnecessary re-renders
-          const hasChanges = JSON.stringify(recordingsList) !== JSON.stringify(recordingsCacheRef.current);
-
-          if (hasChanges) {
-            // Update cache and state only if there are changes
-            recordingsCacheRef.current = recordingsList;
-            setRecordings(recordingsList);
-
-            Logger.info(`Async Loaded ${recordingsList.length} recordings (updated)`);
-          } else {
-            Logger.info(`Async Loaded ${recordingsList.length} recordings (no changes, skipped update)`);
-          }
-          lastRefreshTimeRef.current = now;
-
-        });
-
-      }
-
-      lastRefreshTimeRef.current = now;
-    } catch (error) {
-      Logger.error('Error loading recordings:', error);
-    }
-  };
-
-  const loadFavoriteRecordings = async () => {
-    try {
-      const result = await window.electronAPI.getFavoriteRecordings();
-      if (result.success) {
-        setFavoriteRecordings(result.favorites || []);
-        setRecordingNotes(result.notes || {});
-        setFavoriteGroups(result.groups || []);
-        setFavoriteRecordingGroups(result.recordingGroups || {});
-      }
-    } catch (error) {
-      Logger.error('Error loading favorite recordings:', error);
     }
   };
 
@@ -360,6 +377,57 @@ function App() {
     }
   }, []);
 
+  const loadRecordings = async (forceRefresh = false) => {
+    try {
+      const now = Date.now();
+      if (!forceRefresh && (now - lastRefreshTimeRef.current) < REFRESH_DEBOUNCE_MS) {
+        Logger.info('Skipping recordings refresh (debounced)');
+        return;
+      }
+
+      if (recordings == null && recordingsCacheRef.current == null) {
+        const recordingsList = await window.electronAPI.getRecordings();
+        recordingsCacheRef.current = recordingsList;
+        setRecordings(recordingsList);
+        loadRecordingThumbnails(recordingsList.slice(0, 4));
+        Logger.info(`Loaded ${recordingsList.length} recordings (updated)`);
+      } else {
+        setRecordings(recordingsCacheRef.current);
+        Logger.info(`Loaded ${recordingsCacheRef.current.length} recordings (loaded with cache)`);
+        const recordingsList = window.electronAPI.getRecordings();
+        recordingsList.then(list => {
+          const hasChanges = JSON.stringify(list) !== JSON.stringify(recordingsCacheRef.current);
+          if (hasChanges) {
+            recordingsCacheRef.current = list;
+            setRecordings(list);
+            loadRecordingThumbnails(list.slice(0, 4));
+            Logger.info(`Async Loaded ${list.length} recordings (updated)`);
+          } else {
+            Logger.info(`Async Loaded ${list.length} recordings (no changes, skipped update)`);
+          }
+          lastRefreshTimeRef.current = now;
+        });
+      }
+      lastRefreshTimeRef.current = now;
+    } catch (error) {
+      Logger.error('Error loading recordings:', error);
+    }
+  };
+
+  const loadFavoriteRecordings = async () => {
+    try {
+      const result = await window.electronAPI.getFavoriteRecordings();
+      if (result.success) {
+        setFavoriteRecordings(result.favorites || []);
+        setRecordingNotes(result.notes || {});
+        setFavoriteGroups(result.groups || []);
+        setFavoriteRecordingGroups(result.recordingGroups || {});
+      }
+    } catch (error) {
+      Logger.error('Error loading favorite recordings:', error);
+    }
+  };
+
   const loadingConfig = async () => {
     try {
       const result = await window.electronAPI.getAppConfig();
@@ -374,170 +442,343 @@ function App() {
     }
   };
 
-
-  // 切换标签时 yield 给浏览器事件循环，让 DOM 先刷完
-  useEffect(() => {
-    const timer = setTimeout(() => {}, 0);
-    return () => clearTimeout(timer);
-  }, [activeTab]);
-
-  // 复盘工作区统一使用同一尺寸，避免在地图、战绩和截图之间切换时跳变。
-  useEffect(() => {
-    if (activeTab === 'review' || activeTab === 'entertainment' || activeTab === 'stats' || activeTab === 'capture') {
-      // 恢复用户上次手动调整的大工作区尺寸；首次使用时为 1400×1000。
-      window.electronAPI.getWorkspaceWindowSize().then(size => {
-        if (size.success) window.electronAPI.resizeWindow(size.width, size.height);
-      });
+  const handleRecordingQualityChange = async (quality: RecordingQuality) => {
+    if (quality === recordingQuality) return;
+    const prev = recordingQuality;
+    setRecordingQuality(quality);
+    const result = await window.electronAPI.setRecordingQualityConfig(quality);
+    if (!result.success) {
+      setRecordingQuality(prev);
+      emitAppError('保存画质预设失败');
     } else {
-      // 切换到其他标签时恢复默认大小
-      window.electronAPI.resizeWindow(500, 800);
+      const labels: Record<RecordingQuality, string> = {
+        performance: '流畅 (30 FPS)',
+        balanced: '均衡 (60 FPS)',
+        quality: '高清 (60 FPS+)',
+      };
+      emitAppToast(`录制画质已切换为 ${labels[quality]}`, 'success');
     }
-  }, [activeTab]);
-
-  // Window control functions
-  const handleMinimize = () => {
-    window.electronAPI.windowMinimize();
   };
 
+  const handleToggleTheme = () => {
+    setTheme(prev => {
+      const next: StudioTheme = prev === 'noir' ? 'cream' : 'noir';
+      emitAppToast(next === 'cream' ? '已切换至奶油桌游浅色风' : '已切换至暖黑侦探俱乐部', 'info', '主题切换');
+      return next;
+    });
+  };
+
+  const handleToggleMiniMode = () => {
+    setMiniMode(prev => {
+      const next = !prev;
+      if (next) {
+        if (activeTab !== 'games' && activeTab !== 'recordings' && activeTab !== 'settings') {
+          setActiveTab('games');
+        }
+        window.electronAPI.resizeWindow(460, 760);
+        emitAppToast('已切换为迷你侧边录制窗', 'info');
+      } else {
+        window.electronAPI.resizeWindow(1240, 820);
+        emitAppToast('已恢复完整宽屏演播室', 'info');
+      }
+      return next;
+    });
+  };
+
+  // Draggable split divider for Review Mode
+  const handleStartSplitDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDraggingSplit(true);
+    const stage = mainStageRef.current;
+    if (!stage) return;
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      const rect = stage.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const pct = ((moveEvent.clientX - rect.left) / rect.width) * 100;
+      const clamped = Math.max(28, Math.min(64, Math.round(pct * 10) / 10));
+      setReviewSplitRatio(clamped);
+    };
+
+    const handleUp = () => {
+      setIsDraggingSplit(false);
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      setReviewSplitRatio(current => {
+        try {
+          window.localStorage.setItem(REVIEW_SPLIT_STORAGE_KEY, String(current));
+        } catch {
+          // Ignore storage errors.
+        }
+        return current;
+      });
+    };
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+  };
+
+  const handleMinimize = () => window.electronAPI.windowMinimize();
   const handleMaximize = () => {
     window.electronAPI.windowMaximize();
     setIsMaximized(!isMaximized);
   };
-
-  const handleClose = () => {
-    window.electronAPI.windowClose();
-  };
+  const handleClose = () => window.electronAPI.windowClose();
 
   const startGame = async () => {
     try {
       const result = await window.electronAPI.startGame(gamePath);
       if (!result.success) {
-        alert('请先在设置中选择正确的游戏程序路径');
-        Logger.error('Failed to start game');
+        emitAppError('请先在设置中选择正确的游戏程序路径');
       } else {
-        Logger.info('Game started successfully');
+        emitAppToast('正在启动游戏程序…', 'success', '启动游戏');
       }
     } catch (error) {
       Logger.error('Error starting game:', error);
+      emitAppError('启动游戏失败，请检查路径配置');
     }
   };
 
-  // 通知主进程当前选中的游戏名，用于 getDisplayMedia 自动匹配窗口
+  const openRecordingsDirectory = async () => {
+    if (!recordingsDir) {
+      const r = await window.electronAPI.getRecordingsDir();
+      if (r.success && r.recordingsDir) {
+        await window.electronAPI.openDir(r.recordingsDir);
+        return;
+      }
+    }
+    if (recordingsDir) {
+      await window.electronAPI.openDir(recordingsDir);
+    }
+  };
+
   useEffect(() => {
     if (selectedGame) {
       window.electronAPI.setRecordingTarget({ name: selectedGame.name, pid: selectedGame.pid });
     }
   }, [selectedGame]);
 
-  // Add tooltip to indicate shortcut keys
-  useEffect(() => {
-    const recordButton = document.querySelector<HTMLElement>('.record-button');
-    const stopButton = document.querySelector<HTMLElement>('.stop-button');
-
-    if (recordButton) {
-      recordButton.title = '快捷键: Ctrl+Shift+S';
-    }
-
-    if (stopButton) {
-      stopButton.title = '快捷键: Ctrl+Shift+D';
-    }
-  }, [isRecording]);
+  const recordingTimeLabel = formatTime(recordingTime);
 
   const commandActions: CommandPaletteAction[] = [
-    { id: 'go-record', label: '打开录制', detail: '选择游戏并开始捕捉', shortcut: '⌘1', run: () => navigateWorkspace('games') },
-    { id: 'go-library', label: '打开录像库', detail: '浏览、筛选和复盘录像', shortcut: '⌘2', run: () => navigateWorkspace('recordings') },
-    { id: 'go-annotate', label: '打开标注工作区', detail: '地图、截图与玩家关系', shortcut: '⌘3', run: () => navigateWorkspace('entertainment') },
-    { id: 'go-stats', label: '打开战绩分析', detail: '查看对局与玩家数据', shortcut: '⌘4', run: () => navigateWorkspace('stats') },
-    { id: 'go-settings', label: '打开设置', detail: '管理应用偏好和连接', shortcut: '⌘5', run: () => navigateWorkspace('settings') },
-    ...(isRecording ? [{ id: 'stop-recording', label: '结束录制', detail: '保存当前录像并打开录像库', shortcut: '⌘⇧D', run: stopRecording }] : []),
+    { id: 'go-record', label: '打开录制台', detail: '双栏导播台与窗口雷达', shortcut: 'Ctrl+1', icon: 'record', category: '工作区', keywords: 'record capture game 录制 游戏', run: () => navigateWorkspace('games') },
+    { id: 'go-library', label: '打开录像影院', detail: '16:9 海报库与时间戳复盘笔记', shortcut: 'Ctrl+2', icon: 'film', category: '工作区', keywords: 'library video replay 录像 回放 影院', run: () => navigateWorkspace('recordings') },
+    { id: 'go-annotate', label: '打开推理沙盘', detail: '13 张鹅鸭杀地图标记、连线与轨迹', shortcut: 'Ctrl+3', icon: 'map', category: '工作区', keywords: 'map annotate deduction 地图 标注 推理 沙盘', run: () => navigateWorkspace('entertainment') },
+    { id: 'go-stats', label: '打开战绩档案', detail: '查询 Gaggle 生涯统计与回合投票', shortcut: 'Ctrl+4', icon: 'chart', category: '工作区', keywords: 'stats gaggle match 战绩 统计', run: () => navigateWorkspace('stats') },
+    { id: 'go-capture', label: '打开截图标注', detail: '框选桌面区域并绘制批注', shortcut: 'Ctrl+5', icon: 'image', category: '工作区', keywords: 'screenshot capture 截图 批注', run: () => navigateWorkspace('capture') },
+    { id: 'go-review', label: '进入分屏复盘模式', detail: '左侧录像影院 + 右侧推理沙盘（可拖拽调宽）', icon: 'split', category: '复盘', keywords: 'review split 复盘 分屏', run: () => navigateWorkspace('review') },
+    { id: 'go-settings', label: '打开系统设置', detail: '保存路径、录制画质与引擎诊断', shortcut: 'Ctrl+6', icon: 'settings', category: '工作区', keywords: 'settings config 设置 编码', run: () => navigateWorkspace('settings') },
+    {
+      id: 'toggle-theme',
+      label: theme === 'noir' ? '切换为奶油桌游浅色主题' : '切换为暖黑侦探深色主题',
+      detail: '暖黑黑胶俱乐部 ↔ 温润奶油桌游绘本风',
+      icon: theme === 'noir' ? 'sun' : 'moon',
+      category: '外观',
+      keywords: 'theme dark light cream noir 主题 浅色 深色 配色',
+      run: handleToggleTheme,
+    },
+    {
+      id: 'toggle-mini',
+      label: miniMode ? '恢复完整宽屏演播室' : '切换为迷你侧边录制窗',
+      detail: miniMode ? '恢复 1240×820 宽屏双栏工作台' : '收拢为 460×760 轻量录制小窗',
+      icon: miniMode ? 'maximize' : 'minimize',
+      category: '外观',
+      keywords: 'mini compact window 迷你 小窗 宽屏',
+      run: handleToggleMiniMode,
+    },
+    {
+      id: 'refresh-processes',
+      label: '刷新窗口雷达',
+      detail: '重新扫描运行中的游戏进程',
+      icon: 'refresh',
+      category: '快捷',
+      keywords: 'refresh process 刷新 进程',
+      run: () => {
+        loadGameProcesses();
+        emitAppToast('已刷新窗口雷达', 'info');
+      },
+    },
+    ...(gamePath ? [{
+      id: 'launch-game',
+      label: '一键启动游戏',
+      detail: gamePath,
+      icon: 'rocket' as const,
+      category: '快捷',
+      keywords: 'launch start game 启动 游戏',
+      run: startGame,
+    }] : []),
+    ...(!isRecording && selectedGame ? [{
+      id: 'start-recording',
+      label: `开始录制 ${selectedGame.name}`,
+      detail: '立即启动高帧率画面与声音捕捉',
+      shortcut: 'Ctrl+Shift+S',
+      icon: 'record' as const,
+      category: '录制',
+      keywords: 'start record 开始 录制',
+      run: () => startRecording(selectedGame, recordingQuality),
+    }] : []),
+    ...(isRecording ? [
+      {
+        id: 'toggle-pause',
+        label: isPaused ? '继续当前录制' : '暂停当前录制',
+        detail: `${selectedGame?.name || '当前游戏'} · ${recordingTimeLabel}`,
+        icon: (isPaused ? 'play' : 'pause') as 'play' | 'pause',
+        category: '录制',
+        keywords: 'pause resume 暂停 继续',
+        run: togglePause,
+      },
+      {
+        id: 'stop-recording',
+        label: '结束录制并保存',
+        detail: '保存录像文件至本地录像影院',
+        shortcut: 'Ctrl+Shift+D',
+        icon: 'stop' as const,
+        category: '录制',
+        keywords: 'stop finish 结束 停止 录制',
+        run: stopRecording,
+      },
+    ] : []),
   ];
 
+  const handleOpenRecentRecording = (rec: Recording, enterReview = false) => {
+    setPendingRecordingId(rec.id);
+    navigateWorkspace(enterReview ? 'review' : 'recordings');
+  };
+
   return (
-    <div className="app">
-      <TitleBar isMaximized={isMaximized} onMinimize={handleMinimize} onMaximize={handleMaximize} onClose={handleClose} />
-      <div className="workspace-shell">
-        <WorkspaceRail
-          activeWorkspace={activeTab}
-          recordingsCount={recordings.length}
-          isRecording={isRecording}
-          onNavigate={navigateWorkspace}
-        />
+    <div
+      className={`app studio-app ${isRecording ? 'is-recording' : ''} ${miniMode ? 'is-mini' : ''}`}
+      data-theme={theme}
+    >
+      <StudioTopBar
+        activeWorkspace={activeTab}
+        recordingsCount={recordings.length}
+        isRecording={isRecording}
+        isPaused={isPaused}
+        recordingTimeLabel={recordingTimeLabel}
+        theme={theme}
+        miniMode={miniMode}
+        isMaximized={isMaximized}
+        onNavigate={navigateWorkspace}
+        onToggleTheme={handleToggleTheme}
+        onToggleMiniMode={handleToggleMiniMode}
+        onOpenCommand={() => setCommandPaletteOpen(true)}
+        onMinimize={handleMinimize}
+        onMaximize={handleMaximize}
+        onClose={handleClose}
+      />
+
+      <div className="studio-canvas">
         <WorkspaceStage>
-          <ContextBar
-            activeWorkspace={activeTab}
-            isRecording={isRecording}
-            onNavigate={navigateWorkspace}
-            onOpenCommand={() => setCommandPaletteOpen(true)}
-          />
           <ErrorBoundary>
-          <main className={`app-main ${activeTab === 'review' ? 'review-mode' : ''}`}>
-        <div className={`tab-pane workspace-pane map-pane ${activeTab === 'entertainment' || activeTab === 'review' ? 'active' : 'hidden'}`}>
-          <MapTab
-            selectedMap={sharedMapId}
-            setSelectedMap={setSharedMapId}
-            currentSequence={sharedMapSequence}
-            setCurrentSequence={setSharedMapSequence}
-            mapMarkersByMap={sharedMapMarkersByMap}
-            setMapMarkersByMap={setSharedMapMarkersByMap}
-            roleAssignments={sharedRoleAssignments}
-            setRoleAssignments={setSharedRoleAssignments}
-            connectionsByMap={sharedConnectionsByMap}
-            setConnectionsByMap={setSharedConnectionsByMap}
-            markerTrailsByMap={sharedMarkerTrailsByMap}
-            setMarkerTrailsByMap={setSharedMarkerTrailsByMap}
-            deadMarkers={sharedDeadMarkers}
-            setDeadMarkers={setSharedDeadMarkers}
-          />
-        </div>
-        <div className={`tab-pane workspace-pane recordings-pane ${activeTab === 'recordings' || activeTab === 'review' ? 'active' : 'hidden'}`}>
-          <RecordingsTab
-            recordings={recordings}
-            recordingThumbnails={recordingThumbnails}
-            favoriteRecordings={favoriteRecordings}
-            recordingNotes={recordingNotes}
-            favoriteGroups={favoriteGroups}
-            favoriteRecordingGroups={favoriteRecordingGroups}
-            onLoadThumbnails={loadRecordingThumbnails}
-            onRefreshRecordings={() => loadRecordings(true)}
-            onRefreshFavorites={() => loadFavoriteRecordings()}
-            onEnterReview={() => setActiveTab('review')}
-          />
-        </div>
-        <div className={`tab-pane workspace-pane stats-pane ${activeTab === 'stats' ? 'active' : 'hidden'}`}>
-          <StatsTab />
-        </div>
-        <div className={`tab-pane workspace-pane capture-pane ${activeTab === 'capture' ? 'active' : 'hidden'}`}>
-          <ScreenshotTab />
-        </div>
-        {activeTab === 'games' ? (
-          <GameTab
-            gameProcesses={gameProcesses}
-            selectedGame={selectedGame}
-            isRecording={isRecording}
-            isPaused={isPaused}
-            recordingError={recordingError}
-            gamePath={gamePath}
-            onSelectGame={setSelectedGame}
-            onRefreshProcesses={loadGameProcesses}
-            onStartRecording={(game) => startRecording(game, recordingQuality)}
-            onStopRecording={stopRecording}
-            onPauseResume={togglePause}
-            onStartGame={startGame}
-          />
-        ) : activeTab === 'settings' ? (
-          <SettingsTab
-            recordingsDir={recordingsDir}
-            gamePath={gamePath}
-            recordingQuality={recordingQuality}
-            onRecordingsDirChange={(dir) => { setRecordingsDir(dir); loadRecordings(true); }}
-            onGamePathChange={(path) => setGamePath(path)}
-            onRecordingQualityChange={setRecordingQuality}
-          />
-        ) : null}
-          </main>
+            <main
+              ref={mainStageRef}
+              className={`app-main ${activeTab === 'review' ? 'review-mode' : ''} ${isDraggingSplit ? 'is-resizing-split' : ''}`}
+              style={
+                activeTab === 'review'
+                  ? ({ '--review-split-left': `${reviewSplitRatio}%` } as React.CSSProperties)
+                  : undefined
+              }
+            >
+              <div className={`tab-pane workspace-pane recordings-pane ${activeTab === 'recordings' || activeTab === 'review' ? 'active' : 'hidden'}`}>
+                <RecordingsTab
+                  recordings={recordings}
+                  recordingThumbnails={recordingThumbnails}
+                  favoriteRecordings={favoriteRecordings}
+                  recordingNotes={recordingNotes}
+                  favoriteGroups={favoriteGroups}
+                  favoriteRecordingGroups={favoriteRecordingGroups}
+                  initialSelectedRecordingId={pendingRecordingId}
+                  isReviewMode={activeTab === 'review'}
+                  onConsumeInitialRecording={() => setPendingRecordingId(null)}
+                  onLoadThumbnails={loadRecordingThumbnails}
+                  onRefreshRecordings={() => loadRecordings(true)}
+                  onRefreshFavorites={() => loadFavoriteRecordings()}
+                  onEnterReview={() => navigateWorkspace('review')}
+                />
+              </div>
+
+              {activeTab === 'review' && (
+                <div
+                  className="review-split-handle"
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="拖拽调整录像与地图分屏比例"
+                  title="左右拖拽调整分屏比例"
+                  onPointerDown={handleStartSplitDrag}
+                >
+                  <span aria-hidden="true" />
+                </div>
+              )}
+
+              <div className={`tab-pane workspace-pane map-pane ${activeTab === 'entertainment' || activeTab === 'review' ? 'active' : 'hidden'}`}>
+                <MapTab
+                  selectedMap={sharedMapId}
+                  setSelectedMap={setSharedMapId}
+                  currentSequence={sharedMapSequence}
+                  setCurrentSequence={setSharedMapSequence}
+                  mapMarkersByMap={sharedMapMarkersByMap}
+                  setMapMarkersByMap={setSharedMapMarkersByMap}
+                  roleAssignments={sharedRoleAssignments}
+                  setRoleAssignments={setSharedRoleAssignments}
+                  connectionsByMap={sharedConnectionsByMap}
+                  setConnectionsByMap={setSharedConnectionsByMap}
+                  markerTrailsByMap={sharedMarkerTrailsByMap}
+                  setMarkerTrailsByMap={setSharedMarkerTrailsByMap}
+                  deadMarkers={sharedDeadMarkers}
+                  setDeadMarkers={setSharedDeadMarkers}
+                />
+              </div>
+
+              <div className={`tab-pane workspace-pane stats-pane ${activeTab === 'stats' ? 'active' : 'hidden'}`}>
+                <StatsTab />
+              </div>
+
+              <div className={`tab-pane workspace-pane capture-pane ${activeTab === 'capture' ? 'active' : 'hidden'}`}>
+                <ScreenshotTab />
+              </div>
+
+              {activeTab === 'games' ? (
+                <GameTab
+                  gameProcesses={gameProcesses}
+                  selectedGame={selectedGame}
+                  isRecording={isRecording}
+                  isPaused={isPaused}
+                  recordingTimeLabel={recordingTimeLabel}
+                  recordingError={recordingError}
+                  gamePath={gamePath}
+                  recordingsDir={recordingsDir}
+                  recordingQuality={recordingQuality}
+                  recentRecordings={recordings}
+                  recordingThumbnails={recordingThumbnails}
+                  miniMode={miniMode}
+                  onSelectGame={setSelectedGame}
+                  onRefreshProcesses={loadGameProcesses}
+                  onStartRecording={game => startRecording(game, recordingQuality)}
+                  onStopRecording={stopRecording}
+                  onPauseResume={togglePause}
+                  onStartGame={startGame}
+                  onRecordingQualityChange={handleRecordingQualityChange}
+                  onOpenRecordingsDir={openRecordingsDirectory}
+                  onOpenCapture={() => navigateWorkspace('capture')}
+                  onOpenLibrary={() => navigateWorkspace('recordings')}
+                  onOpenRecording={handleOpenRecentRecording}
+                />
+              ) : activeTab === 'settings' ? (
+                <SettingsTab
+                  recordingsDir={recordingsDir}
+                  gamePath={gamePath}
+                  recordingQuality={recordingQuality}
+                  onRecordingsDirChange={dir => { setRecordingsDir(dir); loadRecordings(true); }}
+                  onGamePathChange={path => setGamePath(path)}
+                  onRecordingQualityChange={setRecordingQuality}
+                />
+              ) : null}
+            </main>
           </ErrorBoundary>
         </WorkspaceStage>
       </div>
+
       <RecordingDock
         isRecording={isRecording}
         isPaused={isPaused}
@@ -546,12 +787,10 @@ function App() {
         formatTime={formatTime}
         onTogglePause={togglePause}
         onStop={stopRecording}
-        onOpenLibrary={() => {
-          setActiveTab('recordings');
-          loadRecordings();
-        }}
+        onOpenLibrary={() => navigateWorkspace('recordings')}
       />
       <TopErrorToast message={topError} onClose={() => setTopError('')} />
+      <TopStatusToast toast={statusToast} onClose={() => setStatusToast(null)} />
       <CommandPalette
         open={commandPaletteOpen}
         actions={commandActions}

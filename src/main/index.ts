@@ -25,7 +25,23 @@ try {
 
 registerPrivilegedSchemes();
 
+let primaryWindow: BrowserWindow | null = null;
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (primaryWindow && !primaryWindow.isDestroyed()) {
+      if (primaryWindow.isMinimized()) primaryWindow.restore();
+      primaryWindow.show();
+      primaryWindow.focus();
+    }
+  });
+}
+
 app.whenReady().then(async () => {
+  if (!gotSingleInstanceLock) return;
   try {
     const { config } = await import('dotenv');
     const envPath = app.isPackaged
@@ -45,6 +61,7 @@ app.whenReady().then(async () => {
   registerProtocolHandlers();
 
   const mainWindow = createWindow();
+  primaryWindow = mainWindow;
   createRecordingFloatWindow(mainWindow);
   registerRecordingFloatHandlers(mainWindow);
   createTray(mainWindow);
